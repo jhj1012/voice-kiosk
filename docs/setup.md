@@ -68,7 +68,28 @@ npm --prefix frontend run build
 
 ## Running the kiosk
 
-The display and the handset come in milestones 6 and 7. Until then:
+**The kiosk** (backend + display; the handset's audio comes in milestone 7):
+
+```bash
+npm --prefix frontend run build   # once, and after changing the display
+uv run python -m kiosk
+```
+
+Open <http://127.0.0.1:8765>. `Space` lifts / puts down the simulated handset, `F2` opens the
+developer panel; type what the customer says there (typing also lifts the handset). The
+conversation and every function call are logged to `logs/kiosk-<date>.log` (git-ignored, text
+only). Full screen on the kiosk PC:
+
+```bash
+msedge --kiosk http://127.0.0.1:8765 --edge-kiosk-type=fullscreen --no-first-run
+```
+
+While changing the display, run the backend *and* `npm --prefix frontend run dev`, and open
+<http://localhost:5173>: Vite reloads on every change and forwards `/ws` and `/images` to the
+backend. If a page ever shows a mix of old and new code, restart `npm run dev`.
+
+New menu images (`data/images/<item id>.png`) appear when the display reconnects (reload it); no
+restart needed.
 
 **Typed conversation in the terminal** (real Live API, audio muted): one customer session per
 handset lift; type what the customer says.

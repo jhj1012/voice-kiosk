@@ -18,9 +18,10 @@ This is a **demo of an idea**, not a product: payment is simulated.
 Built in milestones (see [docs/architecture.md](docs/architecture.md#milestones)). Done:
 repository and CI (1), menu data, order and kiosk flow (2), Live API check (3,
 [results](docs/live-check.md)), and the assistant session with function calls and safety rules
-(4), and the display with its animations, driven by recorded events (5). Try the assistant typed
-in the terminal (`uv run python -m kiosk.assistant.chat`) or watch the display's demo
-(`npm --prefix frontend run dev`, then <http://localhost:5173/?demo=order>).
+(4), the display with its animations (5), and the backend wired to the display (6). Run it with
+`npm --prefix frontend run build` and `uv run python -m kiosk`, open <http://127.0.0.1:8765>,
+press `Space` to lift the handset and `F2` to type what the customer says (the handset's audio
+comes in milestone 7).
 
 ## Screenshots
 
