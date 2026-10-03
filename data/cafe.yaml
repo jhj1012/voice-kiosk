@@ -1,0 +1,55 @@
+# Information about the cafe that the assistant may answer questions from, and show as a card.
+# Everything here was INVENTED for the demo (`verified: false`) until the team checks it.
+# The assistant answers ONLY from this file and menu.yaml; if neither says, it says it does not
+# know and suggests asking the staff.
+#
+# Each topic: id (used by the assistant to show the card), title, text (Korean).
+
+name: 소리 카페
+verified: false
+
+topics:
+  - id: hours
+    title: 영업시간
+    text: 매일 오전 8시부터 오후 10시까지 영업해요. 마지막 주문은 오후 9시 30분이에요.
+    verified: false
+
+  - id: wifi
+    title: 와이파이
+    text: "와이파이 이름은 SORI_CAFE, 비밀번호는 sori1234예요."
+    verified: false
+
+  - id: restroom
+    title: 화장실
+    text: 매장 안쪽 왼편 복도 끝에 있어요. 문 비밀번호는 픽업대에 적혀 있어요.
+    verified: false
+
+  - id: pickup
+    title: 음료 받는 곳
+    text: 결제 후 화면에 나온 주문 번호를 기억해 주세요. 번호가 불리면 오른쪽 픽업대에서 받아 가시면 돼요.
+    verified: false
+
+  - id: waiting_time
+    title: 대기 시간
+    text: 보통 음료는 5분 안팎, 주문이 많을 때는 10분 정도 걸려요.
+    verified: false
+
+  - id: outlets
+    title: 콘센트
+    text: 창가 쪽 바 테이블 자리에 콘센트가 있어요.
+    verified: false
+
+  - id: parking
+    title: 주차
+    text: 매장 전용 주차장은 없어요. 근처 공영주차장을 이용해 주세요.
+    verified: false
+
+  - id: allergy
+    title: 알레르기 안내
+    text: 메뉴의 알레르기 정보는 참고용이에요. 같은 공간에서 우유, 대두, 밀, 계란 등을 함께 다루므로 알레르기가 심하시면 직원에게 꼭 확인해 주세요.
+    verified: false
+
+  - id: refill
+    title: 리필
+    text: 리필은 하지 않아요.
+    verified: false
