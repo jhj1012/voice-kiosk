@@ -1,9 +1,8 @@
 <script lang="ts">
-  // The items the assistant chose, as a clean list with large pictures (customers choose by
-  // the picture). When it shows other items, rows that stay move to their new places and the
-  // others fade: the page never "changes".
+  // The items the assistant chose. When it shows other items, the cards that stay move to their
+  // new places and the others fade: the page never "changes".
   import { flip } from 'svelte/animate';
-  import { fade } from 'svelte/transition';
+  import { fade, scale } from 'svelte/transition';
   import { cubicOut } from 'svelte/easing';
   import { won } from '../format';
   import { itemById } from '../menu';
@@ -16,40 +15,43 @@
   const items = $derived(
     view.item_ids.map((id) => itemById(ui.menu, id)).filter((i): i is MenuItem => !!i),
   );
-  // More than five rows only fit when they are a little smaller.
-  const compact = $derived(items.length > 5);
+  // Cards keep one modest size; four items make a centered 2x2 block.
+  const columns = $derived(items.length <= 4 ? 2 : items.length <= 6 ? 3 : 4);
 </script>
 
-<div class="menu" class:compact>
+<div class="menu" style:--columns={columns}>
   {#key view.title}
     <p class="caption" in:fade={{ duration: 400, delay: 200 }}>{view.title}</p>
   {/key}
   {#if items.length === 0}
     <p class="empty" in:fade>해당하는 메뉴가 없어요</p>
   {/if}
-  <ul>
+  <div class="grid">
     {#each items as item, i (item.id)}
-      <li
+      <article
+        class="card"
         animate:flip={{ duration: 550, easing: cubicOut }}
-        in:fade|global={{ duration: 450, delay: 120 + i * 70, easing: cubicOut }}
+        in:scale|global={{
+          start: 0.94,
+          opacity: 0,
+          duration: 450,
+          delay: 120 + i * 60,
+          easing: cubicOut,
+        }}
         out:fade={{ duration: 200 }}
       >
         <div
-          class="picture"
           data-fly-source={item.id}
           in:receive|global={{ key: item.id }}
           out:send|global={{ key: item.id }}
         >
           <ItemImage {item} />
         </div>
-        <div class="what">
-          <span class="name">{item.name}</span>
-          <span class="description">{item.description}</span>
-        </div>
+        <span class="name">{item.name}</span>
         <span class="price">{won(item.price)}</span>
-      </li>
+      </article>
     {/each}
-  </ul>
+  </div>
 </div>
 
 <style>
@@ -57,8 +59,7 @@
     height: 100%;
     display: flex;
     flex-direction: column;
-    gap: 1rem;
-    padding: 0 1rem;
+    gap: 1.6rem;
   }
   .caption {
     min-height: 2.2rem;
@@ -72,49 +73,29 @@
     color: var(--muted);
     text-align: center;
   }
-  ul {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-  }
-  li {
+  .grid {
     display: grid;
-    grid-template-columns: 10.5rem 1fr auto;
-    align-items: center;
-    gap: 2.2rem;
-    padding: 1.4rem 0;
-    border-bottom: 1px solid var(--line);
+    grid-template-columns: repeat(var(--columns), minmax(0, 18rem));
+    justify-content: center;
+    gap: 3rem 2.6rem;
+    align-content: start;
   }
-  li:last-child {
-    border-bottom: none;
-  }
-  .compact li {
-    grid-template-columns: 7.5rem 1fr auto;
-    padding: 1rem 0;
-  }
-  .what {
+  .card {
     display: flex;
     flex-direction: column;
     gap: 0.4rem;
-    min-width: 0;
+  }
+  .card > div {
+    margin-bottom: 0.8rem;
   }
   .name {
-    font-size: 2.5rem;
+    font-size: 2.1rem;
     font-weight: 700;
     letter-spacing: -0.02em;
-  }
-  .description {
-    font-size: 1.6rem;
-    color: var(--muted);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    word-break: keep-all;
   }
   .price {
-    font-size: 2.3rem;
-    font-weight: 600;
-  }
-  .compact .name {
-    font-size: 2.1rem;
+    font-size: 1.7rem;
+    color: var(--text-2);
   }
 </style>

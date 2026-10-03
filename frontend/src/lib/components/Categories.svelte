@@ -35,12 +35,13 @@
 <style>
   .categories {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 2.4rem;
+    grid-template-columns: repeat(2, 18rem);
+    justify-content: center;
+    gap: 2.6rem;
     align-content: start;
   }
   .kind {
-    aspect-ratio: 1.15;
+    aspect-ratio: 1;
     border-radius: var(--radius-l);
     background: linear-gradient(160deg, #f6f9ff, var(--tint-2));
     display: flex;
@@ -50,10 +51,10 @@
     gap: 0.6rem;
   }
   .emoji {
-    font-size: 6rem;
+    font-size: 5rem;
   }
   .name {
-    font-size: 2.6rem;
+    font-size: 2.4rem;
     font-weight: 700;
     letter-spacing: -0.02em;
   }

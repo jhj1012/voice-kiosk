@@ -178,11 +178,11 @@ order at the bottom, and in between what the assistant chose appears and disappe
 - **Conversation**: under the orb, what the customer said (blue, in quotes) and what the
   assistant says; older words fade out at the top.
 - **Menus**: the items the assistant chose (3–5 recommendations, a category, or a filtered set),
-  no heading except a small caption for a filter or a category. A clean list: a large picture
-  (customers choose by it), the name with a short description, the price. When the assistant shows
-  other items, the rows that stay move to their new places and the others fade (`flip`).
-- **Kinds of menu** (`show_categories`): four tiles, for "다른 메뉴도 보여 주세요".
-- **Item**: the row's picture grows into a large image (`crossfade`); name, price, description,
+  no heading except a small caption for a filter or a category. Modest cards of one size
+  (picture, name, price), centered; they never fill the whole screen. When the assistant shows
+  other items, the cards that stay move to their new places and the others fade (`flip`).
+- **Kinds of menu** (`show_categories`): four tiles of the same size, for "다른 메뉴도 보여 주세요".
+- **Item**: the card's picture grows into a large image (`crossfade`); name, price, description,
   ingredients and facts; only the required choices, which fill in blue when chosen. An added item
   flies into the order bar and the total counts up.
 - **Order bar**: a quiet bar at the bottom while ordering (thumbnails, count, total). The review,

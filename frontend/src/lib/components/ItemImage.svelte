@@ -37,7 +37,7 @@
     object-fit: cover;
   }
   .emoji {
-    font-size: 6.5rem;
+    font-size: 5.5rem;
   }
   .l .emoji {
     font-size: 13rem;
