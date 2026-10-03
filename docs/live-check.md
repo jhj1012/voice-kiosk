@@ -80,6 +80,28 @@ asking before cancelling the whole order.
 3. Prompt: call `choose_item` as soon as an item is named, `set_options` for each partial answer,
    shorter replies, no temperature question for items served one way.
 
+## Subtitles: showing what the assistant understood (milestone 8)
+
+The customer's subtitle shows the raw transcription, e.g. "엘레 사이트로 주세요" when the customer
+meant 플랫화이트. The team asked whether the screen could show what the assistant understood
+instead. Measured with synthesized, deliberately mispronounced speech, 7 turns × 3 sessions per
+variant (median time from the end of speech to the first audio of the reply):
+
+| Variant | Reply | Understood text written | Problems |
+|---|---|---|---|
+| Today (raw transcription) | 0.86 s | — | — |
+| The model calls `heard(text)` first, then goes on | 1.30 s on turns with the call (0.84 s without) | 10 of 21 turns | It skipped the call on short answers and questions |
+| `heard` as a NON_BLOCKING function, answered SILENT | 1.12 s | 13 of 21 turns | **7 of 21 turns had no spoken reply at all** |
+| A separate text model corrects the transcript | not delayed; the text after 1.5 s | 21 of 21 | Invented words ("엘레 사이트로" → "아메리카노 아이스로", "이요." → a whole order) |
+
+- About 0.2–0.4 s slower when the model writes the text; but it does so only half of the time.
+- With this voice the model itself took "엘레사이트" for 아인슈페너 in 4 of 6 sessions: a
+  subtitle with the model's understanding would at least show the customer that it misheard.
+- The transcription wrote "아이스요" as "I see", "아이세요" or "아이셀"; these are now aliases of
+  ICE, so the required-option check accepts them.
+
+Decision: keep the raw transcription for now.
+
 ## Still to check by a person
 
 - **Real voice recognition and barge-in**: `uv run python scripts/live_check.py mic

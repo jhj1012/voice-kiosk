@@ -47,7 +47,8 @@ option_groups:
         name: ICE
         say: 아이스
         price: 0
-        aliases: [차가, 차갑, 시원, 아아, ice]
+        # 아이세/아이셀/i see: how the transcription often writes "아이스요"
+        aliases: [차가, 차갑, 시원, 아아, ice, 아이세, 아이셀, i see]
   - id: size
     name: 사이즈
     required: true
