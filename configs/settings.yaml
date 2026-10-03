@@ -6,8 +6,15 @@
 
 live:
   model: gemini-3.8-live  # see docs/decisions.md; must be a Live API model
-  voice: ""               # prebuilt voice name; empty = the model's default
+  voice: Sulafat          # prebuilt voice name; empty = the model's default
   api_key_env: GEMINI_API_KEY
+  language: ko-KR
+  vocabulary: true        # bias the transcription towards menu and option names
+  # Server-side voice detection; values measured in docs/live-check.md.
+  start_sensitivity: high # high | low | "" (API default)
+  end_sensitivity: ""
+  prefix_padding_ms: 300
+  silence_duration_ms: null
 
 audio:
   input_device: null      # the handset's microphone: null = Windows default, an index or part of the name

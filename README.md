@@ -15,9 +15,10 @@ This is a **demo of an idea**, not a product: payment is simulated.
 
 ## Status
 
-Built in milestones (see [docs/architecture.md](docs/architecture.md#milestones)).
-Milestones 1 (repository skeleton and CI), 2 (menu data, order and kiosk flow) and 3 (Live API
-check: [results](docs/live-check.md)) are in place.
+Built in milestones (see [docs/architecture.md](docs/architecture.md#milestones)). Done:
+repository and CI (1), menu data, order and kiosk flow (2), Live API check (3,
+[results](docs/live-check.md)), and the assistant session with function calls and safety rules
+(4). Try it typed in the terminal: `uv run python -m kiosk.assistant.chat`.
 
 ## Quick start
 

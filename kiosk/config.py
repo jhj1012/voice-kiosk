@@ -32,6 +32,13 @@ class LiveConfig:
     model: str = "gemini-3.8-live"
     voice: str = ""  # a prebuilt voice name; empty = the model's default
     api_key_env: str = "GEMINI_API_KEY"  # environment variable that holds the API key
+    language: str = "ko-KR"  # speech and transcription language
+    vocabulary: bool = True  # bias the transcription towards menu and option names
+    # Server-side voice detection (milestone 3: short answers were missed with the defaults).
+    start_sensitivity: str = "high"  # high | low | "" (the API's default)
+    end_sensitivity: str = ""  # high | low | ""
+    prefix_padding_ms: int | None = 300  # audio kept before detected speech
+    silence_duration_ms: int | None = None  # silence that ends speech; None = the API's default
 
 
 @dataclass(frozen=True)
@@ -128,6 +135,9 @@ def load_env_file(path: Path = ENV_FILE) -> list[str]:
 def _check(config: Config) -> None:
     if not config.live.model:
         raise ConfigError("settings.yaml: live.model must be set")
+    for name in ("start_sensitivity", "end_sensitivity"):
+        if getattr(config.live, name) not in ("", "high", "low"):
+            raise ConfigError(f"settings.yaml: live.{name} must be high, low or empty")
     audio = config.audio
     if audio.input_rate < 8000 or audio.output_rate < 8000 or audio.frame_ms not in (10, 20, 30):
         raise ConfigError("settings.yaml: audio needs rates >= 8000 and frame_ms 10/20/30")

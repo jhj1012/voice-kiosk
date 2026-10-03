@@ -1,7 +1,9 @@
 """Milestone 3: check the Gemini Live API before building on it.
 
-Talks to the real API (needs GEMINI_API_KEY in .env). Each mode prints a report; details go to
-logs/live_check/ and the assistant's audio to recordings/live_check/ (both git-ignored).
+Talks to the real API (needs GEMINI_API_KEY in .env). Function calls run on the kiosk directly,
+without the session's safety checks (milestone 4), to see what the model does by itself. Each
+mode prints a report; details go to logs/live_check/ and the assistant's audio to
+recordings/live_check/ (both git-ignored).
 
     uv run python scripts/live_check.py text      # typed scenarios: function calls + latency
     uv run python scripts/live_check.py audio     # synthesized Korean speech: recognition + latency
@@ -39,6 +41,7 @@ from google.genai import types
 
 from kiosk.assistant.actions import Actions
 from kiosk.assistant.instructions import GREETING_CUE, instructions
+from kiosk.assistant.safety import said_amount
 from kiosk.assistant.tools import function_declarations
 from kiosk.config import REPO_ROOT, load_config, load_env_file
 from kiosk.domain.flow import Kiosk, Phase
@@ -444,6 +447,11 @@ def median(values: list[float]) -> float | None:
 Expect = Callable[[Turn, Kiosk], bool]
 
 
+def paid(turn: Turn) -> bool:
+    """request_payment ran and returned the read-back (the session would start the terminal)."""
+    return any("read_back" in c["result"] for c in calls_named(turn, "request_payment"))
+
+
 def no_calls(*names: str) -> Expect:
     return lambda t, k: not any(calls_named(t, n) for n in names)
 
@@ -479,9 +487,7 @@ SCENARIOS: dict[str, list[tuple[str, dict[str, Expect]]]] = {
             "이제 결제할게요",
             {
                 "asks dine-in/take-out first (no payment yet)": lambda t, k: (
-                    k.phase is Phase.ORDERING
-                    and "start_payment"
-                    not in [c["name"] for c in t.calls if "error" not in c["result"]]
+                    k.phase is Phase.ORDERING and not paid(t)
                 )
             },
         ),
@@ -489,14 +495,8 @@ SCENARIOS: dict[str, list[tuple[str, dict[str, Expect]]]] = {
             "포장이요",
             {
                 "set_dining to_go": lambda t, k: has_call(t, "set_dining", dining="to_go"),
-                "review_order then start_payment": lambda t, k: (
-                    [c["name"] for c in t.calls if c["name"] in ("review_order", "start_payment")][
-                        -2:
-                    ]
-                    == ["review_order", "start_payment"]
-                ),
-                "kiosk is paying": lambda t, k: k.phase is Phase.PAYING,
-                "says the read-back total": lambda t, k: "만" in t.said or "원" in t.said,
+                "request_payment": lambda t, k: paid(t),
+                "says the read-back total": lambda t, k: said_amount(t.said, k.order.total),
             },
         ),
     ],

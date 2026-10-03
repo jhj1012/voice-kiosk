@@ -151,6 +151,14 @@ class Order:
         return not self.lines
 
     @property
+    def lines_signature(self) -> tuple[tuple[str, tuple[str, ...], int], ...]:
+        """The items, options and quantities (not the dining choice), to detect item changes."""
+        return tuple(
+            (line.item.id, tuple(f"{c.group_id}:{c.id}" for c in line.choices), line.quantity)
+            for line in self.lines
+        )
+
+    @property
     def total(self) -> int:
         return sum(line.total for line in self.lines)
 

@@ -61,17 +61,31 @@ def test_show_info_returns_the_text(actions: Actions):
     assert "sori1234" in result["text"]
 
 
-def test_review_and_payment(actions: Actions, kiosk: Kiosk):
+def test_request_payment_reviews_the_order(actions: Actions, kiosk: Kiosk):
     actions.call("choose_item", {"item_id": "chocolate_cookie"})
-    assert "error" in actions.call("start_payment", {})
+    assert "error" in actions.call("request_payment", {})  # dining not known yet
     actions.call("set_dining", {"dining": "here"})
-    result = actions.call("review_order", {})
+    result = actions.call("request_payment", {})
     assert result == {
         "read_back": "주문 확인해 드릴게요. 초코 쿠키 1개, 매장에서 드시고 총 2,500원입니다."
     }
-    assert "status" in actions.call("start_payment", {})
-    assert kiosk.phase is Phase.PAYING
+    assert kiosk.review_is_current
+    assert kiosk.phase is Phase.ORDERING  # the session starts the terminal after the read-back
+
+
+def test_show_order(actions: Actions, kiosk: Kiosk):
+    actions.call("choose_item", {"item_id": "chocolate_cookie"})
+    assert actions.call("show_order", {})["order"] == ["1. 초코 쿠키 1개 2,500원"]
+    assert not kiosk.review_is_current
+
+
+def test_cancel_payment(actions: Actions, kiosk: Kiosk):
+    actions.call("choose_item", {"item_id": "chocolate_cookie"})
+    actions.call("set_dining", {"dining": "here"})
+    actions.call("request_payment", {})
+    kiosk.start_payment()
     assert actions.call("cancel_payment", {}) == {"ok": True}
+    assert kiosk.phase is Phase.ORDERING
 
 
 def test_every_declared_function_has_a_handler(actions: Actions, menu, cafe):

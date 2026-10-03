@@ -68,7 +68,20 @@ npm --prefix frontend run build
 
 ## Running the kiosk
 
-Added in later milestones (backend server, display in Edge kiosk mode, typed developer mode).
+The display and the handset come in milestones 6 and 7. Until then:
+
+**Typed conversation in the terminal** (real Live API, audio muted): one customer session per
+handset lift; type what the customer says.
+
+```bash
+uv run python -m kiosk.assistant.chat
+```
+
+`/order` prints the order, `/hangup` ends the session (a new customer starts), `/quit` exits.
+The assistant's words, the screen it chose and the payment steps are printed.
+
+**Live API checks** (milestone 3): `uv run python scripts/live_check.py --help`, results in
+[live-check.md](live-check.md). `mic` mode lets you talk to the assistant through any headset.
 
 ## Troubleshooting
 
