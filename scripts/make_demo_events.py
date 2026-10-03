@@ -105,7 +105,7 @@ def scenario_order(r: Recorder) -> None:
     r.wait(700)
     r.state("thinking")
     r.wait(600)
-    r.says("안녕하세요, 소리 카페입니다. 무엇을 드릴까요?")
+    r.says("안녕하세요, 대홍단감자 카페입니다. 무엇을 드릴까요?")
     r.customer("어떤 음식들이 있어요?")
     recommended = [i.id for i in k.menu.items if i.recommended]
     r.do(k.show_menu, item_ids=recommended)
@@ -162,7 +162,7 @@ def scenario_allergy(r: Recorder) -> None:
     k.start_session()
     r.state("connecting")
     r.wait(600)
-    r.says("안녕하세요, 소리 카페입니다. 무엇을 드릴까요?")
+    r.says("안녕하세요, 대홍단감자 카페입니다. 무엇을 드릴까요?")
     r.customer("우유 알레르기가 있는데 마실 만한 거 있어요?")
     r.do(
         k.show_menu,
