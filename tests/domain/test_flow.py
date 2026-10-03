@@ -266,3 +266,10 @@ def test_after_payment_only_info_is_shown(kiosk: Kiosk):
     kiosk.show_info("pickup")  # "어디서 받아요?"
     with pytest.raises(KioskError, match="done"):
         kiosk.choose_item("chocolate_cookie")
+
+
+def test_show_order_does_not_count_as_a_review(kiosk: Kiosk):
+    order_ready(kiosk)
+    kiosk.show_order()
+    assert kiosk.view.screen is Screen.REVIEW
+    assert not kiosk.review_is_current

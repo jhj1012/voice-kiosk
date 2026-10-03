@@ -110,6 +110,7 @@ def _group(data: dict[str, Any], allergen_ids: set[str]) -> OptionGroup:
             price=_price(c, where),
             say=str(c.get("say", "")),
             allergens=_ids(c, "allergens", allergen_ids, where),
+            aliases=_words(c, "aliases", where),
         )
         for c in _list(data, "choices", where)
     )
@@ -219,6 +220,13 @@ def _ids(data: dict[str, Any], key: str, known: set[str], where: str) -> tuple[s
         raise DataError(f"{where}: unknown {key}: {', '.join(unknown)}")
     _unique(value, f"{key} entry in {where}")
     return tuple(value)
+
+
+def _words(data: dict[str, Any], key: str, where: str) -> tuple[str, ...]:
+    value = data.get(key, [])
+    if not isinstance(value, list) or not all(isinstance(v, str) and v.strip() for v in value):
+        raise DataError(f"{where}: {key} must be a list of words")
+    return tuple(v.strip() for v in value)
 
 
 def _unique(ids: list[str], what: str) -> None:

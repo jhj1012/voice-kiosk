@@ -103,3 +103,13 @@ def test_order_numbers_and_won():
     numbers = OrderNumbers(7)
     assert [numbers.next(), numbers.next()] == [7, 8]
     assert won(17200) == "17,200원"
+
+
+def test_lines_signature_ignores_dining(menu: Menu):
+    order = Order()
+    order.add(*choices(menu, "chocolate_cookie"))
+    before = order.lines_signature
+    order.set_dining(Dining.HERE)
+    assert order.lines_signature == before
+    order.set_quantity(1, 2)
+    assert order.lines_signature == (("chocolate_cookie", (), 2),)

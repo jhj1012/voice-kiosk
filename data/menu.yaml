@@ -29,21 +29,40 @@ categories:
 # required: the customer must choose (the assistant asks). Optional groups keep their first
 # choice (or nothing, for multi groups) unless the customer asks.
 # say: how the assistant reads a choice aloud (defaults to its name).
+# aliases: other words customers use for a choice. The assistant may set a REQUIRED choice only
+#   if the customer said its name, its `say` text or one of these (checked in code), so add
+#   the words people really use. Spaces are ignored when matching.
 option_groups:
   - id: temperature
     name: 온도
     required: true
     multi: false
     choices:
-      - {id: hot, name: HOT, say: 따뜻한, price: 0}
-      - {id: ice, name: ICE, say: 아이스, price: 0}
+      - id: hot
+        name: HOT
+        say: 따뜻한
+        price: 0
+        aliases: [따뜻, 따듯, 뜨거, 뜨겁, 뜨뜻, 핫, 뜨아, hot]
+      - id: ice
+        name: ICE
+        say: 아이스
+        price: 0
+        aliases: [차가, 차갑, 시원, 아아, ice]
   - id: size
     name: 사이즈
     required: true
     multi: false
     choices:
-      - {id: regular, name: Regular, say: 레귤러, price: 0}
-      - {id: large, name: Large, say: 라지, price: 500}
+      - id: regular
+        name: Regular
+        say: 레귤러
+        price: 0
+        aliases: [작은, 작게, 보통, 기본, 스몰, 아무거나, 상관없, regular]
+      - id: large
+        name: Large
+        say: 라지
+        price: 500
+        aliases: [큰거, 큰걸, 큰사이즈, 크게, 라아지, large]
   - id: tumbler
     name: 텀블러
     required: false

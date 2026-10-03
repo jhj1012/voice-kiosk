@@ -233,6 +233,11 @@ class Kiosk:
         self._menu_view = None
         self._set_view(View(screen=Screen.WELCOME))
 
+    def show_order(self) -> None:
+        """Show the order (display only; a review before payment is `review`)."""
+        self._require(Phase.ORDERING)
+        self._set_view(View(screen=Screen.REVIEW))
+
     # --- review and payment ------------------------------------------------------------------
 
     def review(self) -> str:
