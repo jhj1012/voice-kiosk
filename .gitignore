@@ -28,3 +28,6 @@ logs/
 .idea/
 Thumbs.db
 .DS_Store
+
+# Local tool settings
+.claude/

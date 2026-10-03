@@ -137,7 +137,7 @@ One WebSocket at `/ws`. Backend → display:
 ```jsonc
 {"type": "init", "menu": {...}, "cafe": {...}}       // on connect; items carry image_url when a file exists
 {"type": "state", "seq": 42,
- "phase": "idle|ordering|paying|done",
+ "phase": "idle|ordering|paying|done",   // "review" is a screen, not a phase
  "assistant": "idle|connecting|listening|thinking|speaking",
  "view": {"screen": "attract|welcome|menu|item|info|review|payment|done",
           "title": "우유가 들어가지 않은 메뉴", "item_ids": ["americano", "..."],
@@ -145,10 +145,10 @@ One WebSocket at `/ws`. Backend → display:
  "pending": {"item_id": "americano", "quantity": 1, "chosen": {"size": "large"},
              "missing": ["temperature"]},
  "order": {"lines": [{"line": 1, "item_id": "americano", "name": "아메리카노",
-                      "options": "ICE, Large", "quantity": 2, "total": 9000}],
-           "dining": "to_go", "total": 9000},
+                      "options": "ICE, Large", "quantity": 2, "unit_price": 4500, "total": 9000}],
+           "dining": "to_go", "count": 2, "total": 9000},
  "payment": {"step": "insert_card|processing|approved", "order_number": 17}}
-{"type": "subtitle", "speaker": "customer|assistant", "turn": 12, "text": "...", "final": false}
+{"type": "subtitle", "id": 12, "speaker": "customer|assistant", "text": "...", "final": false}
 {"type": "level", "mic": 0.31, "out": 0.0}           // ~15/s, drives the assistant animation
 {"type": "notice", "level": "info|warn|error", "text": "연결을 다시 시도하고 있어요"}
 ```
@@ -177,8 +177,15 @@ One WebSocket at `/ws`. Backend → display:
 - **Payment**: a card slides into the terminal ("카드를 단말기에 꽂아 주세요") → spinner
   ("결제 중...") → check mark and large order number → back to attract.
 - **Subtitles**: a bottom band with what was heard (lighter) and what the assistant says.
-- **Developer mode** (`F2`): typed input, mute, event log. `?demo=<scenario>` plays fake events
-  without a backend.
+- **Developer mode** (`F2`): typed input, mute, event log; `Space` lifts / puts down the
+  simulated handset. `?demo=order|allergy` plays recorded event timelines without a backend
+  (`scripts/make_demo_events.py` records them by driving a real `Kiosk` with
+  `kiosk/server/events.py`, so they always match the real event format).
+
+The display's code (`frontend/src/`): `lib/events.ts` (event types), `lib/display.ts` (pure state
+updates, unit tested), `lib/store.svelte.ts` (runes), `lib/player.ts` (demo timelines),
+`lib/connection.ts` (WebSocket), `lib/components/` (one component per screen, the dock, the
+assistant presence). Sizes are in `rem`, scaled to the screen width (designed for 1920×1080).
 
 Menu images: drop `data/images/<item_id>.png` (or `.jpg`, `.webp`). Missing images show the item's
 emoji on a soft gradient tile.
