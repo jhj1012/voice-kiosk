@@ -27,8 +27,9 @@
 2. **Assets** 아래의 **`voice-kiosk.zip`** 을 누른다.
 3. 다운로드 된 `voice-kiosk.zip` 우클릭, 속성, 차단해제 체크.
 4. 압축 풀기.
-5. voice-kiosk`** 폴더 안 `Start Kiosk.bat` 또는 `Start Kiosk (full screen).bat` 실행.
-6. 1~2분 정도 설치 시간이 있을 수 있음. 기다리기.
+5. `voice-kiosk`** 폴더 안 `Start Kiosk.bat` 또는 실행.
+6. f11로 전체화면.
+7. 1~2분 정도 설치 시간이 있을 수 있음. 기다리기.
 
 
 ### 2. API 키 넣기 (처음 한 번만)
