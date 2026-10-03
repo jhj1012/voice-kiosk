@@ -42,6 +42,7 @@ from kiosk.assistant.safety import (
     Transcript,
     confirmed_cancel,
     customer_asked_to_pay,
+    mention_start,
     mostly_foreign,
     said_amount,
     unheard_required,
@@ -150,7 +151,6 @@ class AssistantSession:
         self._turn_calls = False
         self._spoken_turns = 0  # turns with audio, completed
         self._lines_mark = 0  # transcript mark when the items last changed (payment intent)
-        self._pending_mark = 0  # transcript mark when the item being chosen was named
         self._read_back: _ReadBack | None = None
         self._terminal_id = 0
 
@@ -352,8 +352,6 @@ class AssistantSession:
             if not any(key in settable for key in args):
                 return {"blocked": NOT_HEARD.format(groups=names)}
         result = self.actions.call(name, args)
-        if name == "choose_item" and "error" not in result:
-            self._pending_mark = self.transcript.mark
         if unheard and "error" not in result:
             result["not_heard"] = NOT_HEARD.format(groups=names)
         return result
@@ -361,22 +359,20 @@ class AssistantSession:
     def _order_target(
         self, name: str, args: dict[str, Any]
     ) -> tuple[MenuItem, dict[str, tuple[str, ...]], int] | None:
-        """(item, choices it already has, where the customer's relevant words start)."""
-        latest = self.transcript.mark
+        """(item, choices it already has, where the customer's words about it start)."""
         try:
             if name == "choose_item":
-                return self.kiosk.menu.item(str(args.get("item_id", ""))), {}, latest
+                item = self.kiosk.menu.item(str(args.get("item_id", "")))
+                return item, {}, mention_start(self.transcript, item)
             if name == "set_options":
-                pending = self.kiosk.pending
-                if pending is None:
-                    return None
+                pending = self.kiosk.pending_item(args.get("item_id") or None)
                 chosen = {g: tuple(c.id for c in cs) for g, cs in pending.chosen.items()}
-                return pending.item, chosen, self._pending_mark
+                return pending.item, chosen, mention_start(self.transcript, pending.item)
             line = self.kiosk.order.line(int(float(args.get("line", 0))))
         except (KioskError, TypeError, ValueError):
             return None
         chosen = {g: tuple(c.id for c in cs) for g, cs in line.chosen().items()}
-        return line.item, chosen, latest
+        return line.item, chosen, mention_start(self.transcript, line.item)
 
     # --- payment -----------------------------------------------------------------------------
 

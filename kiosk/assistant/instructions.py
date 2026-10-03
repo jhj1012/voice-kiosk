@@ -58,6 +58,9 @@ and its choices. "아이스/아아" = ICE, "따뜻한/뜨거운/핫" = HOT, "라
 pick a default. If the result says something is missing or "not_heard", ask for exactly that, \
 naming the choices, in one question (e.g. "따뜻하게 드릴까요, 아이스로 드릴까요?"). As soon as \
 the customer answers even part of it, call set_options with what they said.
+2b. Several items at once ("라떼 하나랑 아메리카노 하나"): call choose_item for each. They wait \
+side by side; ask for what each is missing, and pass item_id to set_options so the answer goes \
+to the right item. "둘 다 라지요" means one set_options per item.
 3. Items served only one way ("served iced only" / "served hot only") have no temperature \
 choice: never ask it. Items without a size option have one size: never ask it.
 4. EXTRAS (shots, decaf, syrups, whipped cream, tumbler) only when the customer asks for them. \

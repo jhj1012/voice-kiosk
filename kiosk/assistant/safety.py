@@ -160,6 +160,29 @@ def confirmed_cancel(transcript: Transcript) -> bool:
 # --- required options must be heard ------------------------------------------------------------
 
 
+MENTION_LOOKBACK = 6  # customer utterances searched for the item's name
+
+
+def item_words(item: MenuItem) -> list[str]:
+    """How a customer may name an item: its full name, and longer words of it ("에이드")."""
+    words = [normalize(item.name)]
+    words += [normalize(w) for w in item.name.split() if len(normalize(w)) >= 3]
+    return list(dict.fromkeys(w for w in words if w))
+
+
+def mention_start(transcript: Transcript, item: MenuItem) -> int:
+    """Where the customer's words about `item` start: the latest recent utterance that names it
+    ("아메리카노는 아이스요"), else their latest utterance. Required options must be heard from
+    there on, so an earlier item's "라지" does not count for the next item."""
+    words = item_words(item)
+    customer = [i for i, u in enumerate(transcript.entries) if u.speaker == "customer"]
+    for index in reversed(customer[-MENTION_LOOKBACK:]):
+        text = normalize(transcript.entries[index].text)
+        if any(w in text for w in words):
+            return index
+    return transcript.mark
+
+
 def heard(choice: OptionChoice, texts: Iterable[str]) -> bool:
     words = [normalize(w) for w in choice.words]
     return any(w and w in normalize(t) for t in texts for w in words)

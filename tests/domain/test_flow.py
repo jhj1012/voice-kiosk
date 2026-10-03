@@ -278,3 +278,36 @@ def test_show_order_does_not_count_as_a_review(kiosk: Kiosk):
     kiosk.show_order()
     assert kiosk.view.screen is Screen.REVIEW
     assert not kiosk.review_is_current
+
+
+def test_several_items_can_wait_for_options(kiosk: Kiosk):
+    kiosk.choose_item("chocolate_cookie")
+    kiosk.set_dining(Dining.TO_GO)
+    kiosk.choose_item("green_grape_ade")
+    kiosk.choose_item("americano", selection={"temperature": "ice"})
+    assert [p.item.id for p in kiosk.pending_items] == ["green_grape_ade", "americano"]
+    assert kiosk.view.item_id == "americano"  # the screen shows the one touched last
+    with pytest.raises(KioskError, match="still being chosen: green_grape_ade, americano"):
+        kiosk.review()
+    result = kiosk.set_options({"size": "large"}, item_id="green_grape_ade")
+    assert result.line is not None and result.line.item.id == "green_grape_ade"
+    assert kiosk.view.item_id == "americano"  # the next one still waiting
+    assert kiosk.set_options({"size": "large"}).line is not None  # the last one by default
+    assert kiosk.pending_items == []
+    assert len(kiosk.order.lines) == 3
+
+
+def test_choosing_a_waiting_item_again_starts_it_over(kiosk: Kiosk):
+    kiosk.choose_item("cafe_latte", selection={"temperature": "hot"})
+    kiosk.choose_item("cafe_latte")
+    assert len(kiosk.pending_items) == 1
+    assert kiosk.pending is not None and kiosk.pending.chosen == {}
+
+
+def test_cancel_one_of_the_waiting_items(kiosk: Kiosk):
+    kiosk.choose_item("cafe_latte")
+    kiosk.choose_item("americano")
+    kiosk.cancel_item("cafe_latte")
+    assert [p.item.id for p in kiosk.pending_items] == ["americano"]
+    with pytest.raises(KioskError, match="not being chosen"):
+        kiosk.set_options({"size": "large"}, item_id="cafe_latte")
