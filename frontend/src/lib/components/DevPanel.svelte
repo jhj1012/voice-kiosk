@@ -48,6 +48,12 @@
     >
     <span class="pill" class:ok={offHook}>{offHook ? '수화기 듦' : '수화기 내려놓음'}</span>
   </div>
+  {#if mode === 'live' && !connected}
+    <p class="offline">
+      백엔드 서버에 연결되지 않았어요. 화면만 보려면 주소 끝에 <code>?demo=order</code> 또는
+      <code>?demo=allergy</code>를 붙여 주세요.
+    </p>
+  {/if}
   <form onsubmit={submit}>
     <!-- svelte-ignore a11y_autofocus -->
     <input bind:value={text} placeholder="손님 말 입력 후 Enter" autofocus />
@@ -109,6 +115,18 @@
     border: none;
     font: inherit;
     font-size: 1.3rem;
+  }
+  .offline {
+    margin: 0;
+    padding: 0.6rem 0.8rem;
+    border-radius: 0.6rem;
+    background: rgb(201 138 28 / 0.25);
+    line-height: 1.5;
+  }
+  code {
+    white-space: nowrap;
+    font-family: ui-monospace, monospace;
+    color: #ffd9a8;
   }
   .hint {
     margin-left: auto;
