@@ -80,6 +80,23 @@ uv run python -m kiosk.assistant.chat
 `/order` prints the order, `/hangup` ends the session (a new customer starts), `/quit` exits.
 The assistant's words, the screen it chose and the payment steps are printed.
 
+**The display with fake events** (no backend needed): it plays recorded timelines of a real
+kiosk session.
+
+```bash
+npm --prefix frontend run dev
+```
+
+Then open <http://localhost:5173/?demo=order> (an order from greeting to payment) or
+`?demo=allergy` (allergy question, item details, Wi-Fi card, an interruption, a connection
+notice). Add `&at=21500&pause` to freeze at a moment (ms), `&dev` to open the developer panel
+(also `F2`), `&cursor` to show the mouse pointer. After changing the menu data or the event
+format, regenerate the timelines:
+
+```bash
+uv run python scripts/make_demo_events.py
+```
+
 **Live API checks** (milestone 3): `uv run python scripts/live_check.py --help`, results in
 [live-check.md](live-check.md). `mic` mode lets you talk to the assistant through any headset.
 

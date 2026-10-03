@@ -18,7 +18,19 @@ This is a **demo of an idea**, not a product: payment is simulated.
 Built in milestones (see [docs/architecture.md](docs/architecture.md#milestones)). Done:
 repository and CI (1), menu data, order and kiosk flow (2), Live API check (3,
 [results](docs/live-check.md)), and the assistant session with function calls and safety rules
-(4). Try it typed in the terminal: `uv run python -m kiosk.assistant.chat`.
+(4), and the display with its animations, driven by recorded events (5). Try the assistant typed
+in the terminal (`uv run python -m kiosk.assistant.chat`) or watch the display's demo
+(`npm --prefix frontend run dev`, then <http://localhost:5173/?demo=order>).
+
+## Screenshots
+
+The display, driven by recorded events (`?demo=order`, `?demo=allergy`; more in
+[docs/screenshots](docs/screenshots)):
+
+| | | |
+|---|---|---|
+| ![Start](docs/screenshots/start.jpg) | ![Recommended items](docs/screenshots/recommended.jpg) | ![An item and its required choices](docs/screenshots/item.jpg) |
+| ![Allergy-safe items](docs/screenshots/allergy.jpg) | ![Card terminal](docs/screenshots/payment.jpg) | ![Order number](docs/screenshots/done.jpg) |
 
 ## Quick start
 

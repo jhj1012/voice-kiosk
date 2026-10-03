@@ -1,26 +1,76 @@
 :root {
-  --bg: #f6f3ee;
-  --surface: #ffffff;
-  --text: #1f1b16;
-  --muted: #8a8278;
-  --accent: #b5764a;
+  /* White and soft blue, flat: no shadows */
+  --bg: #ffffff;
+  --tint: #f2f7ff;
+  --tint-2: #e7f0fe;
+  --line: #e2ebf8;
+  --text: #0e1a2b;
+  --text-2: #4b5b71;
+  --muted: #94a3b8;
+  --accent: #2f6fed;
+  --accent-2: #74aefc;
+  --accent-soft: #e6f0ff;
+  --ok: #2f6fed;
+  --warn: #e0a21b;
+  --error: #d6453b;
+  --radius-s: 0.9rem;
+  --radius-m: 1.6rem;
+  --radius-l: 2.4rem;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+
   font-family:
     'Pretendard Variable',
     Pretendard,
     system-ui,
     -apple-system,
     sans-serif;
+  /* A portrait kiosk (designed for 1080x1920). 1rem = 1/120 of the height, or less if the
+     window is narrower than 9:16; on a landscape monitor the page is a centered portrait frame. */
+  font-size: min(calc(100vh / 120), calc(100vw / 67.5));
   color: var(--text);
-  background: var(--bg);
+  background: #eaf1fb;
   -webkit-font-smoothing: antialiased;
+  font-feature-settings: 'tnum' 1;
+}
+
+* {
+  box-sizing: border-box;
 }
 
 html,
-body,
-#app {
+body {
   margin: 0;
   height: 100%;
   overflow: hidden;
-  cursor: none;
   user-select: none;
+}
+
+#app {
+  position: relative;
+  height: 100vh;
+  width: min(100vw, calc(100vh * 9 / 16));
+  margin: 0 auto;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+body.kiosk-mode {
+  cursor: none;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

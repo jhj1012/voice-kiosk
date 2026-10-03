@@ -47,6 +47,7 @@ class Screen(StrEnum):
     ATTRACT = "attract"
     WELCOME = "welcome"
     MENU = "menu"
+    CATEGORIES = "categories"
     ITEM = "item"
     INFO = "info"
     REVIEW = "review"
@@ -143,7 +144,7 @@ class Kiosk:
         removed = tuple(i.id for i in items if i.id not in shown)
         highlight = tuple(self.menu.item(i).id for i in highlight_ids)
         if not title:
-            title = self.menu.category(category).name if category else "메뉴"
+            title = self.menu.category(category).name if category else ""
         view = View(
             screen=Screen.MENU,
             title=title,
@@ -153,6 +154,11 @@ class Kiosk:
         self._menu_view = view
         self._set_view(view)
         return MenuShown(item_ids=shown, removed=removed)
+
+    def show_categories(self) -> None:
+        """Show the kinds of menu (커피, 라떼, ...) so the customer can pick one."""
+        self._require(Phase.ORDERING)
+        self._set_view(View(screen=Screen.CATEGORIES))
 
     def show_item(self, item_id: str) -> MenuItem:
         """Show one item's details without ordering it."""

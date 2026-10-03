@@ -78,11 +78,15 @@ def function_declarations(menu: Menu, cafe: Cafe) -> list[dict[str, Any]]:
     return [
         declare(
             "show_menu",
-            "Show menu items on the screen under a short Korean heading. You choose what fits "
-            "the conversation: a category, recommendations, or any set of items (e.g. items "
-            "without an allergen). Display only; does not order anything.",
+            "Show menu items on the screen. You choose what fits the conversation: a few "
+            "recommendations, a category, or any set of items (e.g. items without an allergen). "
+            "Show at most five items unless it is a whole category. Display only.",
             {
-                "title": {"type": "STRING", "description": "Korean heading, e.g. '추천 메뉴'."},
+                "title": {
+                    "type": "STRING",
+                    "description": "Short Korean caption ONLY when it explains a filter, e.g. "
+                    "'우유가 들어가지 않은 메뉴'. Leave it out for recommendations.",
+                },
                 "category": _enum([c.id for c in menu.categories], "Show this category."),
                 "item_ids": _array(item_ids, "Show exactly these items, in this order."),
                 "highlight_ids": _array(item_ids, "Shown items to highlight (recommended)."),
@@ -91,6 +95,11 @@ def function_declarations(menu: Menu, cafe: Cafe) -> list[dict[str, Any]]:
                     "Leave out items containing these allergens (filtered from the data).",
                 ),
             },
+        ),
+        declare(
+            "show_categories",
+            "Show the kinds of menu (커피, 라떼, 티·에이드, 디저트) when the customer wants to see "
+            "other menus, then ask which kind they would like.",
         ),
         declare(
             "show_item",

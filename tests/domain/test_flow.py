@@ -50,7 +50,7 @@ def test_every_change_increases_the_revision(kiosk: Kiosk):
 def test_show_whole_menu_or_category(kiosk: Kiosk, menu):
     shown = kiosk.show_menu()
     assert shown.item_ids == tuple(i.id for i in menu.items)
-    assert kiosk.view.title == "메뉴"
+    assert kiosk.view.title == ""  # no heading unless the assistant gives one
     kiosk.show_menu(category="tea_ade")
     assert kiosk.view.title == "티·에이드"
     assert kiosk.view.item_ids == ("green_grape_ade", "chamomile_tea")
@@ -85,6 +85,11 @@ def test_show_menu_rejects_unknown_ids(kiosk: Kiosk):
     for kwargs in ({"item_ids": ["pizza"]}, {"category": "food"}, {"exclude_allergens": ["x"]}):
         with pytest.raises(KioskError):
             kiosk.show_menu(**kwargs)
+
+
+def test_show_categories(kiosk: Kiosk):
+    kiosk.show_categories()
+    assert kiosk.view.screen is Screen.CATEGORIES
 
 
 def test_show_item_and_info(kiosk: Kiosk):

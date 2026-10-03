@@ -115,6 +115,7 @@ with a milk allergy).
 | Tool | Effect / rules in code |
 |---|---|
 | `show_menu(title?, category?, item_ids?, highlight_ids?, exclude_allergens?)` | Shows a chosen set of items (or a category, or everything) under a heading, with highlighted recommendations. `exclude_allergens` is filtered by code from the data, and the result lists what was removed. Display only. |
+| `show_categories()` | Shows the kinds of menu, when the customer wants to see other menus. |
 | `show_item(item_id)` | Shows one item's details (description, ingredients, allergens, options) without ordering. |
 | `show_info(topic)` | Shows a cafe-info card (Wi-Fi, restroom, hours, ...; topics come from `cafe.yaml`). |
 | `show_order()` | Shows the whole order (display only). |
@@ -137,18 +138,18 @@ One WebSocket at `/ws`. Backend → display:
 ```jsonc
 {"type": "init", "menu": {...}, "cafe": {...}}       // on connect; items carry image_url when a file exists
 {"type": "state", "seq": 42,
- "phase": "idle|ordering|paying|done",
+ "phase": "idle|ordering|paying|done",   // "review" is a screen, not a phase
  "assistant": "idle|connecting|listening|thinking|speaking",
- "view": {"screen": "attract|welcome|menu|item|info|review|payment|done",
+ "view": {"screen": "attract|welcome|menu|categories|item|info|review|payment|done",
           "title": "우유가 들어가지 않은 메뉴", "item_ids": ["americano", "..."],
           "highlight": ["cafe_latte"], "item_id": "americano", "topic": "wifi"},
  "pending": {"item_id": "americano", "quantity": 1, "chosen": {"size": "large"},
              "missing": ["temperature"]},
  "order": {"lines": [{"line": 1, "item_id": "americano", "name": "아메리카노",
-                      "options": "ICE, Large", "quantity": 2, "total": 9000}],
-           "dining": "to_go", "total": 9000},
+                      "options": "ICE, Large", "quantity": 2, "unit_price": 4500, "total": 9000}],
+           "dining": "to_go", "count": 2, "total": 9000},
  "payment": {"step": "insert_card|processing|approved", "order_number": 17}}
-{"type": "subtitle", "speaker": "customer|assistant", "turn": 12, "text": "...", "final": false}
+{"type": "subtitle", "id": 12, "speaker": "customer|assistant", "text": "...", "final": false}
 {"type": "level", "mic": 0.31, "out": 0.0}           // ~15/s, drives the assistant animation
 {"type": "notice", "level": "info|warn|error", "text": "연결을 다시 시도하고 있어요"}
 ```
@@ -162,26 +163,42 @@ One WebSocket at `/ws`. Backend → display:
 {"type": "dev_mute", "audio": false}
 ```
 
-## Display states and animations
+## Display: one continuous page
 
-- **Attract**: slow gradient, cafe name, "수화기를 들고 말씀해 주세요", gentle breathing.
+A portrait screen (designed for 1080×1920; on a landscape monitor it is a centered portrait
+frame). White with soft blue light, flat surfaces (no shadows), as little as possible on screen.
+Nothing "moves to the next screen": the assistant and the conversation stay at the top, the
+order at the bottom, and in between what the assistant chose appears and disappears in place.
+
+- **Start**: only the assistant's orb and "수화기를 들고 말씀해 주세요". When the handset is lifted
+  the orb glides up and shrinks; a quiet hint of what to say appears.
 - **Assistant presence**: `<AssistantPresence state level>` (orb + rings): idle breathes,
   connecting spins, listening follows the mic level, thinking orbits, speaking follows the output
   level. A real avatar can replace it later behind the same props.
-- **Menu**: the items the assistant chose, under its heading; cards stagger in, highlighted items
-  glow, changes animate with `flip`.
-- **Item**: the card grows into a large image (`crossfade`); minimal chips for missing required
-  options; when added, the item flies into the order summary and the total counts up.
-- **Order summary**: always a small corner panel; in review it moves to the center.
-- **Info card**: slides in.
-- **Payment**: a card slides into the terminal ("카드를 단말기에 꽂아 주세요") → spinner
-  ("결제 중...") → check mark and large order number → back to attract.
-- **Subtitles**: a bottom band with what was heard (lighter) and what the assistant says.
-- **Developer mode** (`F2`): typed input, mute, event log. `?demo=<scenario>` plays fake events
-  without a backend.
+- **Conversation**: under the orb, what the customer said (blue, in quotes) and what the
+  assistant says; older words fade out at the top.
+- **Menus**: the items the assistant chose (3–5 recommendations, a category, or a filtered set),
+  no heading except a small caption for a filter or a category. Modest cards of one size
+  (picture, name, price), centered; they never fill the whole screen. When the assistant shows
+  other items, the cards that stay move to their new places and the others fade (`flip`).
+- **Kinds of menu** (`show_categories`): four tiles of the same size, for "다른 메뉴도 보여 주세요".
+- **Item**: the card's picture grows into a large image (`crossfade`); name, price, description,
+  ingredients and facts; only the required choices, which fill in blue when chosen. An added item
+  flies into the order bar and the total counts up.
+- **Order bar**: a quiet bar at the bottom while ordering (thumbnails, count, total). The review,
+  card terminal and order number appear in the middle in its place.
+- **Developer mode** (`F2`): typed input, mute, event log; `Space` lifts / puts down the
+  simulated handset. `?demo=order|allergy` plays recorded event timelines without a backend
+  (`scripts/make_demo_events.py` records them by driving a real `Kiosk` with
+  `kiosk/server/events.py`, so they always match the real event format).
+
+The display's code (`frontend/src/`): `lib/events.ts` (event types), `lib/display.ts` (pure state
+updates, unit tested), `lib/store.svelte.ts` (runes), `lib/player.ts` (demo timelines),
+`lib/connection.ts` (WebSocket), `lib/components/` (`Stage` is the page; one component per kind
+of content, the order bar, the assistant presence).
 
 Menu images: drop `data/images/<item_id>.png` (or `.jpg`, `.webp`). Missing images show the item's
-emoji on a soft gradient tile.
+emoji on a soft blue tile.
 
 ## Milestones
 
