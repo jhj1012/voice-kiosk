@@ -16,7 +16,8 @@ This is a **demo of an idea**, not a product: payment is simulated.
 ## Status
 
 Built in milestones (see [docs/architecture.md](docs/architecture.md#milestones)).
-Milestone 1 (repository skeleton and CI) is in place.
+Milestones 1 (repository skeleton and CI), 2 (menu data, order and kiosk flow) and 3 (Live API
+check: [results](docs/live-check.md)) are in place.
 
 ## Quick start
 
@@ -40,7 +41,7 @@ uv run pytest
 | `frontend/` | The display (Svelte). |
 | `data/` | `menu.yaml`, `cafe.yaml` and `images/<item_id>.png`: edit these to change the menu. |
 | `configs/` | `settings.yaml`; personal overrides go in git-ignored `settings.local.yaml`. |
-| `docs/` | [Architecture](docs/architecture.md), [decisions](docs/decisions.md), [setup](docs/setup.md). |
+| `docs/` | [Architecture](docs/architecture.md), [decisions](docs/decisions.md), [setup](docs/setup.md), [Live API check](docs/live-check.md). |
 
 ## Contributing
 
