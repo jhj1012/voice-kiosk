@@ -84,12 +84,18 @@ built display (`frontend/dist`) at `/`, and the menu images at `/images`.
   earpiece (`audio_out`, `audio_stop`) and the microphone's frames to the session.
 - `Hub` (`hub.py`) fans events out to every connected display; a display that stops reading
   loses its oldest events and never blocks the kiosk.
-- A newly connected display gets `init` (the menu, with the image files that exist now) and the
-  current `state`, so it can reconnect at any time.
+- A newly connected display gets `init` (the menu, with the image files that exist now),
+  `setup` and the current `state`, so it can reconnect at any time.
 - From the display (developer mode): `hook` (Space: lift / put down; lifting again after a
   finished order starts the next customer), `dev_text` (typed customer words; lifts the handset
   if nobody did) and `dev_mute`.
-- Without an API key the server still runs; lifting the handset shows an error notice.
+- Without a working API key the server still runs and `setup` tells the display to ask for one
+  (also after Google refused the saved key). The display posts the typed key to `POST /api/key`
+  (only from this computer); `set_api_key` checks it with Google (`check_api_key`), saves it to
+  `.env` and uses it for the next customer. The key is never sent to a display or logged.
+- `python -m kiosk --open` opens the display in an Edge app window once the server is ready,
+  `--kiosk` full screen (kiosk mode, separate Edge profile). `Start Kiosk.bat` runs
+  `scripts/start.ps1`, which installs uv the first time and starts the kiosk with `--open`.
 
 ## Flow state (`kiosk.domain.flow`)
 
@@ -193,6 +199,7 @@ One WebSocket at `/ws`. Backend → display:
 {"type": "subtitle", "id": 12, "speaker": "customer|assistant", "text": "...", "final": false}
 {"type": "level", "mic": 0.31, "out": 0.0}           // ~15/s, drives the assistant animation
 {"type": "notice", "level": "info|warn|error", "text": "연결을 다시 시도하고 있어요"}
+{"type": "setup", "api_key": "ok|missing|rejected"}  // unless ok, the display shows the key form
 ```
 
 `state` is always a full snapshot (simple to render, safe to reconnect). Display → backend
@@ -203,6 +210,9 @@ One WebSocket at `/ws`. Backend → display:
 {"type": "dev_text", "text": "아이스 아메리카노 주세요"}
 {"type": "dev_mute", "audio": false}
 ```
+
+The API key form uses HTTP instead: `POST /api/key` with `{"key": "..."}` answers
+`{"result": "ok|invalid|rejected|offline"}` (403 unless the request comes from this computer).
 
 ## Display: one continuous page
 
