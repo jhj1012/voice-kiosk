@@ -18,10 +18,11 @@ This is a **demo of an idea**, not a product: payment is simulated.
 Built in milestones (see [docs/architecture.md](docs/architecture.md#milestones)). Done:
 repository and CI (1), menu data, order and kiosk flow (2), Live API check (3,
 [results](docs/live-check.md)), and the assistant session with function calls and safety rules
-(4), the display with its animations (5), and the backend wired to the display (6). Run it with
+(4), the display with its animations (5), the backend wired to the display (6), and the
+handset's microphone and earpiece with barge-in (7). Run it with
 `npm --prefix frontend run build` and `uv run python -m kiosk`, open <http://127.0.0.1:8765>,
-press `Space` to lift the handset and `F2` to type what the customer says (the handset's audio
-comes in milestone 7).
+press `Space` to lift the handset and talk (`F2` to type instead); audio devices are set in
+`configs/settings.local.yaml`, see [docs/setup.md](docs/setup.md#the-handsets-audio).
 
 ## Screenshots
 
