@@ -1,0 +1,36 @@
+# Install once: uv run pre-commit install
+# Python tools run from the project's own environment (versions pinned in uv.lock).
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-yaml
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: check-added-large-files
+        args: [--maxkb=1024]
+      - id: detect-private-key
+  - repo: local
+    hooks:
+      - id: ruff
+        name: ruff check
+        entry: uv run --no-sync ruff check --fix
+        language: system
+        types: [python]
+      - id: ruff-format
+        name: ruff format
+        entry: uv run --no-sync ruff format
+        language: system
+        types: [python]
+      - id: import-rules
+        name: import rules (lint-imports)
+        entry: uv run --no-sync lint-imports
+        language: system
+        pass_filenames: false
+        types: [python]
+      - id: frontend-lint
+        name: frontend lint (eslint + prettier)
+        entry: npm --prefix frontend run lint
+        language: system
+        pass_filenames: false
+        files: ^frontend/

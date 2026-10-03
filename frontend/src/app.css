@@ -1,0 +1,26 @@
+:root {
+  --bg: #f6f3ee;
+  --surface: #ffffff;
+  --text: #1f1b16;
+  --muted: #8a8278;
+  --accent: #b5764a;
+  font-family:
+    'Pretendard Variable',
+    Pretendard,
+    system-ui,
+    -apple-system,
+    sans-serif;
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+html,
+body,
+#app {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  cursor: none;
+  user-select: none;
+}

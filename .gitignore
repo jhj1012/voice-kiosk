@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.import_linter_cache/
+
+# Frontend
+node_modules/
+frontend/dist/
+
+# Audio recordings and logs (never commit customers' voices or transcripts)
+recordings/
+*.wav
+*.mp3
+logs/
+
+# Local overrides and secrets
+.env
+*.local.yaml
+
+# Editors / OS
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store
