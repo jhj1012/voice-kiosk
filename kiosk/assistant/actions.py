@@ -27,6 +27,7 @@ class Actions:
         self.kiosk = kiosk
         self._handlers: dict[str, Callable[[dict[str, Any]], Result]] = {
             "show_menu": self._show_menu,
+            "show_categories": self._show_categories,
             "show_item": self._show_item,
             "show_info": self._show_info,
             "choose_item": self._choose_item,
@@ -70,6 +71,10 @@ class Actions:
         if shown.removed:
             result["left_out_for_allergens"] = self._names(shown.removed)
         return result
+
+    def _show_categories(self, args: dict[str, Any]) -> Result:
+        self.kiosk.show_categories()
+        return {"shown": [c.name for c in self.kiosk.menu.categories]}
 
     def _show_item(self, args: dict[str, Any]) -> Result:
         item = self.kiosk.show_item(str(args.get("item_id", "")))
