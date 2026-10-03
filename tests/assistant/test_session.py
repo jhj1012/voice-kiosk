@@ -136,7 +136,7 @@ def test_start_connects_and_greets(new_kiosk):
         assert h.kiosk.phase is Phase.ORDERING
         assert h.session.state is AssistantState.THINKING
         setup = h.connector.setups[0]
-        assert "소리 카페" in setup.instructions
+        assert "대홍단감자 카페" in setup.instructions
         assert {t["name"] for t in setup.tools} >= {"choose_item", "request_payment"}
         assert "아메리카노" in setup.vocabulary
         assert setup.resume_handle is None

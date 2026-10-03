@@ -22,7 +22,7 @@ describe('apply', () => {
     const init = demo.init as ServerEvent;
     const display = apply(initialDisplay(), init);
     expect(display.menu?.items.length).toBe(12);
-    expect(display.cafe?.name).toBe('소리 카페');
+    expect(display.cafe?.name).toBe('대홍단감자 카페');
   });
 
   it('replaces the snapshot and ignores older ones', () => {
