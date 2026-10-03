@@ -1,26 +1,41 @@
-"""Run the kiosk: `uv run python -m kiosk`, then open the display (http://127.0.0.1:8765)."""
+"""Run the kiosk: `uv run python -m kiosk`, then open the display (http://127.0.0.1:8765).
+
+`--open` opens the display in its own Edge window once the server is ready, `--kiosk` full
+screen (the launchers `Start Kiosk.bat` and `Start Kiosk (full screen).bat` use them).
+"""
 
 from __future__ import annotations
 
 import argparse
 import logging
 import os
+import shutil
+import socket
+import subprocess
 import sys
+import threading
 import time
+import webbrowser
+from pathlib import Path
 
 import uvicorn
 
-from kiosk.assistant.live import GeminiConnector, LiveConnector
-from kiosk.config import REPO_ROOT, Config, load_config, load_env_file
+from kiosk.assistant.live import GeminiConnector, LiveConnector, check_api_key
+from kiosk.config import REPO_ROOT, Config, load_config, load_env_file, save_env_value
 from kiosk.domain.flow import Kiosk
 from kiosk.domain.loader import load_cafe, load_menu
 from kiosk.server.app import create_app
-from kiosk.server.controller import KioskController, MissingKeyConnector
+from kiosk.server.controller import ApiKeys, KioskController, MissingKeyConnector
 from kiosk.server.hub import Hub
 from kiosk.voice.handset import Handset
 from kiosk.voice.hook import SimulatedHook
 
 LOG_DIR = REPO_ROOT / "logs"
+EDGE_PATHS = [
+    Path(os.environ.get(var, "")) / "Microsoft" / "Edge" / "Application" / "msedge.exe"
+    for var in ("ProgramFiles(x86)", "ProgramFiles", "LOCALAPPDATA")
+    if os.environ.get(var)
+]
 
 
 def setup_logging() -> None:
@@ -40,6 +55,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--host", help="default: server.host in configs/settings.yaml")
     parser.add_argument("--port", type=int, help="default: server.port in configs/settings.yaml")
+    parser.add_argument("--open", action="store_true", help="open the display in an Edge window")
+    parser.add_argument("--kiosk", action="store_true", help="open the display full screen")
     args = parser.parse_args()
 
     if hasattr(sys.stdout, "reconfigure"):
@@ -50,13 +67,27 @@ def main() -> int:
     menu = load_menu(config.data_dir / "menu.yaml")
     cafe = load_cafe(config.data_dir / "cafe.yaml")
 
+    host = args.host or config.server.host
+    port = args.port or config.server.port
+    url = f"http://{'127.0.0.1' if host in ('0.0.0.0', '::') else host}:{port}"
+    if is_running(host, port):
+        print(f"The kiosk is already running: {url}")
+        if args.open or args.kiosk:
+            open_display(url, args.kiosk)
+        return 0
+
     key = os.environ.get(config.live.api_key_env, "").strip()
     connector: LiveConnector
     if key:
         connector = GeminiConnector(config.live, key)
     else:
-        print(f"Warning: {config.live.api_key_env} is not set; conversations will not start.")
+        print("No Gemini API key yet: the display asks for one.")
         connector = MissingKeyConnector(config.live.api_key_env)
+    keys = ApiKeys(
+        check=lambda k: check_api_key(config.live, k),
+        save=lambda k: save_env_value(config.live.api_key_env, k),
+        connector=lambda k: GeminiConnector(config.live, k),
+    )
 
     controller = KioskController(
         Kiosk(menu, cafe, config.flow.first_order_number),
@@ -65,18 +96,52 @@ def main() -> int:
         Hub(),
         SimulatedHook(),
         config.data_dir / "images",
+        keys=keys,
     )
     handset = open_handset(config, controller) if config.audio.enabled else None
     app = create_app(controller, REPO_ROOT / "frontend" / "dist", config.data_dir / "images")
-    host = args.host or config.server.host
-    port = args.port or config.server.port
-    print(f"Kiosk running: open http://{host}:{port}  (F2: developer panel, Space: handset)")
+    print(f"Kiosk running: open {url}  (F2: developer panel, Space: handset)")
+    print("Close this window (or press Ctrl+C) to stop the kiosk.")
+    if args.open or args.kiosk:
+        threading.Thread(
+            target=open_when_ready, args=(host, port, url, args.kiosk), daemon=True
+        ).start()
     try:
         uvicorn.run(app, host=host, port=port, log_level="warning")
     finally:
         if handset is not None:
             handset.close()
     return 0
+
+
+def is_running(host: str, port: int) -> bool:
+    """Something already answers on the kiosk's port (e.g. the kiosk started twice)."""
+    with socket.socket() as s:
+        s.settimeout(0.3)
+        return s.connect_ex(("127.0.0.1" if host in ("0.0.0.0", "::") else host, port)) == 0
+
+
+def open_when_ready(host: str, port: int, url: str, full_screen: bool) -> None:
+    for _ in range(100):
+        if is_running(host, port):
+            open_display(url, full_screen)
+            return
+        time.sleep(0.1)
+
+
+def open_display(url: str, full_screen: bool) -> None:
+    """The display in Edge: its own window, or full screen (kiosk mode, Alt+F4 closes it)."""
+    edge = shutil.which("msedge") or next((str(p) for p in EDGE_PATHS if p.exists()), None)
+    if edge is None:
+        webbrowser.open(url)
+        return
+    if full_screen:
+        # A separate profile, so kiosk mode works even while Edge is already open.
+        profile = Path(os.environ.get("LOCALAPPDATA", LOG_DIR)) / "voice-kiosk" / "edge"
+        args = [f"--kiosk={url}", "--edge-kiosk-type=fullscreen", f"--user-data-dir={profile}"]
+    else:
+        args = [f"--app={url}", "--window-size=640,1080"]
+    subprocess.Popen([edge, *args, "--no-first-run"])
 
 
 def open_handset(config: Config, controller: KioskController) -> Handset | None:
