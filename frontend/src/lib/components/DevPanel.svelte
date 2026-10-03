@@ -50,8 +50,8 @@
   </div>
   {#if mode === 'live' && !connected}
     <p class="offline">
-      백엔드 서버에 연결되지 않았어요. 화면만 보려면 주소 끝에 <code>?demo=order</code> 또는
-      <code>?demo=allergy</code>를 붙여 주세요.
+      백엔드 서버에 연결되지 않았어요. <code>uv run python -m kiosk</code>로 서버를 켜거나, 화면만
+      보려면 주소 끝에 <code>?demo=order</code>를 붙여 주세요.
     </p>
   {/if}
   <form onsubmit={submit}>

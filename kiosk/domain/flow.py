@@ -92,6 +92,7 @@ class ItemResult:
 
     line: CartLine | None
     missing: tuple[OptionGroup, ...] = ()
+    pending: PendingItem | None = None  # the item still being chosen
 
 
 class Kiosk:
@@ -102,7 +103,8 @@ class Kiosk:
         self.revision = 0
         self.phase = Phase.IDLE
         self.order = Order()
-        self.pending: PendingItem | None = None
+        # Items waiting for required options ("라떼 하나랑 아메리카노 하나" waits for both).
+        self.pending_items: list[PendingItem] = []
         self.view = View()
         self.payment_step: PaymentStep | None = None
         self.order_number: int | None = None
@@ -175,35 +177,62 @@ class Kiosk:
 
     # --- choosing items ----------------------------------------------------------------------
 
+    @property
+    def pending(self) -> PendingItem | None:
+        """The item being chosen that the screen shows (the one touched last)."""
+        return self.pending_items[-1] if self.pending_items else None
+
     def choose_item(
         self, item_id: str, quantity: int = 1, selection: Selection | None = None
     ) -> ItemResult:
-        """Start choosing an item. It is added at once if every required option is known."""
+        """Start choosing an item. It is added at once if every required option is known;
+        otherwise it waits (next to others still waiting) until `set_options` completes it.
+        Choosing an item that is already waiting starts it over."""
         self._require(Phase.ORDERING)
         item = self.menu.item(item_id)
         check_quantity(quantity)
         chosen = self.menu.resolve(item, selection or {})
-        self.pending = PendingItem(item=item, quantity=quantity, chosen=chosen)
-        return self._try_add()
+        self.pending_items = [p for p in self.pending_items if p.item.id != item.id]
+        pending = PendingItem(item=item, quantity=quantity, chosen=chosen)
+        self.pending_items.append(pending)
+        return self._try_add(pending)
 
     def set_options(
-        self, selection: Selection | None = None, quantity: int | None = None
+        self,
+        selection: Selection | None = None,
+        quantity: int | None = None,
+        item_id: str | None = None,
     ) -> ItemResult:
-        """Add options (or change the quantity) of the item being chosen."""
+        """Add options (or change the quantity) of an item being chosen (the last one, unless
+        `item_id` says which)."""
         self._require(Phase.ORDERING)
-        pending = self._pending()
+        pending = self.pending_item(item_id)
         chosen = self.menu.resolve(pending.item, selection or {})
         if quantity is not None:
             check_quantity(quantity)
             pending.quantity = quantity
         pending.chosen.update(chosen)
-        return self._try_add()
+        # The item answered last is the one on screen.
+        self.pending_items.remove(pending)
+        self.pending_items.append(pending)
+        return self._try_add(pending)
 
-    def cancel_item(self) -> None:
+    def cancel_item(self, item_id: str | None = None) -> None:
+        """Drop an item being chosen (the last one, unless `item_id` says which)."""
         self._require(Phase.ORDERING)
-        self._pending()
-        self.pending = None
-        self._set_view(self._menu_view or View(screen=Screen.WELCOME))
+        self.pending_items.remove(self.pending_item(item_id))
+        self._show_after_choosing()
+
+    def pending_item(self, item_id: str | None = None) -> PendingItem:
+        if not self.pending_items:
+            raise KioskError("no item is being chosen; use choose_item")
+        if not item_id:
+            return self.pending_items[-1]
+        for pending in self.pending_items:
+            if pending.item.id == item_id:
+                return pending
+        waiting = ", ".join(p.item.id for p in self.pending_items)
+        raise KioskError(f"{item_id} is not being chosen (waiting: {waiting})")
 
     # --- changing the order ------------------------------------------------------------------
 
@@ -234,7 +263,7 @@ class Kiosk:
         """Throw the whole order away (the assistant checks the customer's confirmation)."""
         self._require(Phase.ORDERING)
         self.order.clear()
-        self.pending = None
+        self.pending_items = []
         self.reviewed_version = None
         self._menu_view = None
         self._set_view(View(screen=Screen.WELCOME))
@@ -292,31 +321,31 @@ class Kiosk:
 
     # --- helpers -----------------------------------------------------------------------------
 
-    def _try_add(self) -> ItemResult:
-        pending = self._pending()
+    def _try_add(self, pending: PendingItem) -> ItemResult:
         missing = pending.missing
         if missing:
             self._set_view(View(screen=Screen.ITEM, item_id=pending.item.id))
-            return ItemResult(line=None, missing=missing)
+            return ItemResult(line=None, missing=missing, pending=pending)
         line = self.order.add(pending.item, pending.item.complete(pending.chosen), pending.quantity)
-        self.pending = None
-        self._set_view(self._menu_view or View(screen=Screen.WELCOME))
+        self.pending_items.remove(pending)
+        self._show_after_choosing()
         return ItemResult(line=line)
+
+    def _show_after_choosing(self) -> None:
+        """The next item still waiting for options, or back to the menu."""
+        if self.pending_items:
+            self._set_view(View(screen=Screen.ITEM, item_id=self.pending_items[-1].item.id))
+        else:
+            self._set_view(self._menu_view or View(screen=Screen.WELCOME))
 
     def _check_ready_to_pay(self) -> None:
         if self.order.is_empty:
             raise KioskError("the order is empty")
-        if self.pending is not None:
-            raise KioskError(
-                f"{self.pending.item.id} is still being chosen: finish it or cancel_item first"
-            )
+        if self.pending_items:
+            waiting = ", ".join(p.item.id for p in self.pending_items)
+            raise KioskError(f"still being chosen: {waiting}; finish them or cancel_item first")
         if self.order.dining is None:
             raise KioskError("ask whether the customer eats here or takes out first")
-
-    def _pending(self) -> PendingItem:
-        if self.pending is None:
-            raise KioskError("no item is being chosen; use choose_item")
-        return self.pending
 
     def _require(self, *phases: Phase) -> None:
         if self.phase not in phases:
@@ -332,7 +361,7 @@ class Kiosk:
     def _reset(self, phase: Phase, view: View) -> None:
         self.phase = phase
         self.order = Order()
-        self.pending = None
+        self.pending_items = []
         self.payment_step = None
         self.order_number = None
         self.reviewed_version = None

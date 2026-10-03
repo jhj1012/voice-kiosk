@@ -1,6 +1,6 @@
 import pytest
 
-from kiosk.assistant.actions import Actions
+from kiosk.assistant.actions import ANSWER_AT_ONCE, Actions
 from kiosk.domain.flow import Kiosk, Phase
 
 
@@ -29,6 +29,7 @@ def test_missing_options_come_back_as_questions(actions: Actions):
             {"option": "온도", "choices": ["따뜻한", "아이스"]},
             {"option": "사이즈", "choices": ["레귤러", "라지 (+500원)"]},
         ],
+        "next": ANSWER_AT_ONCE,
     }
     result = actions.call("set_options", {"temperature": "hot", "size": "regular"})
     assert result["added"] == "따뜻한 카페라떼 레귤러 1잔"

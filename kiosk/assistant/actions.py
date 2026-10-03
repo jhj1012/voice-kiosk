@@ -13,13 +13,19 @@ from collections.abc import Callable
 from typing import Any
 
 from kiosk.assistant.tools import selection_from_args
-from kiosk.domain.flow import ItemResult, Kiosk
+from kiosk.domain.flow import ItemResult, Kiosk, PendingItem
 from kiosk.domain.menu import KioskError, OptionGroup
 from kiosk.domain.order import CartLine, Dining, won
 
 log = logging.getLogger(__name__)
 
 Result = dict[str, Any]
+
+# The screen marks each choice as soon as it is set, so partial answers must not wait.
+ANSWER_AT_ONCE = (
+    "Ask for these. Each time the customer answers even one of them, call set_options at once "
+    "with just that answer (e.g. temperature only), before asking for the rest."
+)
 
 
 class Actions:
@@ -102,12 +108,13 @@ class Actions:
         result = self.kiosk.set_options(
             selection_from_args(self.kiosk.menu, args),
             quantity=None if quantity is None else _int(quantity),
+            item_id=args.get("item_id") or None,
         )
         return self._item_result(result)
 
     def _cancel_item(self, args: dict[str, Any]) -> Result:
-        self.kiosk.cancel_item()
-        return {"ok": True, **self._order()}
+        self.kiosk.cancel_item(args.get("item_id") or None)
+        return {"ok": True, **self._order(), **self._waiting()}
 
     def _change_line(self, args: dict[str, Any]) -> Result:
         quantity = args.get("quantity")
@@ -150,12 +157,26 @@ class Actions:
 
     def _item_result(self, result: ItemResult) -> Result:
         if result.line is not None:
-            return {"added": self._spoken(result.line), **self._order()}
-        pending = self.kiosk.pending
+            return {"added": self._spoken(result.line), **self._order(), **self._waiting()}
+        pending = result.pending
         assert pending is not None
         return {
             "not_added_yet": pending.item.name,
             "ask": [_question(g) for g in result.missing],
+            "next": ANSWER_AT_ONCE,
+            **self._waiting(besides=pending),
+        }
+
+    def _waiting(self, besides: PendingItem | None = None) -> Result:
+        """Other items still waiting for options, so the model does not forget them."""
+        waiting = [p for p in self.kiosk.pending_items if p is not besides]
+        if not waiting:
+            return {}
+        return {
+            "still_waiting_for_options": [
+                {"item_id": p.item.id, "name": p.item.name, "missing": [g.name for g in p.missing]}
+                for p in waiting
+            ]
         }
 
     def _order(self) -> Result:

@@ -58,6 +58,9 @@ and its choices. "아이스/아아" = ICE, "따뜻한/뜨거운/핫" = HOT, "라
 pick a default. If the result says something is missing or "not_heard", ask for exactly that, \
 naming the choices, in one question (e.g. "따뜻하게 드릴까요, 아이스로 드릴까요?"). As soon as \
 the customer answers even part of it, call set_options with what they said.
+2b. Several items at once ("라떼 하나랑 아메리카노 하나"): call choose_item for each. They wait \
+side by side; ask for what each is missing, and pass item_id to set_options so the answer goes \
+to the right item. "둘 다 라지요" means one set_options per item.
 3. Items served only one way ("served iced only" / "served hot only") have no temperature \
 choice: never ask it. Items without a size option have one size: never ask it.
 4. EXTRAS (shots, decaf, syrups, whipped cream, tumbler) only when the customer asks for them. \
@@ -80,10 +83,12 @@ confirm it.
 When the customer asks to pay ("결제할게요", "계산해 주세요", or "없어요" when you asked if \
 they want anything else):
 1. If dining is unknown, ask it first and call set_dining.
-2. Call request_payment. Say the returned read_back word for word, as a statement, then \
-"카드를 단말기에 꽂아 주세요." Do not ask "결제하시겠어요?": the customer already asked to pay.
-3. The card terminal starts by itself when you finish. If the customer interrupts or changes \
-the order, the payment does not start; they must ask to pay again.
+2. Call request_payment. Say the returned read_back word for word, as a statement, and nothing \
+else: not a word about the card yet (the screen still shows the order). Do not ask \
+"결제하시겠어요?": the customer already asked to pay.
+3. When you finish, the card terminal appears on the screen and you receive [카드 단말기 ...]: \
+then say briefly "카드를 단말기에 꽂아 주세요." If the customer stops you or changes the order, \
+the payment does not start; they must ask to pay again.
 4. When you receive [결제 완료 ...], tell the customer the order number and how they get their \
 order (cafe information: pickup), thank them, and say they can put the handset down.
 If request_payment is blocked, the customer has not asked to pay (or changed the order since): \

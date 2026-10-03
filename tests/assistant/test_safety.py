@@ -8,10 +8,13 @@ from kiosk.assistant.safety import (
     customer_asked_to_pay,
     is_no,
     is_yes,
+    item_words,
+    mention_start,
     mostly_foreign,
     parse_korean_number,
     said_amount,
     unheard_required,
+    wants_to_stop,
 )
 from kiosk.domain.menu import Menu
 
@@ -204,3 +207,37 @@ def test_mostly_foreign():
     assert mostly_foreign("ハッピラテ")
     assert not mostly_foreign("와이파이 이름은 SORI_CAFE예요.")
     assert not mostly_foreign("13,500원")
+
+
+def test_mention_start_finds_where_an_item_was_named(menu: Menu):
+    t = conversation(
+        ("customer", "청포도 에이드 하나랑 아메리카노 하나 주세요"),
+        ("assistant", "사이즈는요?"),
+        ("customer", "아메리카노는 아이스요"),
+        ("assistant", "네"),
+        ("customer", "둘 다 라지로요"),
+    )
+    assert mention_start(t, menu.item("americano")) == 2
+    assert mention_start(t, menu.item("green_grape_ade")) == 0
+    assert mention_start(t, menu.item("cafe_latte")) == 4  # never named: the latest words
+
+
+def test_item_words(menu: Menu):
+    assert item_words(menu.item("green_grape_ade")) == ["청포도에이드", "청포도", "에이드"]
+    assert item_words(menu.item("chocolate_cookie")) == ["초코쿠키"]
+
+
+@pytest.mark.parametrize(
+    ("text", "stop"),
+    [
+        ("잠깐만요", True),
+        ("아니요", True),
+        ("취소해 주세요", True),
+        ("샷 추가로 바꿀래요", True),
+        ("네", False),
+        ("얼마라고요?", False),
+        ("결제할게요", False),
+    ],
+)
+def test_wants_to_stop(text, stop):
+    assert wants_to_stop(text) is stop

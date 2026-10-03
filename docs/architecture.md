@@ -41,9 +41,11 @@ the session's audio to the speaker.
 2. **Ordering**: audio streams both ways. Transcripts become subtitles. Function calls change the
    order and choose what the display shows.
 3. **Payment**: the customer asks to pay → `request_payment` (checked in code) shows the review and
-   returns a read-back written by code → the assistant says it → **code** starts the simulated
-   card terminal once the total was heard → done screen with the order number; the assistant
-   announces it (kiosk cue `[결제 완료 ...]`).
+   returns a read-back written by code → the assistant says it (only that, while the review is
+   on screen) → **code** starts the simulated card terminal once the total was heard → with the
+   card screen up, the kiosk cue `[카드 단말기 ...]` makes the assistant say "카드를 단말기에 꽂아
+   주세요"; the card counts as inserted after that → done screen with the order number; the
+   assistant announces it (kiosk cue `[결제 완료 ...]`).
 4. **On-hook** (any time): the session closes, the order is cleared, back to idle. The done screen
    also returns to idle after `flow.done_return_s`.
 
@@ -51,6 +53,26 @@ Live connections last about 10 minutes and audio sessions 15 minutes. The sessio
 resumption (handles are valid for 2 h), reacts to `GoAway` and enables context compression. If a
 session must start over, the new one gets the current order in its instructions: the order lives
 in code, not in the model's memory.
+
+## The server (`kiosk.server`)
+
+`uv run python -m kiosk` starts one FastAPI app (`app.py`): the display's WebSocket at `/ws`, the
+built display (`frontend/dist`) at `/`, and the menu images at `/images`.
+
+- `KioskController` (`controller.py`) owns the one `Kiosk`, the hook switch and the current
+  `AssistantSession`. Lifting the handset starts a session, putting it down (or the done screen
+  timing out) stops it. As the session's `SessionListener` it turns everything into display
+  events (`events.py`): full `state` snapshots, `subtitle`s with utterance ids, `level`s (the
+  loudness of the assistant's audio, for the animation), `notice`s. In milestone 7 it also passes
+  the audio to the earpiece (`audio_out`, `audio_stop`).
+- `Hub` (`hub.py`) fans events out to every connected display; a display that stops reading
+  loses its oldest events and never blocks the kiosk.
+- A newly connected display gets `init` (the menu, with the image files that exist now) and the
+  current `state`, so it can reconnect at any time.
+- From the display (developer mode): `hook` (Space: lift / put down; lifting again after a
+  finished order starts the next customer), `dev_text` (typed customer words; lifts the handset
+  if nobody did) and `dev_mute`.
+- Without an API key the server still runs; lifting the handset shows an error notice.
 
 ## Flow state (`kiosk.domain.flow`)
 
@@ -64,7 +86,9 @@ changes the state (and increases `revision`) or raises `KioskError` with a messa
 - The **review** is a screen, not a phase: `review()` stores the order's `version`, and
   `start_payment()` is refused if the order changed since (`review_is_current`).
 - An item is added as soon as every **required** option is known (`choose_item` /
-  `set_options`); otherwise the item screen shows the missing choices. Optional groups keep
+  `set_options`); otherwise it waits and the item screen shows the missing choices. Several
+  items can wait side by side ("청포도 에이드 하나랑 아메리카노 하나"); `set_options(item_id=...)`
+  says which one an answer is for, and the screen shows the one touched last. Optional groups keep
   their default ("기본", "없음"). A temperature or size the item has no option for is accepted
   only if it matches how the item is served (ICE for an iced-only item, Regular for one size).
 - `show_menu(exclude_allergens=...)` removes items whose own allergens include one of them (in
@@ -98,9 +122,9 @@ Text in [brackets] sent to the model is a kiosk cue, never the customer's words.
 | Rule | How |
 |---|---|
 | Pay only after the customer asked | `request_payment` is blocked unless one of the customer's utterances since the items last changed (always including the latest) asks to pay: pay phrases ("결제할게요", "계산", "이게 다예요", ...), "아니요/없어요" right after the assistant asked whether they want anything else, or a yes to a payment question. Dining changes do not count as item changes. |
-| Read back before paying | `request_payment` returns a read-back written by code. The terminal starts only after the assistant's next spoken turn contains the total (digits or Korean words, e.g. "만 삼천오백 원"); otherwise the assistant is reminded (twice, then it starts anyway since the total is on screen). An interruption or an item change during the read-back cancels it. |
+| Read back before paying | `request_payment` returns a read-back written by code. The terminal starts only after the assistant's next spoken turn contains the total (digits or Korean words, e.g. "만 삼천오백 원"); otherwise the assistant is reminded (twice, then it starts anyway since the total is on screen). If the customer talks over the read-back, their words decide: a yes ("네", "결제해 주세요") starts the terminal, a stop ("잠깐만요", "아니요", "취소") cancels it and tells the assistant, anything else waits for the assistant's next answer. An item change cancels it too. |
 | Discard only after a yes | `cancel_order` is blocked unless the latest customer words are a yes and the assistant's previous words asked about cancelling. |
-| Required options must be heard | For `choose_item`, `set_options` and `change_line`, a new temperature or size is set only if the customer said it (the choice's name, `say` text or `aliases` in `menu.yaml`) since the item was named (or in their latest words). Otherwise it is left out and the result says `not_heard`; a call with nothing else left is blocked. |
+| Required options must be heard | For `choose_item`, `set_options` and `change_line`, a new temperature or size is set only if the customer said it (the choice's name, `say` text or `aliases` in `menu.yaml`) since they last named the item ("아메리카노는 아이스요"), or in their latest words if they never named it. Otherwise it is left out and the result says `not_heard`; a call with nothing else left is blocked. |
 
 ## Function declarations
 
@@ -120,8 +144,8 @@ with a milk allergy).
 | `show_info(topic)` | Shows a cafe-info card (Wi-Fi, restroom, hours, ...; topics come from `cafe.yaml`). |
 | `show_order()` | Shows the whole order (display only). |
 | `choose_item(item_id, quantity?, options…)` | The item becomes the pending item (its image enlarges). Once every **required** option is known it is added to the order automatically; otherwise the result lists the missing groups and the screen shows their choices. Required options nobody said are left out. |
-| `set_options(options…, quantity?)` | Fills in the pending item (same rules). |
-| `cancel_item()` | Drops the pending item. |
+| `set_options(item_id?, options…, quantity?)` | Fills in a waiting item (the last one unless `item_id` says which; same rules). Results list the other items still waiting. |
+| `cancel_item(item_id?)` | Drops a waiting item. |
 | `change_line(line, quantity?, options…)` | Changes an order line; quantity 0 removes it. |
 | `set_dining(dining: here \| to_go)` | Dine-in or take-out. |
 | `request_payment()` | **Blocked unless the customer asked to pay** (see above); also needs items, dining and no pending item. Shows the review and returns the read-back; code starts the terminal after it was said. |

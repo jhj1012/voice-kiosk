@@ -7,7 +7,7 @@ what the session answered, what it did to the kiosk and what it told the listene
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
+from collections.abc import Awaitable, Callable
 from typing import Any
 
 import pytest
@@ -22,13 +22,14 @@ from kiosk.assistant.live import (
     Interrupted,
     OutputText,
     Resumable,
-    ServerEvent,
-    SessionSetup,
     ToolCall,
     TurnComplete,
 )
 from kiosk.assistant.session import (
+    CARD_CUE,
+    ORDER_CHANGED_NOTE,
     PAYMENT_DONE_CUE,
+    PAYMENT_STOPPED_CUE,
     RECONNECTED_CUE,
     AssistantSession,
     AssistantState,
@@ -36,66 +37,9 @@ from kiosk.assistant.session import (
 )
 from kiosk.config import FlowConfig
 from kiosk.domain.flow import Kiosk, PaymentStep, Phase, Screen
+from tests.fakes import FakeConnection, FakeConnector
 
 FAST = FlowConfig(insert_card_s=0, processing_s=0, done_return_s=0)
-
-
-class FakeConnection:
-    def __init__(self) -> None:
-        self.queue: asyncio.Queue[ServerEvent | None] = asyncio.Queue()
-        self.texts: list[str] = []
-        self.audio: list[bytes] = []
-        self.results: list[list[tuple[FunctionCall, dict[str, Any]]]] = []
-        self.closed = False
-
-    async def send_audio(self, pcm: bytes) -> None:
-        self.audio.append(pcm)
-
-    async def send_text(self, text: str) -> None:
-        self.texts.append(text)
-
-    async def send_results(self, results: Sequence[tuple[FunctionCall, dict[str, Any]]]) -> None:
-        self.results.append(list(results))
-
-    async def events(self) -> AsyncIterator[ServerEvent]:
-        while (event := await self.queue.get()) is not None:
-            yield event
-
-    async def close(self) -> None:
-        self.closed = True
-        self.queue.put_nowait(None)
-
-    def push(self, *events: ServerEvent) -> None:
-        for event in events:
-            self.queue.put_nowait(event)
-
-    def drop(self) -> None:
-        """The connection ends unexpectedly."""
-        self.queue.put_nowait(None)
-
-    @property
-    def last_result(self) -> dict[str, Any]:
-        return self.results[-1][-1][1]
-
-
-class FakeConnector:
-    def __init__(self, failures: int = 0) -> None:
-        self.failures = failures
-        self.connections: list[FakeConnection] = []
-        self.setups: list[SessionSetup] = []
-
-    async def connect(self, setup: SessionSetup) -> FakeConnection:
-        self.setups.append(setup)
-        if self.failures:
-            self.failures -= 1
-            raise ConnectionError("offline")
-        connection = FakeConnection()
-        self.connections.append(connection)
-        return connection
-
-    @property
-    def conn(self) -> FakeConnection:
-        return self.connections[-1]
 
 
 class RecordingListener(SessionListener):
@@ -381,8 +325,15 @@ def test_full_payment_after_the_read_back(new_kiosk):
         assert result["read_back"].endswith("포장으로 총 4,000원입니다.")
         assert h.kiosk.view.screen is Screen.REVIEW
         assert h.kiosk.phase is Phase.ORDERING  # not before the read-back was said
-        await h.reply(result["read_back"] + " 카드를 단말기에 꽂아 주세요.")
+        await h.reply(result["read_back"])
         await h.settle()
+        # The card screen comes after the read-back; then the assistant asks for the card.
+        assert h.kiosk.phase is Phase.PAYING
+        assert h.kiosk.view.screen is Screen.PAYMENT
+        assert h.kiosk.payment_step is PaymentStep.INSERT_CARD
+        assert h.conn.texts[-1] == CARD_CUE
+        await h.reply("카드를 단말기에 꽂아 주세요.")
+        await asyncio.sleep(0.3)  # the terminal waits until that sentence has been played
         assert h.kiosk.phase is Phase.DONE
         assert h.kiosk.payment_step is PaymentStep.APPROVED
         assert h.conn.texts[-1] == PAYMENT_DONE_CUE.format(number=1)
@@ -435,7 +386,8 @@ def test_read_back_without_the_total_gets_a_reminder(new_kiosk):
         assert h.kiosk.phase is Phase.ORDERING
         assert h.conn.texts[-1].startswith("[결제 전에 주문 내역을 그대로 읽어 주세요")
         await h.reply(result["read_back"])
-        assert h.kiosk.phase is Phase.DONE
+        assert h.kiosk.phase is Phase.PAYING
+        assert h.conn.texts[-1] == CARD_CUE
 
     run(scenario, new_kiosk)
 
@@ -519,5 +471,124 @@ def test_go_away_moves_to_a_new_connection(new_kiosk):
         assert h.connector.connections[0].closed
         assert len(h.connector.connections) == 2
         assert h.connector.setups[-1].resume_handle == "h2"
+
+    run(scenario, new_kiosk)
+
+
+def test_two_items_in_one_sentence_wait_side_by_side(new_kiosk):
+    async def scenario(h: Harness):
+        await h.say("청포도 에이드 하나랑 아메리카노 하나 주세요")
+        await h.call("choose_item", item_id="green_grape_ade")
+        result = await h.call("choose_item", item_id="americano")
+        assert result["still_waiting_for_options"][0]["item_id"] == "green_grape_ade"
+        await h.reply("사이즈는요?")
+        await h.say("아메리카노는 아이스요")
+        await h.call("set_options", item_id="americano", temperature="ice")
+        await h.reply("사이즈는요?")
+        await h.say("둘 다 라지로요")
+        assert "added" in await h.call("set_options", item_id="green_grape_ade", size="large")
+        assert "added" in await h.call("set_options", item_id="americano", size="large")
+        assert [line.option_text for line in h.kiosk.order.lines] == ["Large", "ICE, Large"]
+
+    run(scenario, new_kiosk)
+
+
+def test_an_earlier_items_options_do_not_count_for_the_next(new_kiosk):
+    async def scenario(h: Harness):
+        await h.say("아이스 아메리카노 라지 주세요")
+        await h.call("choose_item", item_id="americano", temperature="ice", size="large")
+        await h.reply("담았어요")
+        await h.say("카페라떼도 하나요")
+        result = await h.call("choose_item", item_id="cafe_latte", temperature="ice", size="large")
+        assert "not_heard" in result
+        assert h.kiosk.pending is not None and h.kiosk.pending.chosen == {}
+
+    run(scenario, new_kiosk)
+
+
+def test_typed_yes_over_the_read_back_starts_the_payment(new_kiosk):
+    # Seen in testing: the customer typed "네" while the read-back was still being "spoken".
+    async def scenario(h: Harness):
+        await order_ready(h)
+        await h.say("결제할게요")
+        result = await h.call("request_payment")
+        h.conn.push(OutputText(result["read_back"]), AudioOut(b"\0" * 48000))
+        await h.settle()
+        await h.session.send_text("네")
+        h.conn.push(Interrupted(), TurnComplete())
+        await h.settle()
+        assert h.kiosk.phase in (Phase.PAYING, Phase.DONE)
+
+    run(scenario, new_kiosk)
+
+
+def test_spoken_stop_over_the_read_back_cancels_and_tells_the_model(new_kiosk):
+    async def scenario(h: Harness):
+        await order_ready(h)
+        await h.say("결제할게요")
+        result = await h.call("request_payment")
+        h.conn.push(OutputText(result["read_back"]), AudioOut(b"\0" * 48000), Interrupted())
+        await h.settle()
+        h.conn.push(InputText("잠깐만요"), TurnComplete())
+        await h.settle()
+        assert h.kiosk.phase is Phase.ORDERING
+        assert h.conn.texts[-1] == PAYMENT_STOPPED_CUE
+        await h.reply("네, 말씀하세요. 총 4,000원입니다.")  # a later total does not pay
+        assert h.kiosk.phase is Phase.ORDERING
+
+    run(scenario, new_kiosk)
+
+
+def test_other_words_over_the_read_back_wait_for_the_next_answer(new_kiosk):
+    async def scenario(h: Harness):
+        await order_ready(h)
+        await h.say("결제할게요")
+        result = await h.call("request_payment")
+        h.conn.push(OutputText(result["read_back"]), AudioOut(b"\0" * 48000), Interrupted())
+        await h.settle()
+        h.conn.push(InputText("얼마라고요?"), TurnComplete())
+        await h.settle()
+        assert h.kiosk.phase is Phase.ORDERING
+        await h.reply("총 4,000원입니다. 카드를 꽂아 주세요.")
+        assert h.kiosk.phase in (Phase.PAYING, Phase.DONE)
+
+    run(scenario, new_kiosk)
+
+
+def test_order_change_during_the_read_back_is_reported_to_the_model(new_kiosk):
+    async def scenario(h: Harness):
+        await order_ready(h)
+        await h.say("결제할게요 아 쿠키도요")
+        await h.call("request_payment")
+        result = await h.call("choose_item", item_id="chocolate_cookie")
+        assert result["payment"] == ORDER_CHANGED_NOTE
+
+    run(scenario, new_kiosk)
+
+
+def test_done_waits_for_a_reply_that_starts_after_the_cue(new_kiosk):
+    # Seen in testing: the end of the read-back finished after the "[결제 완료]" cue and was
+    # taken for the reply, so the session ended before the order number was said.
+    async def scenario(h: Harness):
+        await order_ready(h)
+        await h.say("결제할게요")
+        result = await h.call("request_payment")
+        h.conn.push(OutputText(result["read_back"]), AudioOut(b"\0" * 48))
+        await h.settle()
+        await h.session.send_text("네")
+        h.conn.push(Interrupted())
+        await h.settle()
+        assert h.conn.texts[-1] == CARD_CUE
+        h.conn.push(OutputText("포장으로 총 4,000원입니다."), AudioOut(b"\0" * 48), TurnComplete())
+        await asyncio.sleep(0.3)
+        assert h.kiosk.payment_step is PaymentStep.INSERT_CARD  # that turn began before the cue
+        await h.reply("카드를 단말기에 꽂아 주세요.")
+        await asyncio.sleep(0.3)  # the terminal waits until that sentence has been played
+        assert h.conn.texts[-1] == PAYMENT_DONE_CUE.format(number=1)
+        await asyncio.sleep(0.3)
+        assert not h.listener.finished
+        await h.reply("주문 번호는 1번입니다.")
+        await asyncio.sleep(0.3)
+        assert h.listener.finished
 
     run(scenario, new_kiosk)
