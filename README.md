@@ -27,10 +27,10 @@ in the terminal (`uv run python -m kiosk.assistant.chat`) or watch the display's
 The display, driven by recorded events (`?demo=order`, `?demo=allergy`; more in
 [docs/screenshots](docs/screenshots)):
 
-| | |
-|---|---|
-| ![Recommended menu](docs/screenshots/menu.jpg) | ![Item with its required choices](docs/screenshots/item.jpg) |
-| ![Allergy-safe menu chosen by the assistant](docs/screenshots/allergy.jpg) | ![Order number after payment](docs/screenshots/done.jpg) |
+| | | |
+|---|---|---|
+| ![Start](docs/screenshots/start.jpg) | ![Recommended items](docs/screenshots/recommended.jpg) | ![An item and its required choices](docs/screenshots/item.jpg) |
+| ![Allergy-safe items](docs/screenshots/allergy.jpg) | ![Card terminal](docs/screenshots/payment.jpg) | ![Order number](docs/screenshots/done.jpg) |
 
 ## Quick start
 
