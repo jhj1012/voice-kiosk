@@ -11,6 +11,8 @@ let snapshot = $state.raw(start.state);
 let subtitles = $state.raw(start.subtitles);
 let level = $state.raw(start.level);
 let notice = $state.raw(start.notice);
+let apiKey = $state.raw(start.apiKey);
+let keyFormOpen = $state(false); // the developer panel's "API 키 바꾸기"
 let lastAdded = $state.raw(start.lastAdded);
 
 export const ui = {
@@ -35,7 +37,18 @@ export const ui = {
   get lastAdded() {
     return lastAdded;
   },
+  get apiKey() {
+    return apiKey;
+  },
+  /** The API key form: when the key does not work, or when someone wants to change it. */
+  get keyForm() {
+    return apiKey !== 'ok' || keyFormOpen;
+  },
 };
+
+export function openKeyForm(open: boolean): void {
+  keyFormOpen = open;
+}
 
 export function dispatch(event: ServerEvent): void {
   const before: DisplayState = {
@@ -45,6 +58,7 @@ export function dispatch(event: ServerEvent): void {
     subtitles,
     level,
     notice,
+    apiKey,
     lastAdded,
   };
   const after = apply(before, event, performance.now());
@@ -54,5 +68,6 @@ export function dispatch(event: ServerEvent): void {
   if (after.subtitles !== subtitles) subtitles = after.subtitles;
   if (after.level !== level) level = after.level;
   if (after.notice !== notice) notice = after.notice;
+  if (after.apiKey !== apiKey) apiKey = after.apiKey;
   if (after.lastAdded !== lastAdded) lastAdded = after.lastAdded;
 }

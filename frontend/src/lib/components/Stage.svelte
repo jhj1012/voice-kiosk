@@ -6,6 +6,7 @@
   import { cubicOut } from 'svelte/easing';
   import { ui } from '../store.svelte';
   import { appear, disappear } from '../transitions';
+  import ApiKeyForm from './ApiKeyForm.svelte';
   import AssistantPresence from './AssistantPresence.svelte';
   import Categories from './Categories.svelte';
   import Done from './Done.svelte';
@@ -148,6 +149,10 @@
 
   {#if ui.notice}
     <Notice level={ui.notice.level} text={ui.notice.text} />
+  {/if}
+
+  {#if ui.keyForm}
+    <ApiKeyForm />
   {/if}
 </div>
 

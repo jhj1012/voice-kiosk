@@ -155,6 +155,7 @@ def test_finished_order_hangs_up_and_a_new_lift_starts_again(menu, cafe, tmp_pat
 
 
 KEY = "AIza" + "x" * 35
+NEW_KEY = "AQ." + "x" * 50  # newer keys look different
 
 
 class Keys:
@@ -195,6 +196,15 @@ def test_a_key_entered_on_the_display_is_checked_saved_and_used(menu, cafe, tmp_
         assert s.controller.session is not None and keys.connector.connections
 
     run(menu, cafe, tmp_path, test, MissingKeyConnector("GEMINI_API_KEY"), keys.api_keys())
+
+
+def test_newer_keys_are_accepted_too(menu, cafe, tmp_path):
+    keys = Keys()
+
+    async def test(s: Setup) -> None:
+        assert await s.controller.set_api_key(NEW_KEY) == "ok"
+
+    run(menu, cafe, tmp_path, test, keys=keys.api_keys())
 
 
 @pytest.mark.parametrize("typed", ["", "short", "AIza with spaces in the middle of it", "키" * 30])

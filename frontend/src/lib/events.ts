@@ -122,7 +122,16 @@ export interface NoticeEvent {
   text: string;
 }
 
-export type ServerEvent = InitEvent | StateEvent | SubtitleEvent | LevelEvent | NoticeEvent;
+// Whether the Gemini API key works; unless it is 'ok' the display asks for one.
+export type ApiKeyStatus = 'ok' | 'missing' | 'rejected';
+
+export interface SetupEvent {
+  type: 'setup';
+  api_key: ApiKeyStatus;
+}
+
+export type ServerEvent =
+  InitEvent | StateEvent | SubtitleEvent | LevelEvent | NoticeEvent | SetupEvent;
 
 // Display -> backend (developer mode only).
 export type ClientEvent =

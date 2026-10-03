@@ -40,7 +40,7 @@ LEVEL_EVERY_S = 0.08  # loudness events for the animation, at most ~12 per secon
 MIC_QUEUE = 50  # 1 s of 20 ms frames; older frames are dropped if sending falls behind
 
 
-MIN_KEY_LENGTH = 20  # Gemini API keys are about 40 characters
+MIN_KEY_LENGTH = 20  # Gemini API keys are 39 (AIza...) or more (AQ....) characters
 
 
 class MissingKeyConnector:

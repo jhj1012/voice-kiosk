@@ -1,6 +1,7 @@
 // The display's state and how each server event changes it. Pure functions, unit tested.
 
 import type {
+  ApiKeyStatus,
   Cafe,
   Menu,
   NoticeEvent,
@@ -24,6 +25,7 @@ export interface DisplayState {
   subtitles: Subtitle[]; // the latest few utterances, oldest first
   level: { mic: number; out: number };
   notice: NoticeEvent | null;
+  apiKey: ApiKeyStatus;
   lastAdded: { itemId: string; at: number } | null; // for the "fly into the order" animation
 }
 
@@ -50,6 +52,7 @@ export function initialDisplay(): DisplayState {
     subtitles: [],
     level: { mic: 0, out: 0 },
     notice: null,
+    apiKey: 'ok',
     lastAdded: null,
   };
 }
@@ -66,6 +69,8 @@ export function apply(display: DisplayState, event: ServerEvent, now = 0): Displ
       return { ...display, level: { mic: event.mic, out: event.out } };
     case 'notice':
       return { ...display, notice: event.text ? event : null };
+    case 'setup':
+      return { ...display, apiKey: event.api_key };
   }
 }
 
