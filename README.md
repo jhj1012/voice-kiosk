@@ -25,8 +25,9 @@
 
 1. [최신 릴리스 페이지](https://github.com/jhj1012/voice-kiosk/releases/latest)를 연다.
 2. **Assets** 아래의 **`voice-kiosk.zip`** 을 누른다.
-3. 다운로드 된 `voice-kiosk.zip`을 압축 풀기.
-4. 새로 생긴 **`voice-kiosk`** 폴더를 안에 `Start Kiosk.bat` 실행.
+3. 다운로드 된 `voice-kiosk.zip` 우클릭, 속성, 차단해제 체크.
+4. 압축 풀기.
+4. **`voice-kiosk`** 폴더 안 `Start Kiosk.bat` 또는 `Start Kiosk (full screen).bat` 실행.
 5. 1~2분 정도 설치 시간이 있을 수 있음. 기다리기.
 
 
@@ -44,7 +45,7 @@
    다음부터는 묻지 않음.
 
 키는 절대 다른 사람에게 공유하지 말것.
-### 5. 말해 보기
+### 3. 말해 보기
 
 | 하고 싶은 것 | 방법 |
 |---|---|
@@ -57,7 +58,7 @@
 결제는 흉내만. AI가 주문 내용을 읽어 주면 카드 단말기가 나오고, 몇 초 뒤에 주문 번호가
 나옴.
 
-### 6. 끄기
+### 4. 끄기
 
 Alt + f4, 검은 명령어 입력 창 닫기.
 ### 마이크와 스피커
