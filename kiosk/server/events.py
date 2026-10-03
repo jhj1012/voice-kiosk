@@ -9,6 +9,8 @@ Backend -> display:
   the same id with more text updates it, `final` ends it.
 - `level`: microphone and speaker loudness (0..1), for the assistant animation.
 - `notice`: a short message for the screen (empty text clears it).
+- `setup`: whether the Gemini API key works (`api_key`: ok, missing or rejected); unless it is
+  ok the display asks for a key (never the key itself).
 
 Display -> backend (developer mode): `hook`, `dev_text`, `dev_mute`. See docs/architecture.md.
 """
@@ -162,6 +164,10 @@ def level_event(mic: float, out: float) -> Event:
 
 def _unit(value: float) -> float:
     return round(min(max(value, 0.0), 1.0), 3)
+
+
+def setup_event(api_key: str) -> Event:
+    return {"type": "setup", "api_key": api_key}
 
 
 def notice_event(level: str, text: str) -> Event:

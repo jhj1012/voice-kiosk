@@ -136,6 +136,23 @@ def load_env_file(path: Path = ENV_FILE) -> list[str]:
     return loaded
 
 
+def save_env_value(name: str, value: str, path: Path = ENV_FILE) -> None:
+    """Write `name=value` into the `.env` file (other lines are kept) and this process."""
+    if not name or "\n" in value or "\r" in value:
+        raise ValueError("a .env value must be one line")
+    lines = path.read_text(encoding="utf-8-sig").splitlines() if path.exists() else []
+    new = f"{name}={value}"
+    for i, line in enumerate(lines):
+        key = line.split("=", 1)[0].strip().removeprefix("export ").strip()
+        if "=" in line and not line.lstrip().startswith("#") and key == name:
+            lines[i] = new
+            break
+    else:
+        lines.append(new)
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
+    os.environ[name] = value
+
+
 def _check(config: Config) -> None:
     if not config.live.model:
         raise ConfigError("settings.yaml: live.model must be set")

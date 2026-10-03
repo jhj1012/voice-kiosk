@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from kiosk.config import CONFIG_DIR, ConfigError, load_config, load_env_file
+from kiosk.config import CONFIG_DIR, ConfigError, load_config, load_env_file, save_env_value
 
 
 def write(path: Path, text: str) -> None:
@@ -52,3 +52,28 @@ def test_env_file_does_not_override_environment(tmp_path, monkeypatch):
     assert os.environ["KIOSK_TEST_A"] == "from-env"
     assert os.environ["KIOSK_TEST_B"] == "quoted"
     monkeypatch.delenv("KIOSK_TEST_B")
+
+
+def test_save_env_value_replaces_the_key_and_keeps_other_lines(tmp_path, monkeypatch):
+    monkeypatch.delenv("KIOSK_TEST_KEY", raising=False)
+    env = tmp_path / ".env"
+    write(env, "# my settings\nOTHER=1\nKIOSK_TEST_KEY=old\n")
+    save_env_value("KIOSK_TEST_KEY", "new", env)
+
+    assert env.read_text(encoding="utf-8") == "# my settings\nOTHER=1\nKIOSK_TEST_KEY=new\n"
+    assert os.environ["KIOSK_TEST_KEY"] == "new"
+    monkeypatch.delenv("KIOSK_TEST_KEY")
+
+
+def test_save_env_value_creates_the_file(tmp_path, monkeypatch):
+    monkeypatch.delenv("KIOSK_TEST_KEY", raising=False)
+    env = tmp_path / ".env"
+    save_env_value("KIOSK_TEST_KEY", "abc", env)
+
+    assert env.read_text(encoding="utf-8") == "KIOSK_TEST_KEY=abc\n"
+    monkeypatch.delenv("KIOSK_TEST_KEY")
+
+
+def test_save_env_value_refuses_several_lines(tmp_path):
+    with pytest.raises(ValueError):
+        save_env_value("KIOSK_TEST_KEY", "a\nEVIL=1", tmp_path / ".env")

@@ -28,6 +28,7 @@ from kiosk.assistant.live import (
     GoAway,
     InputText,
     Interrupted,
+    KeyRejected,
     LiveConnection,
     LiveConnector,
     OutputText,
@@ -124,6 +125,9 @@ class SessionListener:
     def on_finished(self) -> None:
         """The done screen has been shown long enough: end the session."""
 
+    def on_key_rejected(self) -> None:
+        """There is no API key or Google refused it: someone has to enter a valid one."""
+
 
 @dataclass
 class _ReadBack:
@@ -181,6 +185,12 @@ class AssistantSession:
         self._set_state(AssistantState.CONNECTING)
         try:
             self._conn = await self._connect()
+        except KeyRejected as e:
+            log.error("the API key was refused: %s", e)
+            self.listener.on_key_rejected()
+            self.kiosk.end_session()
+            self._set_state(AssistantState.IDLE)
+            return False
         except Exception as e:
             log.error("could not connect to the Live API: %s", e)
             self.listener.on_notice("error", CANNOT_CONNECT)

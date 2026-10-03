@@ -10,11 +10,12 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from collections.abc import Callable, Coroutine
+from collections.abc import Awaitable, Callable, Coroutine
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from kiosk.assistant.live import LiveConnection, LiveConnector, SessionSetup
+from kiosk.assistant.live import KeyRejected, LiveConnection, LiveConnector, SessionSetup
 from kiosk.assistant.safety import Speaker
 from kiosk.assistant.session import AssistantSession, SessionListener
 from kiosk.config import FlowConfig
@@ -26,6 +27,7 @@ from kiosk.server.events import (
     init_event,
     level_event,
     notice_event,
+    setup_event,
     state_event,
 )
 from kiosk.server.hub import Hub
@@ -38,14 +40,26 @@ LEVEL_EVERY_S = 0.08  # loudness events for the animation, at most ~12 per secon
 MIC_QUEUE = 50  # 1 s of 20 ms frames; older frames are dropped if sending falls behind
 
 
+MIN_KEY_LENGTH = 20  # Gemini API keys are about 40 characters
+
+
 class MissingKeyConnector:
-    """Used when no API key is configured: lifting the handset shows an error."""
+    """Used when no API key is configured: the display asks for one."""
 
     def __init__(self, env_name: str) -> None:
         self.env_name = env_name
 
     async def connect(self, setup: SessionSetup) -> LiveConnection:
-        raise RuntimeError(f"{self.env_name} is not set (see docs/setup.md)")
+        raise KeyRejected(f"{self.env_name} is not set")
+
+
+@dataclass(frozen=True)
+class ApiKeys:
+    """Entering the API key on the display, so nobody needs a terminal or a text editor."""
+
+    check: Callable[[str], Awaitable[str]]  # asks Google: "ok", "rejected" or "offline"
+    save: Callable[[str], None]  # writes it to .env
+    connector: Callable[[str], LiveConnector]  # the Live API with that key
 
 
 class KioskController(SessionListener):
@@ -58,10 +72,14 @@ class KioskController(SessionListener):
         hook: SimulatedHook,
         images_dir: Path,
         *,
+        keys: ApiKeys | None = None,
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
         self.kiosk = kiosk
         self.connector = connector
+        self.keys = keys
+        # "ok" (or not checked yet), "missing" or "rejected": the display asks for a key unless ok
+        self.key_status = "missing" if isinstance(connector, MissingKeyConnector) else "ok"
         self.flow = flow
         self.hub = hub
         self.hook = hook
@@ -88,7 +106,11 @@ class KioskController(SessionListener):
     def init_events(self) -> list[Event]:
         """What a newly connected display needs: the menu (with current images) and the state."""
         menu, cafe = self.kiosk.menu, self.kiosk.cafe
-        return [init_event(menu, cafe, image_urls(menu, self.images_dir)), self.state()]
+        return [
+            init_event(menu, cafe, image_urls(menu, self.images_dir)),
+            setup_event(self.key_status),
+            self.state(),
+        ]
 
     def state(self) -> Event:
         self._seq += 1
@@ -111,6 +133,30 @@ class KioskController(SessionListener):
             log.info("audio %s", "on" if self.audio_enabled else "muted")
         else:
             log.warning("unknown display event: %r", message)
+
+    async def set_api_key(self, key: str) -> str:
+        """A key typed on the display: checked with Google, then saved and used at once.
+
+        Returns "ok", "invalid" (not a key), "rejected" (Google refused it) or "offline". The
+        key is never sent back to a display or written to the log.
+        """
+        key = key.strip()
+        if self.keys is None:
+            return "unavailable"
+        if len(key) < MIN_KEY_LENGTH or any(c.isspace() for c in key) or not key.isascii():
+            return "invalid"
+        result = await self.keys.check(key)
+        if result == "ok":
+            self.keys.save(key)
+            self.connector = self.keys.connector(key)
+            self._set_key_status("ok")
+        log.info("API key entered on the display: %s", result)
+        return result
+
+    def _set_key_status(self, status: str) -> None:
+        if status != self.key_status:
+            self.key_status = status
+            self.hub.publish(setup_event(status))
 
     # --- the handset -------------------------------------------------------------------------
 
@@ -241,3 +287,8 @@ class KioskController(SessionListener):
 
     def on_finished(self) -> None:
         self._spawn(self.hang_up())
+
+    def on_key_rejected(self) -> None:
+        self._set_key_status(
+            "missing" if isinstance(self.connector, MissingKeyConnector) else "rejected"
+        )
