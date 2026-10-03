@@ -216,7 +216,7 @@
 
   .content {
     position: absolute;
-    top: 30rem;
+    top: 32.5rem;
     bottom: 15rem;
     left: 4.5rem;
     right: 4.5rem;

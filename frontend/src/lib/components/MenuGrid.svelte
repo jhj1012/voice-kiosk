@@ -74,8 +74,9 @@
   }
   .grid {
     display: grid;
-    grid-template-columns: repeat(var(--columns), 1fr);
-    gap: 3rem 2.4rem;
+    grid-template-columns: repeat(var(--columns), minmax(0, 23rem));
+    justify-content: center;
+    gap: 3rem 2.6rem;
     align-content: start;
   }
   .card {
