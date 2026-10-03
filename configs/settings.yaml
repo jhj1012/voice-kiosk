@@ -17,11 +17,13 @@ live:
   silence_duration_ms: null
 
 audio:
+  enabled: true           # false: no audio devices (typed input only)
   input_device: null      # the handset's microphone: null = Windows default, an index or part of the name
   output_device: null     # the handset's earpiece
   input_rate: 16000
   output_rate: 24000
   frame_ms: 20
+  echo_gate_rms: null     # e.g. 800: while the earpiece plays, quieter mic audio is sent as silence
 
 server:
   host: 127.0.0.1

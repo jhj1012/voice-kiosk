@@ -45,11 +45,15 @@ class LiveConfig:
 class AudioConfig:
     """The handset: devices are None (Windows default), an index or part of the name."""
 
+    enabled: bool = True  # False: no audio devices (typed input only)
     input_device: int | str | None = None
     output_device: int | str | None = None
     input_rate: int = 16000  # what the Live API expects
     output_rate: int = 24000  # what the Live API sends
     frame_ms: int = 20
+    # While the earpiece plays, quieter microphone frames than this RMS are sent as silence, so
+    # sound leaking from the earpiece cannot interrupt the assistant. None = off.
+    echo_gate_rms: float | None = None
 
 
 @dataclass(frozen=True)
