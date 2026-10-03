@@ -14,6 +14,7 @@ from kiosk.assistant.safety import (
     parse_korean_number,
     said_amount,
     unheard_required,
+    wants_to_stop,
 )
 from kiosk.domain.menu import Menu
 
@@ -224,3 +225,19 @@ def test_mention_start_finds_where_an_item_was_named(menu: Menu):
 def test_item_words(menu: Menu):
     assert item_words(menu.item("green_grape_ade")) == ["청포도에이드", "청포도", "에이드"]
     assert item_words(menu.item("chocolate_cookie")) == ["초코쿠키"]
+
+
+@pytest.mark.parametrize(
+    ("text", "stop"),
+    [
+        ("잠깐만요", True),
+        ("아니요", True),
+        ("취소해 주세요", True),
+        ("샷 추가로 바꿀래요", True),
+        ("네", False),
+        ("얼마라고요?", False),
+        ("결제할게요", False),
+    ],
+)
+def test_wants_to_stop(text, stop):
+    assert wants_to_stop(text) is stop

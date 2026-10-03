@@ -26,7 +26,9 @@ from kiosk.assistant.live import (
     TurnComplete,
 )
 from kiosk.assistant.session import (
+    ORDER_CHANGED_NOTE,
     PAYMENT_DONE_CUE,
+    PAYMENT_STOPPED_CUE,
     RECONNECTED_CUE,
     AssistantSession,
     AssistantState,
@@ -491,5 +493,88 @@ def test_an_earlier_items_options_do_not_count_for_the_next(new_kiosk):
         result = await h.call("choose_item", item_id="cafe_latte", temperature="ice", size="large")
         assert "not_heard" in result
         assert h.kiosk.pending is not None and h.kiosk.pending.chosen == {}
+
+    run(scenario, new_kiosk)
+
+
+def test_typed_yes_over_the_read_back_starts_the_payment(new_kiosk):
+    # Seen in testing: the customer typed "네" while the read-back was still being "spoken".
+    async def scenario(h: Harness):
+        await order_ready(h)
+        await h.say("결제할게요")
+        result = await h.call("request_payment")
+        h.conn.push(OutputText(result["read_back"]), AudioOut(b"\0" * 48000))
+        await h.settle()
+        await h.session.send_text("네")
+        h.conn.push(Interrupted(), TurnComplete())
+        await h.settle()
+        assert h.kiosk.phase in (Phase.PAYING, Phase.DONE)
+
+    run(scenario, new_kiosk)
+
+
+def test_spoken_stop_over_the_read_back_cancels_and_tells_the_model(new_kiosk):
+    async def scenario(h: Harness):
+        await order_ready(h)
+        await h.say("결제할게요")
+        result = await h.call("request_payment")
+        h.conn.push(OutputText(result["read_back"]), AudioOut(b"\0" * 48000), Interrupted())
+        await h.settle()
+        h.conn.push(InputText("잠깐만요"), TurnComplete())
+        await h.settle()
+        assert h.kiosk.phase is Phase.ORDERING
+        assert h.conn.texts[-1] == PAYMENT_STOPPED_CUE
+        await h.reply("네, 말씀하세요. 총 4,000원입니다.")  # a later total does not pay
+        assert h.kiosk.phase is Phase.ORDERING
+
+    run(scenario, new_kiosk)
+
+
+def test_other_words_over_the_read_back_wait_for_the_next_answer(new_kiosk):
+    async def scenario(h: Harness):
+        await order_ready(h)
+        await h.say("결제할게요")
+        result = await h.call("request_payment")
+        h.conn.push(OutputText(result["read_back"]), AudioOut(b"\0" * 48000), Interrupted())
+        await h.settle()
+        h.conn.push(InputText("얼마라고요?"), TurnComplete())
+        await h.settle()
+        assert h.kiosk.phase is Phase.ORDERING
+        await h.reply("총 4,000원입니다. 카드를 꽂아 주세요.")
+        assert h.kiosk.phase in (Phase.PAYING, Phase.DONE)
+
+    run(scenario, new_kiosk)
+
+
+def test_order_change_during_the_read_back_is_reported_to_the_model(new_kiosk):
+    async def scenario(h: Harness):
+        await order_ready(h)
+        await h.say("결제할게요 아 쿠키도요")
+        await h.call("request_payment")
+        result = await h.call("choose_item", item_id="chocolate_cookie")
+        assert result["payment"] == ORDER_CHANGED_NOTE
+
+    run(scenario, new_kiosk)
+
+
+def test_done_waits_for_a_reply_that_starts_after_the_cue(new_kiosk):
+    # Seen in testing: the end of the read-back finished after the "[결제 완료]" cue and was
+    # taken for the reply, so the session ended before the order number was said.
+    async def scenario(h: Harness):
+        await order_ready(h)
+        await h.say("결제할게요")
+        result = await h.call("request_payment")
+        h.conn.push(OutputText(result["read_back"]), AudioOut(b"\0" * 48))
+        await h.settle()
+        await h.session.send_text("네")
+        h.conn.push(Interrupted())
+        await h.settle()
+        assert h.conn.texts[-1] == PAYMENT_DONE_CUE.format(number=1)
+        h.conn.push(OutputText("카드를 꽂아 주세요"), AudioOut(b"\0" * 48), TurnComplete())
+        await asyncio.sleep(0.3)
+        assert not h.listener.finished  # that turn began before the cue
+        await h.reply("주문 번호는 1번입니다.")
+        await asyncio.sleep(0.3)
+        assert h.listener.finished
 
     run(scenario, new_kiosk)

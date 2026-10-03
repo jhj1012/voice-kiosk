@@ -40,12 +40,15 @@ from kiosk.assistant.live import (
 from kiosk.assistant.safety import (
     Speaker,
     Transcript,
+    asks_to_pay,
     confirmed_cancel,
     customer_asked_to_pay,
+    is_yes,
     mention_start,
     mostly_foreign,
     said_amount,
     unheard_required,
+    wants_to_stop,
 )
 from kiosk.assistant.tools import function_declarations, option_params, selection_from_args
 from kiosk.config import FlowConfig
@@ -56,8 +59,17 @@ log = logging.getLogger(__name__)
 
 OUT_RATE = 24000
 RECONNECT_DELAYS_S = (0.0, 1.0, 3.0)
-PAYMENT_DONE_CUE = "[결제 완료: 주문 번호 {number}번. 손님께 알려 주세요.]"
+PAYMENT_DONE_CUE = (
+    "[결제 완료: 주문 번호 {number}번. 카드는 끝났으니 번호와 받는 곳만 알려 주세요.]"
+)
 READ_BACK_CUE = "[결제 전에 주문 내역을 그대로 읽어 주세요: {read_back}]"
+PAYMENT_STOPPED_CUE = (
+    "[결제를 시작하지 않았어요. 손님이 원하면 다시 결제를 요청할 때 request_payment를 호출하세요.]"
+)
+ORDER_CHANGED_NOTE = (
+    "The payment did not start because the order changed. Ask whether they want anything else "
+    "or would like to pay; call request_payment again when they ask to pay."
+)
 RECONNECTED_CUE = "[연결이 끊겼다가 다시 이어졌습니다. 손님과 하던 대화를 이어 가세요.]"
 MAX_READ_BACK_REMINDERS = 2
 CANNOT_CONNECT = "지금은 연결할 수 없어요. 잠시 후 다시 시도해 주세요."
@@ -117,6 +129,7 @@ class _ReadBack:
     index: int  # assistant words from this transcript entry on count
     spoke: bool = False  # audio arrived since
     reminders: int = 0
+    interrupted: bool = False  # the customer talked over the read-back: their words decide
 
 
 class AssistantSession:
@@ -149,7 +162,8 @@ class AssistantSession:
         self._play_end = 0.0
         self._turn_audio = False
         self._turn_calls = False
-        self._spoken_turns = 0  # turns with audio, completed
+        self._turn_audio_at = 0.0  # when the current turn's audio began
+        self._spoken_turn_at = 0.0  # when the last completed turn with audio began
         self._lines_mark = 0  # transcript mark when the items last changed (payment intent)
         self._read_back: _ReadBack | None = None
         self._terminal_id = 0
@@ -208,6 +222,7 @@ class AssistantSession:
         self.listener.on_subtitle("customer", text, True)
         log.info("customer (typed): %s", text)
         await self._conn.send_text(text)
+        self._decide_read_back()
         self._set_state(AssistantState.THINKING)
 
     # --- receiving ---------------------------------------------------------------------------
@@ -259,6 +274,8 @@ class AssistantSession:
 
     def _on_audio(self, data: bytes) -> None:
         self._close_utterance("customer")
+        if not self._turn_audio:
+            self._turn_audio_at = self._clock()
         self._turn_audio = True
         if self._read_back is not None:
             self._read_back.spoke = True
@@ -281,19 +298,23 @@ class AssistantSession:
         self._play_end = self._clock()
         self._close_utterance("assistant")
         if self._read_back is not None:
-            log.info("read-back interrupted: the payment does not start")
-            self._read_back = None
+            # "네" over the read-back agrees; "잠깐만요" stops. Their words decide (typed words are
+            # already here; spoken ones arrive with the transcription).
+            log.info("read-back interrupted: the customer's words decide")
+            self._read_back.interrupted = True
+            self._decide_read_back()
         self._set_state(AssistantState.LISTENING)
 
     async def _on_turn_complete(self) -> None:
         self._close_utterance("customer")
         self._close_utterance("assistant")
         if self._turn_audio:
-            self._spoken_turns += 1
+            self._spoken_turn_at = self._turn_audio_at
         elif not self._turn_calls:
             self._set_state(AssistantState.LISTENING)  # nothing to say
         self._turn_audio = self._turn_calls = False
-        if self._read_back is not None and self._read_back.spoke:
+        read_back = self._read_back
+        if read_back is not None and read_back.spoke and not read_back.interrupted:
             self._spawn(self._check_read_back())
         if self._reconnect_after_turn:
             await self._planned_reconnect()
@@ -303,6 +324,8 @@ class AssistantSession:
         if utterance is not None and utterance.text.strip():
             self.listener.on_subtitle(speaker, utterance.text, True)
             log.info("%s: %s", speaker, utterance.text.strip())
+            if speaker == "customer":
+                self._decide_read_back()
 
     # --- function calls ----------------------------------------------------------------------
 
@@ -332,6 +355,7 @@ class AssistantSession:
             if self._read_back is not None:
                 log.info("order changed: the payment does not start")
                 self._read_back = None
+                result = {**result, "payment": ORDER_CHANGED_NOTE}
         log.info("call %s(%s) -> %s", call.name, args, result)
         return result
 
@@ -391,6 +415,32 @@ class AssistantSession:
             result["next"] = "Say the read_back now, then '카드를 단말기에 꽂아 주세요.'"
         return result
 
+    def _decide_read_back(self) -> None:
+        """The customer talked over the read-back: a yes starts the terminal, a stop cancels
+        the payment, anything else waits for the assistant's next answer."""
+        read_back = self._read_back
+        if read_back is None or not read_back.interrupted:
+            return
+        words = [
+            u
+            for u in self.transcript.entries[read_back.index :]
+            if u.speaker == "customer" and not u.open and u.text.strip()
+        ]
+        if not words:
+            return  # still listening to them
+        text = words[-1].text
+        if wants_to_stop(text):
+            log.info("customer stopped the payment: %s", text)
+            self._read_back = None
+            if self._conn is not None:
+                self._spawn(self._conn.send_text(PAYMENT_STOPPED_CUE))
+        elif is_yes(text) or asks_to_pay(text):
+            log.info("customer agreed over the read-back: %s", text)
+            self._spawn(self._start_terminal())
+        else:
+            read_back.interrupted = False  # the next spoken answer decides (`_check_read_back`)
+            read_back.spoke = False
+
     async def _check_read_back(self) -> None:
         """After the assistant's turn: start the terminal if the total was said, else remind."""
         await asyncio.sleep(self._read_back_grace_s)  # the transcription may trail the audio
@@ -437,18 +487,20 @@ class AssistantSession:
             return
         self.kiosk.advance_payment()  # approved: done
         self.listener.on_state()
-        spoken_turns = self._spoken_turns
+        cue_at = self._clock()
         if self._conn is not None:
             await self._conn.send_text(PAYMENT_DONE_CUE.format(number=self.kiosk.order_number))
-        await self._wait_for_reply(after=spoken_turns, timeout_s=20.0)
+        await self._wait_for_reply(since=cue_at, timeout_s=20.0)
         await asyncio.sleep(self.flow.done_return_s)
         self.listener.on_finished()
 
-    async def _wait_for_reply(self, after: int, timeout_s: float) -> None:
-        """Until the assistant has said another turn and it has been played (or `timeout_s`)."""
+    async def _wait_for_reply(self, since: float, timeout_s: float) -> None:
+        """Until a spoken turn that began after `since` was said and played (or `timeout_s`).
+        A turn still running when the cue was sent (e.g. the rest of the read-back) does not
+        count."""
         deadline = self._clock() + timeout_s
         while self._clock() < deadline:
-            replied = self._spoken_turns > after
+            replied = self._spoken_turn_at > since
             if replied and self.state is AssistantState.LISTENING:
                 return
             await asyncio.sleep(0.1)

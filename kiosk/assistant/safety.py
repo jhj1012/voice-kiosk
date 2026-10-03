@@ -115,6 +115,14 @@ _NO = re.compile(r"^(아니|아뇨|노|no|없어|없습니다|없고|없네|괜�
 _HESITATE = re.compile(r"아니|잠깐|잠시만|말고|안돼|안할|하지마")
 
 
+_STOP = re.compile(r"잠깐|잠시|아니|아뇨|취소|말고|그만|안할|하지마|바꿀|바꿔|변경|다시")
+
+
+def wants_to_stop(text: str) -> bool:
+    """ "잠깐만요", "아니요", "취소해 주세요", "바꿀래요": the customer does not want to go on."""
+    return bool(_STOP.search(normalize(text)))
+
+
 def is_yes(text: str) -> bool:
     t = normalize(text)
     return bool(_YES.match(t)) and not _HESITATE.search(t)
