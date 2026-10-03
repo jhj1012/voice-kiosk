@@ -1,32 +1,22 @@
 :root {
-  /* Warm cafe palette */
-  --bg: #f7f2ec;
-  --bg-deep: #efe6db;
-  --surface: #ffffff;
-  --surface-2: #faf6f1;
-  --text: #2b211a;
-  --text-2: #5e5148;
-  --muted: #9a8c80;
-  --line: #e9dfd4;
-  --accent: #b8692f;
-  --accent-2: #d99560;
-  --accent-soft: #f6e4d3;
-  --ok: #3d8b5c;
-  --warn: #c98a1c;
-  --error: #c4473a;
-  --shadow-s: 0 2px 8px rgb(70 45 25 / 0.06);
-  --shadow-m: 0 12px 32px rgb(70 45 25 / 0.1);
-  --shadow-l: 0 24px 60px rgb(70 45 25 / 0.16);
-  --radius-s: 0.75rem;
-  --radius-m: 1.25rem;
-  --radius-l: 2rem;
+  /* White and soft blue, flat: no shadows */
+  --bg: #ffffff;
+  --tint: #f2f7ff;
+  --tint-2: #e7f0fe;
+  --line: #e2ebf8;
+  --text: #0e1a2b;
+  --text-2: #4b5b71;
+  --muted: #94a3b8;
+  --accent: #2f6fed;
+  --accent-2: #74aefc;
+  --accent-soft: #e6f0ff;
+  --ok: #2f6fed;
+  --warn: #e0a21b;
+  --error: #d6453b;
+  --radius-s: 0.9rem;
+  --radius-m: 1.6rem;
+  --radius-l: 2.4rem;
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
-
-  /* Category tiles (image placeholders) */
-  --tile-coffee: linear-gradient(145deg, #f1e3d3, #d9b48f);
-  --tile-latte: linear-gradient(145deg, #faf0e4, #e6c9a8);
-  --tile-tea_ade: linear-gradient(145deg, #eef6e2, #c3e09d);
-  --tile-dessert: linear-gradient(145deg, #fbe9ec, #efbcc5);
 
   font-family:
     'Pretendard Variable',
@@ -34,10 +24,11 @@
     system-ui,
     -apple-system,
     sans-serif;
-  /* Everything is sized in rem: the layout scales with the screen (designed for 1920x1080). */
-  font-size: clamp(11px, 0.833vw, 24px);
+  /* A portrait kiosk (designed for 1080x1920). 1rem = 1/120 of the height, or less if the
+     window is narrower than 9:16; on a landscape monitor the page is a centered portrait frame. */
+  font-size: min(calc(100vh / 120), calc(100vw / 67.5));
   color: var(--text);
-  background: var(--bg);
+  background: #eaf1fb;
   -webkit-font-smoothing: antialiased;
   font-feature-settings: 'tnum' 1;
 }
@@ -47,12 +38,20 @@
 }
 
 html,
-body,
-#app {
+body {
   margin: 0;
   height: 100%;
   overflow: hidden;
   user-select: none;
+}
+
+#app {
+  position: relative;
+  height: 100vh;
+  width: min(100vw, calc(100vh * 9 / 16));
+  margin: 0 auto;
+  overflow: hidden;
+  background: var(--bg);
 }
 
 body.kiosk-mode {

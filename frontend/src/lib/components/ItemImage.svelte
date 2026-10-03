@@ -1,13 +1,13 @@
 <script lang="ts">
   // The image slot of a menu item: data/images/<item_id>.png when it exists, otherwise the
-  // item's emoji on a soft tile in its category's colors.
+  // item's emoji on a soft blue tile.
   import type { MenuItem } from '../events';
 
   let { item, size = 'm' }: { item: MenuItem; size?: 's' | 'm' | 'l' } = $props();
   let failed = $state(false);
 </script>
 
-<div class="tile {size}" style:background="var(--tile-{item.category}, var(--tile-coffee))">
+<div class="tile {size}">
   {#if item.image_url && !failed}
     <img src={item.image_url} alt={item.name} onerror={() => (failed = true)} />
   {:else}
@@ -17,13 +17,13 @@
 
 <style>
   .tile {
-    position: relative;
     width: 100%;
     aspect-ratio: 1;
     border-radius: var(--radius-m);
     overflow: hidden;
     display: grid;
     place-items: center;
+    background: linear-gradient(160deg, #f6f9ff, var(--tint-2));
   }
   .tile.l {
     border-radius: var(--radius-l);
@@ -37,14 +37,12 @@
     object-fit: cover;
   }
   .emoji {
-    font-size: 4.6rem;
-    filter: drop-shadow(0 0.6rem 0.8rem rgb(70 45 25 / 0.18));
+    font-size: 6.5rem;
   }
   .l .emoji {
-    font-size: 12rem;
+    font-size: 13rem;
   }
   .s .emoji {
-    font-size: 1.7rem;
-    filter: none;
+    font-size: 2.2rem;
   }
 </style>

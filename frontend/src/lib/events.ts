@@ -5,7 +5,7 @@ export type Speaker = 'customer' | 'assistant';
 export type Phase = 'idle' | 'ordering' | 'paying' | 'done';
 export type AssistantState = 'idle' | 'connecting' | 'listening' | 'thinking' | 'speaking';
 export type Screen =
-  'attract' | 'welcome' | 'menu' | 'item' | 'info' | 'review' | 'payment' | 'done';
+  'attract' | 'welcome' | 'menu' | 'categories' | 'item' | 'info' | 'review' | 'payment' | 'done';
 export type PaymentStep = 'insert_card' | 'processing' | 'approved';
 
 export interface Choice {

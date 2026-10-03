@@ -52,15 +52,15 @@
     flex: none;
     display: grid;
     place-items: center;
+    transition:
+      width 0.9s var(--ease-out),
+      height 0.9s var(--ease-out);
   }
   .orb {
     position: absolute;
     inset: 12%;
     border-radius: 50%;
-    background: radial-gradient(circle at 35% 30%, #f6d3b2, var(--accent-2) 45%, var(--accent));
-    box-shadow:
-      0 0.6rem 1.6rem rgb(184 105 47 / 0.35),
-      inset 0 -0.4rem 0.8rem rgb(120 60 20 / 0.25);
+    background: radial-gradient(circle at 32% 28%, #d9ebff, var(--accent-2) 48%, var(--accent));
     display: grid;
     place-items: center;
     transform: scale(calc(1 + var(--level) * 0.12));

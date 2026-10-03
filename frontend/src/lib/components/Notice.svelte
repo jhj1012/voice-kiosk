@@ -26,8 +26,8 @@
     gap: 0.8rem;
     padding: 0.9rem 1.6rem;
     border-radius: 999px;
-    background: var(--surface);
-    box-shadow: var(--shadow-m);
+    background: white;
+    border: 1px solid var(--line);
     font-size: 1.4rem;
     font-weight: 600;
   }

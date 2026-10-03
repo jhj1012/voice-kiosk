@@ -8,17 +8,6 @@ export function groupById(menu: Menu | null, id: string): OptionGroup | undefine
   return menu?.option_groups.find((g) => g.id === id);
 }
 
-/** Items grouped by category, in menu order (the menu screen shows one section each). */
-export function byCategory(
-  menu: Menu,
-  itemIds: string[],
-): { id: string; name: string; items: MenuItem[] }[] {
-  const items = itemIds.map((id) => itemById(menu, id)).filter((i): i is MenuItem => !!i);
-  return menu.categories
-    .map((c) => ({ id: c.id, name: c.name, items: items.filter((i) => i.category === c.id) }))
-    .filter((c) => c.items.length > 0);
-}
-
 /** The counting word for an item's quantity, e.g. "잔" for drinks, "개" for desserts. */
 export function unitOf(menu: Menu | null, itemId: string): string {
   const category = itemById(menu, itemId)?.category;
