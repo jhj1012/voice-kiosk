@@ -1,0 +1,27 @@
+# Shared settings. For your own machine (audio devices, a different model), create
+# configs/settings.local.yaml (git-ignored) with only the values you change, e.g.:
+#   audio:
+#     input_device: "Headset"
+#     output_device: "Headset"
+
+live:
+  model: gemini-3.8-live  # see docs/decisions.md; must be a Live API model
+  voice: ""               # prebuilt voice name; empty = the model's default
+  api_key_env: GEMINI_API_KEY
+
+audio:
+  input_device: null      # the handset's microphone: null = Windows default, an index or part of the name
+  output_device: null     # the handset's earpiece
+  input_rate: 16000
+  output_rate: 24000
+  frame_ms: 20
+
+server:
+  host: 127.0.0.1
+  port: 8765
+
+flow:
+  insert_card_s: 3.0      # simulated "카드를 단말기에 꽂아 주세요" step
+  processing_s: 2.0       # simulated "결제 중..."
+  done_return_s: 8.0      # the done screen returns to idle after this (or when hung up)
+  first_order_number: 1
