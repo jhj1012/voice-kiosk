@@ -117,7 +117,10 @@
     {#key block}
       <div class="block" in:appear out:disappear>
         {#if view.screen === 'welcome'}
-          <Hint />
+          <!-- Only before anything is ordered; later the middle simply stays clean. -->
+          {#if ui.state.order.count === 0}
+            <div class="hint" out:fade={{ duration: 200 }}><Hint /></div>
+          {/if}
         {:else if view.screen === 'menu'}
           <MenuGrid />
         {:else if view.screen === 'categories'}
@@ -225,6 +228,9 @@
   .block {
     grid-area: 1 / 1;
     min-height: 0;
+  }
+  .hint {
+    height: 100%;
   }
 
   .order {
