@@ -2,7 +2,8 @@
 
 Every call is validated by the domain (`KioskError`); mistakes come back as {"error": ...} so the
 model can correct itself or tell the customer. Results use Korean names (what the model says),
-not ids. The safety rules that need the conversation are applied before this, in `safety.py`.
+not ids. The safety rules that need the conversation are applied before this, by the session
+(`session.py`, with the checks in `safety.py`).
 """
 
 from __future__ import annotations
@@ -33,8 +34,8 @@ class Actions:
             "cancel_item": self._cancel_item,
             "change_line": self._change_line,
             "set_dining": self._set_dining,
-            "review_order": self._review_order,
-            "start_payment": self._start_payment,
+            "show_order": self._show_order,
+            "request_payment": self._request_payment,
             "cancel_payment": self._cancel_payment,
             "cancel_order": self._cancel_order,
         }
@@ -123,12 +124,14 @@ class Actions:
 
     # --- review and payment ------------------------------------------------------------------
 
-    def _review_order(self, args: dict[str, Any]) -> Result:
-        return {"read_back": self.kiosk.review()}
+    def _show_order(self, args: dict[str, Any]) -> Result:
+        self.kiosk.show_order()
+        return {"shown": True, **self._order()}
 
-    def _start_payment(self, args: dict[str, Any]) -> Result:
-        self.kiosk.start_payment()
-        return {"status": "the card terminal is waiting for the card"}
+    def _request_payment(self, args: dict[str, Any]) -> Result:
+        """The review before payment. The session checks that the customer asked to pay, and
+        starts the terminal (`Kiosk.start_payment`) once the read-back has been said."""
+        return {"read_back": self.kiosk.review()}
 
     def _cancel_payment(self, args: dict[str, Any]) -> Result:
         self.kiosk.cancel_payment()

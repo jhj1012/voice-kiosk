@@ -134,14 +134,12 @@ def function_declarations(menu: Menu, cafe: Cafe) -> list[dict[str, Any]]:
             {"dining": _enum([d.value for d in Dining])},
             ["dining"],
         ),
+        declare("show_order", "Show the whole order on the screen (display only)."),
         declare(
-            "review_order",
-            "Show the whole order for review. Returns the read-back you must say, word for "
-            "word, before payment.",
-        ),
-        declare(
-            "start_payment",
-            "Start the card payment, after the customer asked to pay and you said the read-back.",
+            "request_payment",
+            "The customer asked to pay. Shows the order for review and returns the read_back: "
+            "say it word for word, then '카드를 단말기에 꽂아 주세요.' The card terminal starts by "
+            "itself when you have finished speaking.",
         ),
         declare("cancel_payment", "Stop the payment while the terminal waits for the card."),
         declare(
