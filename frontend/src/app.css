@@ -1,18 +1,49 @@
 :root {
-  --bg: #f6f3ee;
+  /* Warm cafe palette */
+  --bg: #f7f2ec;
+  --bg-deep: #efe6db;
   --surface: #ffffff;
-  --text: #1f1b16;
-  --muted: #8a8278;
-  --accent: #b5764a;
+  --surface-2: #faf6f1;
+  --text: #2b211a;
+  --text-2: #5e5148;
+  --muted: #9a8c80;
+  --line: #e9dfd4;
+  --accent: #b8692f;
+  --accent-2: #d99560;
+  --accent-soft: #f6e4d3;
+  --ok: #3d8b5c;
+  --warn: #c98a1c;
+  --error: #c4473a;
+  --shadow-s: 0 2px 8px rgb(70 45 25 / 0.06);
+  --shadow-m: 0 12px 32px rgb(70 45 25 / 0.1);
+  --shadow-l: 0 24px 60px rgb(70 45 25 / 0.16);
+  --radius-s: 0.75rem;
+  --radius-m: 1.25rem;
+  --radius-l: 2rem;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* Category tiles (image placeholders) */
+  --tile-coffee: linear-gradient(145deg, #f1e3d3, #d9b48f);
+  --tile-latte: linear-gradient(145deg, #faf0e4, #e6c9a8);
+  --tile-tea_ade: linear-gradient(145deg, #eef6e2, #c3e09d);
+  --tile-dessert: linear-gradient(145deg, #fbe9ec, #efbcc5);
+
   font-family:
     'Pretendard Variable',
     Pretendard,
     system-ui,
     -apple-system,
     sans-serif;
+  /* Everything is sized in rem: the layout scales with the screen (designed for 1920x1080). */
+  font-size: clamp(11px, 0.833vw, 24px);
   color: var(--text);
   background: var(--bg);
   -webkit-font-smoothing: antialiased;
+  font-feature-settings: 'tnum' 1;
+}
+
+* {
+  box-sizing: border-box;
 }
 
 html,
@@ -21,6 +52,26 @@ body,
   margin: 0;
   height: 100%;
   overflow: hidden;
-  cursor: none;
   user-select: none;
+}
+
+body.kiosk-mode {
+  cursor: none;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
