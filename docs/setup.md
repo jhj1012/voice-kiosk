@@ -38,6 +38,22 @@ audio:
   output_device: "Headset"
 ```
 
+## Changing the menu, cafe info and images
+
+- **Menu**: edit `data/menu.yaml` (items, prices, descriptions, ingredients, allergens, options).
+  The comments at the top explain every field.
+- **Cafe info** (hours, Wi-Fi, restroom, ...): edit `data/cafe.yaml`. The assistant answers
+  questions only from these two files.
+- **Images**: drop `data/images/<item id>.png` (or `.webp`, `.jpg`), e.g. `americano.png`.
+  Square images look best. Items without an image show their emoji.
+- When you have checked an invented fact, set its `verified: true`.
+
+Then check the data; it prints mistakes, the facts not verified yet and which items have images:
+
+```bash
+uv run python -m kiosk.domain.check
+```
+
 ## Checks
 
 ```bash
@@ -56,7 +72,9 @@ Added in later milestones (backend server, display in Edge kiosk mode, typed dev
 
 ## Troubleshooting
 
-- **`[WinError 4551]` from a pre-commit hook** (Windows Smart App Control blocked a program that
-  pre-commit just built): run the hooks again. It passed on the second run here.
+- **`[WinError 4551]` / "애플리케이션 제어 정책에서 이 파일을 차단했습니다"**: Windows Smart App
+  Control blocks newly generated, unsigned `.exe` launchers. For a pre-commit hook, running it
+  again helped. The project defines no console-script launchers for this reason: run its tools
+  with `uv run python -m ...`.
 - **`uv` warns about `C:\msys64\...\python.exe`**: harmless; the project uses uv's own Python 3.12
   (`python-preference = "only-managed"` in `pyproject.toml`).

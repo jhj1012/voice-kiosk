@@ -53,9 +53,23 @@ in code, not in the model's memory.
 
 ## Flow state (`kiosk.domain.flow`)
 
-`phase`: `idle → ordering → review → paying (insert_card → processing) → done → idle`.
-Any cart change during `review` returns to `ordering` (the review is no longer valid). Cart
-changes during `paying` are refused.
+`Kiosk` holds one customer's state: `phase`, `order`, the `pending` item (the one whose options
+are being asked), `view` (what the display shows) and the payment step. Every method either
+changes the state (and increases `revision`) or raises `KioskError` with a message for the model.
+
+- `phase`: `idle → ordering → paying (insert_card → processing) → done → idle`. Hanging up ends
+  the session from any phase. The order is locked while paying; `cancel_payment` is possible
+  until the card is "inserted".
+- The **review** is a screen, not a phase: `review()` stores the order's `version`, and
+  `start_payment()` is refused if the order changed since (`review_is_current`).
+- An item is added as soon as every **required** option is known (`choose_item` /
+  `set_options`); otherwise the item screen shows the missing choices. Optional groups keep
+  their default ("기본", "없음"). A temperature or size the item has no option for is accepted
+  only if it matches how the item is served (ICE for an iced-only item, Regular for one size).
+- `show_menu(exclude_allergens=...)` removes items whose own allergens include one of them (in
+  code, from the data). An option that adds an allergen (whipped cream: milk) does not hide the
+  item; the assistant must not suggest that option.
+- After payment only `show_info` is allowed ("어디서 받아요?").
 
 ## Function declarations
 
@@ -91,7 +105,7 @@ One WebSocket at `/ws`. Backend → display:
 ```jsonc
 {"type": "init", "menu": {...}, "cafe": {...}}       // on connect; items carry image_url when a file exists
 {"type": "state", "seq": 42,
- "phase": "idle|ordering|review|paying|done",
+ "phase": "idle|ordering|paying|done",
  "assistant": "idle|connecting|listening|thinking|speaking",
  "view": {"screen": "attract|welcome|menu|item|info|review|payment|done",
           "title": "우유가 들어가지 않은 메뉴", "item_ids": ["americano", "..."],

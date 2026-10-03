@@ -16,7 +16,7 @@ This is a **demo of an idea**, not a product: payment is simulated.
 ## Status
 
 Built in milestones (see [docs/architecture.md](docs/architecture.md#milestones)).
-Milestone 1 (repository skeleton and CI) is in place.
+Milestones 1 (repository skeleton and CI) and 2 (menu data, order and kiosk flow) are in place.
 
 ## Quick start
 
