@@ -26,6 +26,7 @@ NOT_BUILT = """<!doctype html><meta charset="utf-8"><title>Voice Kiosk</title>
 def create_app(controller: KioskController, dist_dir: Path, images_dir: Path) -> FastAPI:
     @contextlib.asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        asyncio.get_running_loop().set_exception_handler(_ignore_connection_resets)
         yield
         await controller.close()  # hang up when the server stops
 
@@ -59,6 +60,14 @@ def create_app(controller: KioskController, dist_dir: Path, images_dir: Path) ->
             return HTMLResponse(NOT_BUILT)
 
     return app
+
+
+def _ignore_connection_resets(loop: asyncio.AbstractEventLoop, context: dict) -> None:
+    """On Windows a browser closing a tab logs a ConnectionResetError traceback from asyncio's
+    proactor; it is harmless, so only that one is silenced."""
+    if isinstance(context.get("exception"), ConnectionResetError):
+        return
+    loop.default_exception_handler(context)
 
 
 async def _send_all(socket: WebSocket, queue: asyncio.Queue[Event]) -> None:
