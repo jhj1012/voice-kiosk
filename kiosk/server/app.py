@@ -27,6 +27,7 @@ def create_app(controller: KioskController, dist_dir: Path, images_dir: Path) ->
     @contextlib.asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         asyncio.get_running_loop().set_exception_handler(_ignore_connection_resets)
+        await controller.start()
         yield
         await controller.close()  # hang up when the server stops
 

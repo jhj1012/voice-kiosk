@@ -11,12 +11,13 @@ import time
 import uvicorn
 
 from kiosk.assistant.live import GeminiConnector, LiveConnector
-from kiosk.config import REPO_ROOT, load_config, load_env_file
+from kiosk.config import REPO_ROOT, Config, load_config, load_env_file
 from kiosk.domain.flow import Kiosk
 from kiosk.domain.loader import load_cafe, load_menu
 from kiosk.server.app import create_app
 from kiosk.server.controller import KioskController, MissingKeyConnector
 from kiosk.server.hub import Hub
+from kiosk.voice.handset import Handset
 from kiosk.voice.hook import SimulatedHook
 
 LOG_DIR = REPO_ROOT / "logs"
@@ -65,12 +66,33 @@ def main() -> int:
         SimulatedHook(),
         config.data_dir / "images",
     )
+    handset = open_handset(config, controller) if config.audio.enabled else None
     app = create_app(controller, REPO_ROOT / "frontend" / "dist", config.data_dir / "images")
     host = args.host or config.server.host
     port = args.port or config.server.port
     print(f"Kiosk running: open http://{host}:{port}  (F2: developer panel, Space: handset)")
-    uvicorn.run(app, host=host, port=port, log_level="warning")
+    try:
+        uvicorn.run(app, host=host, port=port, log_level="warning")
+    finally:
+        if handset is not None:
+            handset.close()
     return 0
+
+
+def open_handset(config: Config, controller: KioskController) -> Handset | None:
+    """The handset's microphone and earpiece; without them the kiosk works with typed input."""
+    handset = Handset(config.audio, on_frame=controller.microphone_frame)
+    try:
+        handset.open()
+    except Exception as e:
+        print(f"Warning: no audio ({e}); typed input only. See audio in configs/settings.yaml.")
+        return None
+    controller.audio_out = handset.speaker.write
+    controller.audio_stop = handset.speaker.clear
+    controller.levels = handset.levels
+    print(f"Microphone: {handset.microphone.name}")
+    print(f"Earpiece:   {handset.speaker.name}")
+    return handset
 
 
 if __name__ == "__main__":
