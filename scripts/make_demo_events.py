@@ -136,9 +136,11 @@ def scenario_order(r: Recorder) -> None:
     r.do(k.set_dining, Dining.TO_GO)
     read_back = k.review()
     r.state()
-    r.says(f"{read_back} 카드를 단말기에 꽂아 주세요.")
-    r.do(k.start_payment)
-    r.wait(3000)
+    r.says(read_back)  # on the review screen
+    r.do(k.start_payment)  # the card terminal appears
+    r.wait(800)
+    r.says("카드를 단말기에 꽂아 주세요.")
+    r.wait(1500)
     r.do(k.advance_payment)
     r.wait(2000)
     r.do(k.advance_payment)

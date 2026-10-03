@@ -41,9 +41,11 @@ the session's audio to the speaker.
 2. **Ordering**: audio streams both ways. Transcripts become subtitles. Function calls change the
    order and choose what the display shows.
 3. **Payment**: the customer asks to pay → `request_payment` (checked in code) shows the review and
-   returns a read-back written by code → the assistant says it → **code** starts the simulated
-   card terminal once the total was heard → done screen with the order number; the assistant
-   announces it (kiosk cue `[결제 완료 ...]`).
+   returns a read-back written by code → the assistant says it (only that, while the review is
+   on screen) → **code** starts the simulated card terminal once the total was heard → with the
+   card screen up, the kiosk cue `[카드 단말기 ...]` makes the assistant say "카드를 단말기에 꽂아
+   주세요"; the card counts as inserted after that → done screen with the order number; the
+   assistant announces it (kiosk cue `[결제 완료 ...]`).
 4. **On-hook** (any time): the session closes, the order is cleared, back to idle. The done screen
    also returns to idle after `flow.done_return_s`.
 

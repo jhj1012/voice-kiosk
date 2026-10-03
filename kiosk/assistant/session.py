@@ -62,6 +62,7 @@ RECONNECT_DELAYS_S = (0.0, 1.0, 3.0)
 PAYMENT_DONE_CUE = (
     "[결제 완료: 주문 번호 {number}번. 카드는 끝났으니 번호와 받는 곳만 알려 주세요.]"
 )
+CARD_CUE = "[카드 단말기가 화면에 나왔어요. 카드를 단말기에 꽂아 달라고 짧게 말해 주세요.]"
 READ_BACK_CUE = "[결제 전에 주문 내역을 그대로 읽어 주세요: {read_back}]"
 PAYMENT_STOPPED_CUE = (
     "[결제를 시작하지 않았어요. 손님이 원하면 다시 결제를 요청할 때 request_payment를 호출하세요.]"
@@ -412,7 +413,7 @@ class AssistantSession:
                 total=self.kiosk.order.total,
                 index=len(self.transcript.entries),
             )
-            result["next"] = "Say the read_back now, then '카드를 단말기에 꽂아 주세요.'"
+            result["next"] = "Say the read_back now, word for word; nothing about the card yet."
         return result
 
     def _decide_read_back(self) -> None:
@@ -477,6 +478,12 @@ class AssistantSession:
         def still_mine() -> bool:
             return terminal_id == self._terminal_id and self.kiosk.phase is Phase.PAYING
 
+        # The card screen is up: now the assistant asks for the card, then the customer
+        # "inserts" it (simulated).
+        cue_at = self._clock()
+        if self._conn is not None:
+            await self._conn.send_text(CARD_CUE)
+        await self._wait_for_reply(since=cue_at, timeout_s=10.0)
         await asyncio.sleep(self.flow.insert_card_s)
         if not still_mine():
             return

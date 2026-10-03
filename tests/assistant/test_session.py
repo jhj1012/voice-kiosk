@@ -26,6 +26,7 @@ from kiosk.assistant.live import (
     TurnComplete,
 )
 from kiosk.assistant.session import (
+    CARD_CUE,
     ORDER_CHANGED_NOTE,
     PAYMENT_DONE_CUE,
     PAYMENT_STOPPED_CUE,
@@ -324,8 +325,15 @@ def test_full_payment_after_the_read_back(new_kiosk):
         assert result["read_back"].endswith("포장으로 총 4,000원입니다.")
         assert h.kiosk.view.screen is Screen.REVIEW
         assert h.kiosk.phase is Phase.ORDERING  # not before the read-back was said
-        await h.reply(result["read_back"] + " 카드를 단말기에 꽂아 주세요.")
+        await h.reply(result["read_back"])
         await h.settle()
+        # The card screen comes after the read-back; then the assistant asks for the card.
+        assert h.kiosk.phase is Phase.PAYING
+        assert h.kiosk.view.screen is Screen.PAYMENT
+        assert h.kiosk.payment_step is PaymentStep.INSERT_CARD
+        assert h.conn.texts[-1] == CARD_CUE
+        await h.reply("카드를 단말기에 꽂아 주세요.")
+        await asyncio.sleep(0.3)  # the terminal waits until that sentence has been played
         assert h.kiosk.phase is Phase.DONE
         assert h.kiosk.payment_step is PaymentStep.APPROVED
         assert h.conn.texts[-1] == PAYMENT_DONE_CUE.format(number=1)
@@ -378,7 +386,8 @@ def test_read_back_without_the_total_gets_a_reminder(new_kiosk):
         assert h.kiosk.phase is Phase.ORDERING
         assert h.conn.texts[-1].startswith("[결제 전에 주문 내역을 그대로 읽어 주세요")
         await h.reply(result["read_back"])
-        assert h.kiosk.phase is Phase.DONE
+        assert h.kiosk.phase is Phase.PAYING
+        assert h.conn.texts[-1] == CARD_CUE
 
     run(scenario, new_kiosk)
 
@@ -569,10 +578,15 @@ def test_done_waits_for_a_reply_that_starts_after_the_cue(new_kiosk):
         await h.session.send_text("네")
         h.conn.push(Interrupted())
         await h.settle()
-        assert h.conn.texts[-1] == PAYMENT_DONE_CUE.format(number=1)
-        h.conn.push(OutputText("카드를 꽂아 주세요"), AudioOut(b"\0" * 48), TurnComplete())
+        assert h.conn.texts[-1] == CARD_CUE
+        h.conn.push(OutputText("포장으로 총 4,000원입니다."), AudioOut(b"\0" * 48), TurnComplete())
         await asyncio.sleep(0.3)
-        assert not h.listener.finished  # that turn began before the cue
+        assert h.kiosk.payment_step is PaymentStep.INSERT_CARD  # that turn began before the cue
+        await h.reply("카드를 단말기에 꽂아 주세요.")
+        await asyncio.sleep(0.3)  # the terminal waits until that sentence has been played
+        assert h.conn.texts[-1] == PAYMENT_DONE_CUE.format(number=1)
+        await asyncio.sleep(0.3)
+        assert not h.listener.finished
         await h.reply("주문 번호는 1번입니다.")
         await asyncio.sleep(0.3)
         assert h.listener.finished

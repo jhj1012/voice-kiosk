@@ -157,8 +157,8 @@ def function_declarations(menu: Menu, cafe: Cafe) -> list[dict[str, Any]]:
         declare(
             "request_payment",
             "The customer asked to pay. Shows the order for review and returns the read_back: "
-            "say it word for word, then '카드를 단말기에 꽂아 주세요.' The card terminal starts by "
-            "itself when you have finished speaking.",
+            "say it word for word and nothing about the card. When you finish, the card "
+            "terminal appears and you are told to ask for the card.",
         ),
         declare("cancel_payment", "Stop the payment while the terminal waits for the card."),
         declare(
