@@ -54,6 +54,23 @@ resumption (handles are valid for 2 h), reacts to `GoAway` and enables context c
 session must start over, the new one gets the current order in its instructions: the order lives
 in code, not in the model's memory.
 
+## The handset (`kiosk.voice`)
+
+- `Handset` (`handset.py`) opens the microphone and the earpiece with `sounddevice` (PortAudio);
+  devices come from `audio.*` in the settings (`devices.py` finds them by name or index).
+- `Microphone` delivers 20 ms frames of 16 kHz mono PCM from PortAudio's thread; the controller
+  queues them into the event loop and streams them to the session while a customer is on the
+  line (not on hook, not muted).
+- `Speaker` plays the assistant's 24 kHz audio from a buffer. The audio arrives much faster than
+  it plays, so on `Interrupted` (the customer talks) or hang-up the controller calls `clear()`
+  and it stops at once. The earpiece reports the loudness of what it is really playing, which
+  drives the assistant's animation (with the microphone's loudness while listening).
+- Barge-in itself is the Live API's voice detection (~0.4 s, milestone 3). If the earpiece leaks
+  into the microphone, `audio.echo_gate_rms` sends quieter microphone audio as silence while the
+  earpiece plays.
+- Rates the device refuses are resampled (`pcm.py`, numpy).
+- `hook.py`: the hook switch interface; today the display's Space key (`SimulatedHook`).
+
 ## The server (`kiosk.server`)
 
 `uv run python -m kiosk` starts one FastAPI app (`app.py`): the display's WebSocket at `/ws`, the
@@ -63,8 +80,8 @@ built display (`frontend/dist`) at `/`, and the menu images at `/images`.
   `AssistantSession`. Lifting the handset starts a session, putting it down (or the done screen
   timing out) stops it. As the session's `SessionListener` it turns everything into display
   events (`events.py`): full `state` snapshots, `subtitle`s with utterance ids, `level`s (the
-  loudness of the assistant's audio, for the animation), `notice`s. In milestone 7 it also passes
-  the audio to the earpiece (`audio_out`, `audio_stop`).
+  handset's loudness, for the animation), `notice`s. It passes the assistant's audio to the
+  earpiece (`audio_out`, `audio_stop`) and the microphone's frames to the session.
 - `Hub` (`hub.py`) fans events out to every connected display; a display that stops reading
   loses its oldest events and never blocks the kiosk.
 - A newly connected display gets `init` (the menu, with the image files that exist now) and the

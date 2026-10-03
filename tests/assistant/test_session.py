@@ -448,13 +448,19 @@ def test_failed_resume_starts_fresh_with_the_order(new_kiosk, monkeypatch):
     async def scenario(h: Harness):
         h.conn.push(Resumable("expired"))
         await order_ready(h)
-        connector.failures = 1
+        await h.say("카페라떼도 하나요")
+        await h.call("choose_item", item_id="cafe_latte")
+        await h.reply("따뜻하게 드릴까요, 아이스로 드릴까요?")
+        connector.failures = 1  # Google lost the session: resuming fails too (seen as 1011)
         h.conn.drop()
         await h.settle()
         await h.settle()
         setup = connector.setups[-1]
         assert setup.resume_handle is None
+        # The fresh session knows the order, what is still waiting and what was just said.
         assert "1. 아이스 아메리카노 레귤러 1잔 4,000원" in setup.instructions
+        assert "- cafe_latte 카페라떼: missing 온도, 사이즈" in setup.instructions
+        assert "- assistant: 따뜻하게 드릴까요, 아이스로 드릴까요?" in setup.instructions
         assert h.conn.texts == [RECONNECTED_CUE]
         assert ("warn", "연결을 다시 시도하고 있어요") in h.listener.notices
 

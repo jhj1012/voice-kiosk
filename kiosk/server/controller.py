@@ -9,9 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import math
 import time
-from array import array
 from collections.abc import Callable, Coroutine
 from pathlib import Path
 from typing import Any
@@ -32,11 +30,12 @@ from kiosk.server.events import (
 )
 from kiosk.server.hub import Hub
 from kiosk.voice.hook import SimulatedHook
+from kiosk.voice.pcm import level
 
 log = logging.getLogger(__name__)
 
 LEVEL_EVERY_S = 0.08  # loudness events for the animation, at most ~12 per second
-FULL_SCALE_RMS = 6000.0  # speech this loud (16-bit RMS) shows as level 1
+MIC_QUEUE = 50  # 1 s of 20 ms frames; older frames are dropped if sending falls behind
 
 
 class MissingKeyConnector:
@@ -47,16 +46,6 @@ class MissingKeyConnector:
 
     async def connect(self, setup: SessionSetup) -> LiveConnection:
         raise RuntimeError(f"{self.env_name} is not set (see docs/setup.md)")
-
-
-def loudness(pcm: bytes) -> float:
-    """0..1 loudness of 16-bit mono PCM (for the assistant animation)."""
-    samples = array("h")
-    samples.frombytes(pcm[: len(pcm) - len(pcm) % 2])
-    if not samples:
-        return 0.0
-    rms = math.sqrt(sum(s * s for s in samples) / len(samples))
-    return min(1.0, rms / FULL_SCALE_RMS)
 
 
 class KioskController(SessionListener):
@@ -79,14 +68,19 @@ class KioskController(SessionListener):
         self.images_dir = images_dir
         self.session: AssistantSession | None = None
         self.audio_enabled = True
-        self.audio_out: Callable[[bytes], None] | None = None  # the earpiece (milestone 7)
-        self.audio_stop: Callable[[], None] | None = None
+        # The handset (set by the server when audio devices are open):
+        self.audio_out: Callable[[bytes], None] | None = None  # play in the earpiece
+        self.audio_stop: Callable[[], None] | None = None  # stop playing at once
+        self.levels: Callable[[], tuple[float, float]] | None = None  # (mic, earpiece) 0..1
         self._clock = clock
         self._seq = 0
         self._subtitles = Subtitles()
         self._level_at = 0.0
         self._lock = asyncio.Lock()
         self._tasks: set[asyncio.Task[Any]] = set()
+        self._background: list[asyncio.Task[Any]] = []
+        self._loop: asyncio.AbstractEventLoop | None = None
+        self._mic: asyncio.Queue[bytes] = asyncio.Queue(MIC_QUEUE)
         hook.subscribe(self._on_hook)
 
     # --- for the displays --------------------------------------------------------------------
@@ -112,6 +106,8 @@ class KioskController(SessionListener):
             await self.type_text(str(message.get("text", "")))
         elif kind == "dev_mute":
             self.audio_enabled = bool(message.get("audio", True))
+            if not self.audio_enabled and self.audio_stop is not None:
+                self.audio_stop()
             log.info("audio %s", "on" if self.audio_enabled else "muted")
         else:
             log.warning("unknown display event: %r", message)
@@ -157,10 +153,52 @@ class KioskController(SessionListener):
         if self.session is not None:
             await self.session.send_text(text)
 
+    async def start(self) -> None:
+        """Start streaming the microphone and publishing loudness (the server's event loop)."""
+        self._loop = asyncio.get_running_loop()
+        self._background = [
+            asyncio.create_task(self._pump_microphone()),
+            asyncio.create_task(self._publish_levels()),
+        ]
+
     async def close(self) -> None:
         await self.hang_up()
-        for task in list(self._tasks):
+        for task in [*self._tasks, *self._background]:
             task.cancel()
+
+    # --- the handset's audio -----------------------------------------------------------------
+
+    def microphone_frame(self, pcm: bytes) -> None:
+        """A 20 ms microphone frame, from the audio thread."""
+        loop = self._loop
+        if loop is not None and not loop.is_closed():
+            loop.call_soon_threadsafe(self._queue_frame, pcm)
+
+    def _queue_frame(self, pcm: bytes) -> None:
+        if self.session is None or not self.audio_enabled:
+            return  # nobody is talking to the assistant (or developer mode muted the audio)
+        if self._mic.full():
+            self._mic.get_nowait()
+        self._mic.put_nowait(pcm)
+
+    async def _pump_microphone(self) -> None:
+        while True:
+            pcm = await self._mic.get()
+            session = self.session
+            if session is not None:
+                await session.send_audio(pcm)
+
+    async def _publish_levels(self) -> None:
+        """What the microphone hears and the earpiece plays, for the assistant animation."""
+        last = (0.0, 0.0)
+        while True:
+            await asyncio.sleep(LEVEL_EVERY_S)
+            if self.levels is None or self.session is None:
+                continue
+            mic, out = self.levels()
+            if (mic, out) != last:
+                last = (mic, out)
+                self.hub.publish(level_event(mic, out))
 
     def _on_hook(self, off_hook: bool) -> None:
         self._spawn(self.lift() if off_hook else self.hang_up())
@@ -186,10 +224,12 @@ class KioskController(SessionListener):
     def on_audio(self, pcm: bytes) -> None:
         if self.audio_out is not None and self.audio_enabled:
             self.audio_out(pcm)
+        if self.levels is not None:
+            return  # the earpiece reports what it really plays (`_publish_levels`)
         now = self._clock()
         if now - self._level_at >= LEVEL_EVERY_S:
             self._level_at = now
-            self.hub.publish(level_event(0.0, loudness(pcm)))
+            self.hub.publish(level_event(0.0, level(pcm)))
 
     def on_interrupted(self) -> None:
         if self.audio_stop is not None:

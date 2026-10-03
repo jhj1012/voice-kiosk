@@ -71,7 +71,11 @@ ORDER_CHANGED_NOTE = (
     "The payment did not start because the order changed. Ask whether they want anything else "
     "or would like to pay; call request_payment again when they ask to pay."
 )
-RECONNECTED_CUE = "[연결이 끊겼다가 다시 이어졌습니다. 손님과 하던 대화를 이어 가세요.]"
+RECONNECTED_CUE = (
+    "[대화가 잠시 끊겼다가 이어졌어요. 연결 이야기는 하지 말고, 마지막 대화에 이어서 짧게 "
+    "다시 물어봐 주세요.]"
+)
+RECENT_FOR_RECONNECT = 8  # last transcript entries a fresh session gets
 MAX_READ_BACK_REMINDERS = 2
 CANNOT_CONNECT = "지금은 연결할 수 없어요. 잠시 후 다시 시도해 주세요."
 RECONNECTING = "연결을 다시 시도하고 있어요"
@@ -239,7 +243,7 @@ class AssistantSession:
             except asyncio.CancelledError:
                 raise
             except Exception as e:
-                log.warning("Live connection error: %s", e)
+                log.warning("Live API dropped the connection (%s); reconnecting", e)
             if self._closing:
                 return
             if conn is self._conn:  # ended by itself, not replaced by a planned reconnect
@@ -517,8 +521,16 @@ class AssistantSession:
     async def _connect(self) -> LiveConnection:
         resuming = self._resume_handle is not None
         setup = SessionSetup(
-            instructions=instructions(
-                self.kiosk.menu, self.kiosk.cafe, None if resuming else self.kiosk.order
+            instructions=instructions(self.kiosk.menu, self.kiosk.cafe)
+            if resuming
+            else instructions(
+                self.kiosk.menu,
+                self.kiosk.cafe,
+                self.kiosk.order,
+                self.kiosk.pending_items,
+                [(u.speaker, u.text.strip()) for u in self.transcript.entries if u.text.strip()][
+                    -RECENT_FOR_RECONNECT:
+                ],
             ),
             tools=function_declarations(self.kiosk.menu, self.kiosk.cafe),
             vocabulary=transcription_vocabulary(self.kiosk.menu),
@@ -542,7 +554,12 @@ class AssistantSession:
             try:
                 new = await self._connect()
             except Exception as e:
-                log.warning("reconnect failed (resuming=%s): %s", resuming, e)
+                log.warning(
+                    "could not %s the conversation (%s); %s",
+                    "resume" if resuming else "reconnect",
+                    e,
+                    "starting a fresh one with the order" if resuming else "trying again",
+                )
                 self._resume_handle = None  # the next try starts fresh, with the order
                 continue
             old, self._conn = self._conn, new

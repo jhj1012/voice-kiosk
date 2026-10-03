@@ -9,12 +9,13 @@ from typing import Any
 import pytest
 
 from kiosk.assistant.instructions import GREETING_CUE
-from kiosk.assistant.live import AudioOut, InputText, OutputText, TurnComplete
+from kiosk.assistant.live import AudioOut, InputText, Interrupted, OutputText, TurnComplete
 from kiosk.config import FlowConfig
 from kiosk.domain.flow import Kiosk, Phase
-from kiosk.server.controller import KioskController, MissingKeyConnector, loudness
+from kiosk.server.controller import KioskController, MissingKeyConnector
 from kiosk.server.hub import Hub
 from kiosk.voice.hook import SimulatedHook
+from kiosk.voice.pcm import level
 from tests.fakes import FakeConnector
 
 FAST = FlowConfig(insert_card_s=0, processing_s=0, done_return_s=0)
@@ -161,10 +162,10 @@ def test_odd_display_messages_are_ignored(menu, cafe, tmp_path, message):
     run(menu, cafe, tmp_path, test)
 
 
-def test_loudness():
-    assert loudness(b"") == 0.0
-    assert loudness(b"\x00\x00" * 10) == 0.0
-    assert loudness(b"\xff\x7f" * 10) == 1.0  # full scale
+def test_level():
+    assert level(b"") == 0.0
+    assert level(b"\x00\x00" * 10) == 0.0
+    assert level(b"\xff\x7f" * 10) == 1.0  # full scale
 
 
 def test_hub_drops_levels_for_slow_displays():
@@ -177,3 +178,49 @@ def test_hub_drops_levels_for_slow_displays():
     assert events[-1] == {"type": "state", "seq": 399}  # newest kept, level dropped
     hub.disconnect(queue)
     assert hub.displays == 0
+
+
+def test_microphone_frames_reach_the_session_only_during_a_call(menu, cafe, tmp_path):
+    async def test(s: Setup) -> None:
+        await s.controller.start()
+        s.controller.microphone_frame(b"before")  # on hook: dropped
+        await s.settle()
+        await s.controller.handset(True)
+        s.controller.microphone_frame(b"\x01\x00")
+        await s.settle()
+        assert s.connector.conn.audio == [b"\x01\x00"]
+        await s.controller.handle_client({"type": "dev_mute", "audio": False})
+        s.controller.microphone_frame(b"\x02\x00")  # muted: dropped
+        await s.settle()
+        assert s.connector.conn.audio == [b"\x01\x00"]
+
+    run(menu, cafe, tmp_path, test)
+
+
+def test_earpiece_plays_and_stops_on_interruption(menu, cafe, tmp_path):
+    played: list[bytes] = []
+    stops: list[bool] = []
+
+    async def test(s: Setup) -> None:
+        s.controller.audio_out = played.append
+        s.controller.audio_stop = lambda: stops.append(True)
+        await s.controller.handset(True)
+        s.connector.conn.push(AudioOut(b"\x00\x10" * 100), Interrupted())
+        await s.settle()
+        assert played == [b"\x00\x10" * 100]
+        assert stops == [True]
+
+    run(menu, cafe, tmp_path, test)
+
+
+def test_levels_come_from_the_handset(menu, cafe, tmp_path):
+    async def test(s: Setup) -> None:
+        s.controller.levels = lambda: (0.4, 0.7)
+        await s.controller.start()
+        await s.controller.handset(True)
+        s.drain()
+        await asyncio.sleep(0.2)
+        levels = [e for e in s.drain() if e["type"] == "level"]
+        assert levels and levels[0] == {"type": "level", "mic": 0.4, "out": 0.7}
+
+    run(menu, cafe, tmp_path, test)

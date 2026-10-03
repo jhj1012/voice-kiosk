@@ -9,7 +9,10 @@ reconnect, in `current_order`). Text in [brackets] is a cue from the kiosk, not 
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 from kiosk.domain.cafe import Cafe
+from kiosk.domain.flow import PendingItem
 from kiosk.domain.menu import Menu, MenuItem
 from kiosk.domain.order import Order, won
 
@@ -105,14 +108,22 @@ what is possible.
 """
 
 
-def instructions(menu: Menu, cafe: Cafe, current_order: Order | None = None) -> str:
+def instructions(
+    menu: Menu,
+    cafe: Cafe,
+    current_order: Order | None = None,
+    waiting: Sequence[PendingItem] = (),
+    recent: Sequence[tuple[str, str]] = (),
+) -> str:
+    """The rules, menu and cafe information. After a dropped connection a fresh session also
+    gets the order so far, the items still waiting for options and the last words said."""
     parts = [
         RULES.format(cafe_name=cafe.name, greeting_cue=GREETING_CUE),
         menu_text(menu),
         cafe_text(cafe),
     ]
-    if current_order is not None and not current_order.is_empty:
-        parts.append(order_text(menu, current_order))
+    if (current_order is not None and not current_order.is_empty) or waiting or recent:
+        parts.append(resume_text(menu, current_order or Order(), waiting, recent))
     return "\n\n".join(parts)
 
 
@@ -162,6 +173,25 @@ def _item_line(item: MenuItem, allergen_names: dict[str, str]) -> str:
 def cafe_text(cafe: Cafe) -> str:
     lines = [f"## Cafe information ({cafe.name})"]
     lines += [f"- {t.id} ({t.title}): {t.text}" for t in cafe.topics]
+    return "\n".join(lines)
+
+
+def resume_text(
+    menu: Menu,
+    order: Order,
+    waiting: Sequence[PendingItem] = (),
+    recent: Sequence[tuple[str, str]] = (),
+) -> str:
+    """Where the conversation was when the connection dropped (the customer is still here)."""
+    lines = [order_text(menu, order)]
+    if waiting:
+        lines.append("Items chosen but still waiting for options (keep asking for them):")
+        for pending in waiting:
+            missing = ", ".join(g.name for g in pending.missing)
+            lines.append(f"- {pending.item.id} {pending.item.name}: missing {missing}")
+    if recent:
+        lines.append("The last words of the conversation, oldest first:")
+        lines += [f"- {speaker}: {text}" for speaker, text in recent]
     return "\n".join(lines)
 
 

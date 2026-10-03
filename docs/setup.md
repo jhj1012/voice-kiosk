@@ -38,6 +38,30 @@ audio:
   output_device: "Headset"
 ```
 
+## The handset's audio
+
+The kiosk listens on `audio.input_device` (the handset's microphone) and speaks on
+`audio.output_device` (its earpiece); empty means the Windows defaults. List the devices:
+
+```bash
+uv run python -m kiosk.voice.devices
+```
+
+Use a name part (e.g. `"USB Handset"`) rather than an index: indexes change when devices are
+plugged in. On Windows the first match is the MME version of a device, which converts sample
+rates itself; other devices are resampled by the kiosk.
+
+- **Testing without a handset**: a headset or earbuds work. Using the laptop's microphone with
+  earbuds is closest to a handset (the voice cannot leak from the earpiece into the mic). Using a
+  Bluetooth headset's own microphone switches it to its "hands-free" mode: lower quality, but it
+  works.
+- **The assistant interrupts itself** (it stops mid-sentence although nobody spoke): the
+  earpiece leaks into the microphone, e.g. laptop speakers. Set `audio.echo_gate_rms` (start with
+  `800`): while the earpiece plays, quieter microphone audio is sent as silence, while a customer
+  speaking into the mic still interrupts.
+- **No audio devices** (or `audio.enabled: false`): the kiosk starts anyway, with typed input only.
+- The developer panel's **오디오** switch mutes both the earpiece and the microphone.
+
 ## Changing the menu, cafe info and images
 
 - **Menu**: edit `data/menu.yaml` (items, prices, descriptions, ingredients, allergens, options).
@@ -68,15 +92,17 @@ npm --prefix frontend run build
 
 ## Running the kiosk
 
-**The kiosk** (backend + display; the handset's audio comes in milestone 7):
+**The kiosk** (backend + display + the handset's audio):
 
 ```bash
 npm --prefix frontend run build   # once, and after changing the display
 uv run python -m kiosk
 ```
 
-Open <http://127.0.0.1:8765>. `Space` lifts / puts down the simulated handset, `F2` opens the
-developer panel; type what the customer says there (typing also lifts the handset). The
+Open <http://127.0.0.1:8765>, press `Space` to lift the (simulated) handset and talk: the
+assistant answers in the earpiece, and you can interrupt it by talking. `Space` again puts the
+handset down. `F2` opens the developer panel, where you can also type what the customer says
+(typing lifts the handset too). The
 conversation and every function call are logged to `logs/kiosk-<date>.log` (git-ignored, text
 only). Full screen on the kiosk PC:
 
