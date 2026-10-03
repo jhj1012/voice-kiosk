@@ -1,4 +1,5 @@
-"""The web server: the display's WebSocket, the built display and the menu images."""
+"""The web server: the display's WebSocket, the built display, the menu images and the API key
+form (`POST /api/key`, accepted only from this computer)."""
 
 from __future__ import annotations
 
@@ -8,14 +9,16 @@ import logging
 from collections.abc import AsyncIterator
 from pathlib import Path
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from kiosk.server.controller import KioskController
 from kiosk.server.events import Event
 
 log = logging.getLogger(__name__)
+
+LOCAL_CLIENTS = {"127.0.0.1", "::1", "localhost"}
 
 NOT_BUILT = """<!doctype html><meta charset="utf-8"><title>Voice Kiosk</title>
 <p style="font-family:sans-serif">The display is not built yet. Run
@@ -50,6 +53,21 @@ def create_app(controller: KioskController, dist_dir: Path, images_dir: Path) ->
             sender.cancel()
             controller.hub.disconnect(queue)
             log.info("display disconnected")
+
+    @app.post("/api/key")
+    async def api_key(request: Request) -> JSONResponse:
+        """The API key typed on the display. Only this computer may set it; the answer never
+        contains the key."""
+        if request.client is None or request.client.host not in LOCAL_CLIENTS:
+            return JSONResponse({"result": "forbidden"}, status_code=403)
+        try:
+            body = await request.json()
+        except ValueError:
+            body = None
+        key = body.get("key") if isinstance(body, dict) else None
+        if not isinstance(key, str):
+            return JSONResponse({"result": "invalid"}, status_code=400)
+        return JSONResponse({"result": await controller.set_api_key(key)})
 
     app.mount("/images", StaticFiles(directory=images_dir, check_dir=False), name="images")
     if (dist_dir / "index.html").exists():

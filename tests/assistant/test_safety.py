@@ -152,6 +152,10 @@ def test_unheard_required(menu: Menu):
         ("작은 사이즈요", {"size": "regular"}),
         ("사이즈는 아무거나 괜찮아요", {"size": "regular"}),
         ("ICE 라지", {"temperature": "ice", "size": "large"}),
+        # "아이스요, 크게요" as the transcription wrote it (docs/live-check.md)
+        ("I see. 크게요.", {"temperature": "ice", "size": "large"}),
+        ("아이세요. 크게요.", {"temperature": "ice", "size": "large"}),
+        ("아이셀", {"temperature": "ice"}),
     ],
 )
 def test_aliases_count_as_heard(menu: Menu, said, selection):

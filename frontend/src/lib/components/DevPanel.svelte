@@ -2,7 +2,7 @@
   // Developer mode (F2): type what the customer says, mute the audio, see the events.
   // Space lifts / puts down the simulated handset. Customers never see this panel.
   import type { ClientEvent, ServerEvent } from '../events';
-  import { ui } from '../store.svelte';
+  import { openKeyForm, ui } from '../store.svelte';
 
   let {
     send,
@@ -67,6 +67,9 @@
       />
       오디오
     </label>
+    {#if mode === 'live'}
+      <button type="button" onclick={() => openKeyForm(true)}>API 키 바꾸기</button>
+    {/if}
     <span class="hint">Space: 수화기 · F2: 닫기</span>
   </div>
   <ol>
@@ -127,6 +130,16 @@
     white-space: nowrap;
     font-family: ui-monospace, monospace;
     color: #ffd9a8;
+  }
+  button {
+    padding: 0.2rem 0.8rem;
+    border: 1px solid #5a4a40;
+    border-radius: 999px;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-size: 1rem;
+    cursor: pointer;
   }
   .hint {
     margin-left: auto;

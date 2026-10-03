@@ -57,6 +57,7 @@ def test_websocket_init_hook_text_and_events(menu, cafe, tmp_path):
         init = socket.receive_json()
         assert init["type"] == "init"
         assert init["menu"]["items"][1]["image_url"].startswith("/images/americano.png")
+        assert socket.receive_json() == {"type": "setup", "api_key": "ok"}
         assert socket.receive_json()["phase"] == "idle"
 
         socket.send_json({"type": "hook", "off_hook": True})
@@ -71,3 +72,18 @@ def test_websocket_init_hook_text_and_events(menu, cafe, tmp_path):
         socket.send_json({"type": "hook", "off_hook": False})
         until(socket, "state", phase="idle")
         assert connector.conn.closed
+
+
+def test_api_key_form_only_from_this_computer(menu, cafe, tmp_path):
+    app, _ = make(menu, cafe, tmp_path)
+    with TestClient(app, client=("192.168.0.7", 5000)) as client:
+        response = client.post("/api/key", json={"key": "AIza" + "x" * 35})
+        assert response.status_code == 403
+
+
+def test_api_key_form(menu, cafe, tmp_path):
+    app, _ = make(menu, cafe, tmp_path)
+    with TestClient(app, client=("127.0.0.1", 5000)) as client:
+        assert client.post("/api/key", json={"nope": 1}).status_code == 400
+        # No key handling configured in this app: nothing is checked or saved.
+        assert client.post("/api/key", json={"key": "x"}).json() == {"result": "unavailable"}

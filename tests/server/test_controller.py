@@ -9,10 +9,17 @@ from typing import Any
 import pytest
 
 from kiosk.assistant.instructions import GREETING_CUE
-from kiosk.assistant.live import AudioOut, InputText, Interrupted, OutputText, TurnComplete
+from kiosk.assistant.live import (
+    AudioOut,
+    InputText,
+    Interrupted,
+    KeyRejected,
+    OutputText,
+    TurnComplete,
+)
 from kiosk.config import FlowConfig
 from kiosk.domain.flow import Kiosk, Phase
-from kiosk.server.controller import KioskController, MissingKeyConnector
+from kiosk.server.controller import ApiKeys, KioskController, MissingKeyConnector
 from kiosk.server.hub import Hub
 from kiosk.voice.hook import SimulatedHook
 from kiosk.voice.pcm import level
@@ -22,12 +29,14 @@ FAST = FlowConfig(insert_card_s=0, processing_s=0, done_return_s=0)
 
 
 class Setup:
-    def __init__(self, kiosk: Kiosk, connector: Any, tmp_path) -> None:
+    def __init__(self, kiosk: Kiosk, connector: Any, tmp_path, keys: ApiKeys | None = None):
         self.hub = Hub()
         self.events = self.hub.connect()
         self.hook = SimulatedHook()
         self.connector = connector
-        self.controller = KioskController(kiosk, connector, FAST, self.hub, self.hook, tmp_path)
+        self.controller = KioskController(
+            kiosk, connector, FAST, self.hub, self.hook, tmp_path, keys=keys
+        )
 
     def drain(self) -> list[dict[str, Any]]:
         events = []
@@ -41,9 +50,11 @@ class Setup:
         await asyncio.sleep(0.01)
 
 
-def run(menu, cafe, tmp_path, test: Callable[[Setup], Awaitable[None]], connector=None) -> None:
+def run(
+    menu, cafe, tmp_path, test: Callable[[Setup], Awaitable[None]], connector=None, keys=None
+) -> None:
     async def main() -> None:
-        setup = Setup(Kiosk(menu, cafe), connector or FakeConnector(), tmp_path)
+        setup = Setup(Kiosk(menu, cafe), connector or FakeConnector(), tmp_path, keys)
         try:
             await test(setup)
         finally:
@@ -54,8 +65,9 @@ def run(menu, cafe, tmp_path, test: Callable[[Setup], Awaitable[None]], connecto
 
 def test_init_events_carry_the_menu_and_the_state(menu, cafe, tmp_path):
     async def test(s: Setup) -> None:
-        init, state = s.controller.init_events()
+        init, setup, state = s.controller.init_events()
         assert init["type"] == "init" and init["menu"]["items"]
+        assert setup == {"type": "setup", "api_key": "ok"}
         assert state["type"] == "state" and state["phase"] == "idle"
         assert s.controller.state()["seq"] > state["seq"]
 
@@ -65,7 +77,7 @@ def test_init_events_carry_the_menu_and_the_state(menu, cafe, tmp_path):
 def test_init_events_pick_up_new_images(menu, cafe, tmp_path):
     async def test(s: Setup) -> None:
         (tmp_path / "americano.png").write_bytes(b"x")
-        init, _ = s.controller.init_events()
+        init, _, _ = s.controller.init_events()
         urls = {i["id"]: i["image_url"] for i in init["menu"]["items"]}
         assert urls["americano"].startswith("/images/americano.png?v=")
 
@@ -142,15 +154,92 @@ def test_finished_order_hangs_up_and_a_new_lift_starts_again(menu, cafe, tmp_pat
     run(menu, cafe, tmp_path, test)
 
 
-def test_missing_api_key_shows_an_error(menu, cafe, tmp_path):
+KEY = "AIza" + "x" * 35
+NEW_KEY = "AQ." + "x" * 50  # newer keys look different
+
+
+class Keys:
+    """Fake key handling: Google's answer is `answer`; saved keys are remembered."""
+
+    def __init__(self, answer: str = "ok") -> None:
+        self.answer = answer
+        self.checked: list[str] = []
+        self.saved: list[str] = []
+        self.connector = FakeConnector()
+
+    async def check(self, key: str) -> str:
+        self.checked.append(key)
+        return self.answer
+
+    def api_keys(self) -> ApiKeys:
+        return ApiKeys(check=self.check, save=self.saved.append, connector=lambda k: self.connector)
+
+
+def test_missing_api_key_asks_for_one(menu, cafe, tmp_path):
+    async def test(s: Setup) -> None:
+        assert s.controller.init_events()[1] == {"type": "setup", "api_key": "missing"}
+        await s.controller.handset(True)
+        assert s.controller.session is None
+        assert s.drain()[-1]["phase"] == "idle"
+
+    run(menu, cafe, tmp_path, test, connector=MissingKeyConnector("GEMINI_API_KEY"))
+
+
+def test_a_key_entered_on_the_display_is_checked_saved_and_used(menu, cafe, tmp_path):
+    keys = Keys()
+
+    async def test(s: Setup) -> None:
+        assert await s.controller.set_api_key(f"  {KEY}\n") == "ok"
+        assert keys.checked == [KEY] and keys.saved == [KEY]
+        assert {"type": "setup", "api_key": "ok"} in s.drain()
+        await s.controller.handset(True)  # the next customer talks with the new key
+        assert s.controller.session is not None and keys.connector.connections
+
+    run(menu, cafe, tmp_path, test, MissingKeyConnector("GEMINI_API_KEY"), keys.api_keys())
+
+
+def test_newer_keys_are_accepted_too(menu, cafe, tmp_path):
+    keys = Keys()
+
+    async def test(s: Setup) -> None:
+        assert await s.controller.set_api_key(NEW_KEY) == "ok"
+
+    run(menu, cafe, tmp_path, test, keys=keys.api_keys())
+
+
+@pytest.mark.parametrize("typed", ["", "short", "AIza with spaces in the middle of it", "키" * 30])
+def test_text_that_is_not_a_key_is_not_sent_to_google(menu, cafe, tmp_path, typed):
+    keys = Keys()
+
+    async def test(s: Setup) -> None:
+        assert await s.controller.set_api_key(typed) == "invalid"
+        assert keys.checked == [] and keys.saved == []
+
+    run(menu, cafe, tmp_path, test, keys=keys.api_keys())
+
+
+@pytest.mark.parametrize("answer", ["rejected", "offline"])
+def test_a_key_google_refuses_is_not_saved(menu, cafe, tmp_path, answer):
+    keys = Keys(answer)
+
+    async def test(s: Setup) -> None:
+        assert await s.controller.set_api_key(KEY) == answer
+        assert keys.saved == [] and s.controller.key_status == "missing"
+
+    run(menu, cafe, tmp_path, test, MissingKeyConnector("GEMINI_API_KEY"), keys.api_keys())
+
+
+def test_a_saved_key_google_refuses_asks_for_a_new_one(menu, cafe, tmp_path):
+    class Refusing:
+        async def connect(self, setup):
+            raise KeyRejected("API key not valid")
+
     async def test(s: Setup) -> None:
         await s.controller.handset(True)
         assert s.controller.session is None
-        events = s.drain()
-        assert any(e["type"] == "notice" and e["level"] == "error" for e in events)
-        assert events[-1]["phase"] == "idle"
+        assert {"type": "setup", "api_key": "rejected"} in s.drain()
 
-    run(menu, cafe, tmp_path, test, connector=MissingKeyConnector("GEMINI_API_KEY"))
+    run(menu, cafe, tmp_path, test, connector=Refusing())
 
 
 @pytest.mark.parametrize("message", [None, "x", {"type": "fly"}, {"type": "dev_text", "text": " "}])

@@ -11,6 +11,7 @@ export default defineConfig({
     proxy: {
       '/ws': { target: backend, ws: true },
       '/images': backend,
+      '/api': backend,
     },
   },
   test: { include: ['src/**/*.test.ts'] },

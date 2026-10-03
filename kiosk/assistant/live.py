@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 from google import genai
+from google.genai import errors as genai_errors
 from google.genai import types
 
 from kiosk.config import LiveConfig
@@ -21,6 +22,30 @@ from kiosk.config import LiveConfig
 log = logging.getLogger(__name__)
 
 IN_MIME = "audio/pcm;rate=16000"
+
+
+class KeyRejected(Exception):
+    """There is no API key, or Google does not accept it: someone has to enter a valid one."""
+
+
+def is_key_error(error: BaseException) -> bool:
+    """Google refused the API key (invalid, deleted, or not allowed to use the model)."""
+    if not isinstance(error, genai_errors.APIError):
+        return False
+    return "API key" in str(error) or error.code in (401, 403)
+
+
+async def check_api_key(config: LiveConfig, key: str, client: Any = None) -> str:
+    """Ask Google whether `key` works: "ok", "rejected" (wrong key) or "offline" (no answer)."""
+    try:
+        client = client or genai.Client(api_key=key)
+        await client.aio.models.get(model=config.model)
+    except Exception as e:
+        if is_key_error(e):
+            return "rejected"
+        log.warning("could not check the API key: %s", e)
+        return "offline"
+    return "ok"
 
 
 # --- events from the server --------------------------------------------------------------------
@@ -244,6 +269,11 @@ class GeminiConnector:
         context = self._client.aio.live.connect(
             model=self.config.model, config=connect_config(self.config, setup)
         )
-        session = await context.__aenter__()
+        try:
+            session = await context.__aenter__()
+        except Exception as e:
+            if is_key_error(e):
+                raise KeyRejected(str(e)) from e
+            raise
         log.info("Live session connected (%s)", self.config.model)
         return GeminiConnection(context, session)

@@ -1,5 +1,9 @@
 # Setup
 
+This page is for developers. To just run the kiosk, follow the README's
+[Try the kiosk](../README.md#try-the-kiosk-no-programming-needed) steps (a ready-made zip, no
+terminal).
+
 Windows 11 is the target (the kiosk PC); development also works on macOS and Linux.
 
 ## Tools
@@ -24,8 +28,9 @@ cp .env.example .env       # then put your own key in .env
 ```
 
 Get a Gemini API key at [Google AI Studio](https://aistudio.google.com/apikey) and put it in `.env`
-as `GEMINI_API_KEY=...`. Each teammate uses their own key. `.env` is git-ignored: never commit it.
-AI Studio also shows your project's real rate limits.
+as `GEMINI_API_KEY=...`, or leave it out: the display then asks for it and saves it to `.env`.
+Each teammate uses their own key. `.env` is git-ignored: never commit it. AI Studio also shows
+your project's real rate limits.
 
 ## Personal settings
 
@@ -96,19 +101,16 @@ npm --prefix frontend run build
 
 ```bash
 npm --prefix frontend run build   # once, and after changing the display
-uv run python -m kiosk
+uv run python -m kiosk            # --open: also open the display in an Edge window
 ```
 
-Open <http://127.0.0.1:8765>, press `Space` to lift the (simulated) handset and talk: the
+(`Start Kiosk.bat` does the same with `--open`.) Open <http://127.0.0.1:8765>, press `Space` to lift the (simulated) handset and talk: the
 assistant answers in the earpiece, and you can interrupt it by talking. `Space` again puts the
 handset down. `F2` opens the developer panel, where you can also type what the customer says
 (typing lifts the handset too). The
 conversation and every function call are logged to `logs/kiosk-<date>.log` (git-ignored, text
-only). Full screen on the kiosk PC:
-
-```bash
-msedge --kiosk http://127.0.0.1:8765 --edge-kiosk-type=fullscreen --no-first-run
-```
+only). Full screen on the kiosk PC: `uv run python -m kiosk --kiosk` (or
+`Start Kiosk (full screen).bat`); Alt+F4 leaves it.
 
 While changing the display, run the backend *and* `npm --prefix frontend run dev`, and open
 <http://localhost:5173>: Vite reloads on every change and forwards `/ws` and `/images` to the

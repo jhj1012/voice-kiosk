@@ -78,6 +78,13 @@ describe('apply', () => {
     expect(display.notice).toBeNull();
   });
 
+  it('knows whether the API key works (assumed until the backend says otherwise)', () => {
+    let display = initialDisplay();
+    expect(display.apiKey).toBe('ok');
+    display = apply(display, { type: 'setup', api_key: 'missing' });
+    expect(display.apiKey).toBe('missing');
+  });
+
   it('remembers the item that was just added', () => {
     let display = apply(initialDisplay(), state({ seq: 1 }));
     const order = { lines: [line('americano', 2)], dining: null, count: 2, total: 2000 };

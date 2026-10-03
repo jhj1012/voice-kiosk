@@ -1,0 +1,37 @@
+name: Release
+
+# Pushing a tag like v0.1.0 publishes voice-kiosk.zip on the Releases page: the source with the
+# display already built, so teammates need neither Node.js nor a terminal (see README.md).
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  zip:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm --prefix frontend ci
+      - run: npm --prefix frontend run build
+      - name: Source (Windows line endings for the launchers) + built display
+        run: |
+          mkdir out
+          git archive --prefix=voice-kiosk/ HEAD | tar -x -C out
+          cp -r frontend/dist out/voice-kiosk/frontend/dist
+          (cd out && zip -qr ../voice-kiosk.zip voice-kiosk)
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" voice-kiosk.zip \
+            --title "Voice Kiosk $GITHUB_REF_NAME" \
+            --notes "Download voice-kiosk.zip below and follow README.md (Download and run)."

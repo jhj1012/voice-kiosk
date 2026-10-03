@@ -1,6 +1,9 @@
 """The google-genai adapter's pure parts: the connect config and the message -> event mapping."""
 
-from google.genai import types
+import asyncio
+
+import pytest
+from google.genai import errors, types
 
 from kiosk.assistant.live import (
     AudioOut,
@@ -13,7 +16,9 @@ from kiosk.assistant.live import (
     SessionSetup,
     ToolCall,
     TurnComplete,
+    check_api_key,
     connect_config,
+    is_key_error,
     to_events,
 )
 from kiosk.config import LiveConfig
@@ -82,3 +87,39 @@ def test_to_events_maps_control_messages():
     ]
     assert to_events(message(session_resumption_update={"resumable": False})) == []
     assert to_events(message(go_away={"time_left": "10s"})) == [GoAway(10.0)]
+
+
+BAD_KEY = errors.ClientError(
+    400, {"error": {"code": 400, "message": "API key not valid.", "status": "INVALID_ARGUMENT"}}
+)
+
+
+class FakeModels:
+    def __init__(self, error: Exception | None) -> None:
+        self.error = error
+
+    async def get(self, model: str) -> object:
+        if self.error is not None:
+            raise self.error
+        return object()
+
+
+class FakeClient:
+    def __init__(self, error: Exception | None = None) -> None:
+        self.aio = type("Aio", (), {"models": FakeModels(error)})()
+
+
+@pytest.mark.parametrize(
+    ("error", "result"),
+    [(None, "ok"), (BAD_KEY, "rejected"), (ConnectionError("no internet"), "offline")],
+)
+def test_check_api_key(error, result):
+    checked = asyncio.run(check_api_key(LiveConfig(), "key", client=FakeClient(error)))
+    assert checked == result
+
+
+def test_key_errors():
+    assert is_key_error(BAD_KEY)
+    assert is_key_error(errors.ClientError(403, {"error": {"message": "permission denied"}}))
+    assert not is_key_error(errors.ClientError(429, {"error": {"message": "quota"}}))
+    assert not is_key_error(ConnectionError("API key"))
