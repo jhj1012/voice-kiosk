@@ -16,7 +16,7 @@ earlier prototype ([jhj1012/kiosk-ai](https://github.com/jhj1012/kiosk-ai)) say 
 | Required vs optional options | The assistant asks only required options (temperature, size); extras (shots, syrups, toppings, tumbler) only when the customer asks. | Carried over: customers found extra questions tiresome; required choices must come from the customer. |
 | Discounts and stamps | **Dropped** for the demo. | Stamps need a phone number, which the customer would have to say out loud in a café; coupons add a flow with little demo value. Possible later features. |
 | Payment | Simulated: "카드를 단말기에 꽂아 주세요" → "결제 중..." → done with an order number. | Demo, no real terminal. |
-| Language | Korean (customers); code, docs and model instructions in English. The README is in Korean. | Carried over. The README is what teammates read first; most of them do not program. |
+| Language | Korean (customers); code, docs and model instructions in English. The README's guide for teammates is in Korean, its developer part in English. | Carried over. Teammates read the README first; most of them do not program. |
 
 ## Technology
 

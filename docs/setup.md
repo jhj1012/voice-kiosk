@@ -1,7 +1,7 @@
 # Setup
 
 This page is for developers. To just run the kiosk, follow the README's
-[키오스크 써 보기](../README.md#키오스크-써-보기) steps (a ready-made zip, no
+[키오스크 사용법](../README.md#키오스크-사용법) steps (a ready-made zip, no
 terminal).
 
 Windows 11 is the target (the kiosk PC); development also works on macOS and Linux.
