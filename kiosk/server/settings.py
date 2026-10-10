@@ -2,7 +2,7 @@
 subtitles on or off.
 
 The backend keeps them in a git-ignored file, so every display and every browser profile gets
-the same ones (the full-screen launcher uses its own Edge profile, which would not see settings
+the same ones (full-screen mode, `--kiosk`, uses its own Edge profile, which would not see settings
 saved in the browser). Only their shape is checked here; the display knows what they mean.
 """
 

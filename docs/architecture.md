@@ -251,7 +251,7 @@ to the next screen": choices appear and disappear in place.
 - **Developer mode** (`F2`): typed input, mute, the display settings, the API key, the event log;
   `Space` lifts / puts down the simulated handset. **Display settings are saved by the backend**
   (`configs/display.local.json`, git-ignored) and sent to every display (`settings` event), so
-  the full-screen launcher's separate Edge profile gets them too. `?demo=order|allergy` plays
+  full-screen mode's separate Edge profile (`--kiosk`) gets them too. `?demo=order|allergy` plays
   recorded event timelines without a backend (`&backdrop=blur|gradient|boxes` picks the
   background); `scripts/make_demo_events.py` records them by driving a real `Kiosk` with
   `kiosk/server/events.py`, so they always match the real event format.
