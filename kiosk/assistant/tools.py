@@ -103,7 +103,8 @@ def function_declarations(menu: Menu, cafe: Cafe) -> list[dict[str, Any]]:
         ),
         declare(
             "show_item",
-            "Show one item's details (description, ingredients, allergens) without ordering it.",
+            "Show one item (picture, ingredients, allergens) without ordering it. The screen "
+            "shows no description: tell it yourself when asked.",
             {"item_id": _enum(item_ids)},
             ["item_id"],
         ),
@@ -115,17 +116,19 @@ def function_declarations(menu: Menu, cafe: Cafe) -> list[dict[str, Any]]:
         ),
         declare(
             "choose_item",
-            "The customer wants this item. Pass every option the customer said. It is added to "
-            "the order as soon as all required options are known; otherwise the result lists "
-            "what to ask, and the screen shows those choices.",
+            "The customer wants this item. Pass every option the customer said. The result "
+            "says what to ask next: one required option at a time, then the item's extras "
+            "(the screen shows exactly that). Items without extras are added as soon as the "
+            "required options are known.",
             {"item_id": _enum(item_ids), "quantity": quantity, **options},
             ["item_id"],
         ),
         declare(
             "set_options",
-            "Give options (or a new quantity) for an item chosen but not added yet. When "
-            "several items wait (e.g. '라떼 하나랑 아메리카노 하나'), say which with item_id; "
-            "call it once per item when one answer covers several ('둘 다 라지요').",
+            "Give options (required ones or extras) or a new quantity for an item chosen but "
+            "not added yet. When several items wait (e.g. '라떼 하나랑 아메리카노 하나'), say "
+            "which with item_id; call it once per item when one answer covers several "
+            "('둘 다 라지요').",
             {
                 "item_id": _enum(item_ids, "Which waiting item; default: the one chosen last."),
                 "quantity": quantity,
@@ -133,13 +136,45 @@ def function_declarations(menu: Menu, cafe: Cafe) -> list[dict[str, Any]]:
             },
         ),
         declare(
+            "finish_item",
+            "The customer wants no (more) extras for the item being chosen ('없어요', '그냥 "
+            "주세요'): adds it to the order.",
+            {"item_id": _enum(item_ids, "Which waiting item; default: the one chosen last.")},
+        ),
+        declare(
             "cancel_item",
             "Drop an item being chosen (not added yet).",
             {"item_id": _enum(item_ids, "Which waiting item; default: the one chosen last.")},
         ),
         declare(
+            "edit_line",
+            "Show an ordered item's options on the screen again, e.g. '아까 라떼 옵션 다시 "
+            "보여 주세요' or before changing one. Display only; change them with change_line.",
+            {
+                "line": {"type": "INTEGER", "description": "Order line number, from 1."},
+                "option": _enum(
+                    [g.id for g in menu.option_groups],
+                    "Show only this option's choices; leave out to show all options.",
+                ),
+            },
+            ["line"],
+        ),
+        declare(
+            "go_back",
+            "Show the previous screen again ('이전 화면', '뒤로', '아까 화면 보여 주세요').",
+        ),
+        declare(
+            "note_for_staff",
+            "Pass a request the kiosk cannot handle itself to the staff (how to make or serve "
+            "something, e.g. '아메리카노는 포장, 카페모카는 매장에서', '얼음 적게'). It is shown "
+            "with the order. Not for items or options that are not on the menu.",
+            {"text": {"type": "STRING", "description": "The request, short, in Korean."}},
+            ["text"],
+        ),
+        declare(
             "change_line",
-            "Change an order line: its options and/or quantity. Quantity 0 removes the line.",
+            "Change an order line: its options and/or quantity. Quantity 0 removes the line. "
+            "The screen shows the changed option again.",
             {
                 "line": {"type": "INTEGER", "description": "Order line number, from 1."},
                 "quantity": {"type": "INTEGER", "description": "New quantity; 0 removes it."},
@@ -156,9 +191,10 @@ def function_declarations(menu: Menu, cafe: Cafe) -> list[dict[str, Any]]:
         declare("show_order", "Show the whole order on the screen (display only)."),
         declare(
             "request_payment",
-            "The customer asked to pay. Shows the order for review and returns the read_back: "
-            "say it word for word and nothing about the card. When you finish, the card "
-            "terminal appears and you are told to ask for the card.",
+            "The customer asked to pay. The first time it returns ask_first: ask that, then "
+            "call it again. Then it shows the order for review and returns the read_back: say "
+            "it word for word and nothing about the card. When you finish, the card terminal "
+            "appears and you are told to ask for the card.",
         ),
         declare("cancel_payment", "Stop the payment while the terminal waits for the card."),
         declare(

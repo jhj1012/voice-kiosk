@@ -100,12 +100,21 @@ class Harness:
         return self.conn.last_result
 
 
-def run(test: Callable[[Harness], Awaitable[None]], kiosk_factory, connector=None) -> Harness:
-    """Run an async scenario with a started session; the session is stopped afterwards."""
+def run(
+    test: Callable[[Harness], Awaitable[None]],
+    kiosk_factory,
+    connector=None,
+    staff_question: bool = False,
+) -> Harness:
+    """Run an async scenario with a started session; the session is stopped afterwards.
+
+    The question about the staff before payment is skipped unless `staff_question`: most
+    scenarios are about other things."""
 
     async def main() -> Harness:
         harness = Harness(kiosk_factory(), connector or FakeConnector())
         assert await harness.session.start()
+        harness.kiosk.staff_asked = not staff_question
         try:
             await test(harness)
         finally:
@@ -123,6 +132,9 @@ def new_kiosk(menu, cafe):
 async def order_ready(h: Harness) -> None:
     await h.say("아이스 아메리카노 레귤러 하나 포장이요")
     await h.call("choose_item", item_id="americano", temperature="ice", size="regular")
+    await h.reply("추가하실 거 있으세요?")
+    await h.say("없어요")
+    await h.call("finish_item")
     await h.call("set_dining", dining="to_go")
     await h.reply("담았어요. 더 필요하신 메뉴 있으신가요?")
 
@@ -238,6 +250,8 @@ def test_function_calls_change_the_kiosk(new_kiosk):
         result = await h.call(
             "choose_item", item_id="americano", quantity=2, temperature="ice", size="large"
         )
+        assert "extras" in result  # "추가하실 거 있으세요?"
+        result = await h.call("finish_item")
         assert result["added"] == "아이스 아메리카노 라지 2잔"
         assert h.kiosk.order.total == 9000
         assert h.session.state is AssistantState.THINKING
@@ -262,7 +276,8 @@ def test_required_options_nobody_said_are_not_set(new_kiosk):
         await h.reply("사이즈는요?")
         await h.say("큰 걸로요")
         result = await h.call("set_options", size="large")
-        assert result["added"] == "아이스 카페라떼 라지 1잔"
+        assert "extras" in result
+        assert (await h.call("finish_item"))["added"] == "아이스 카페라떼 라지 1잔"
 
     run(scenario, new_kiosk)
 
@@ -284,7 +299,7 @@ def test_typed_words_count_as_heard(new_kiosk):
     async def scenario(h: Harness):
         await h.session.send_text("뜨아 작은 걸로 하나요")
         result = await h.call("choose_item", item_id="americano", temperature="hot", size="regular")
-        assert "added" in result
+        assert "not_heard" not in result and "extras" in result
 
     run(scenario, new_kiosk)
 
@@ -492,8 +507,12 @@ def test_two_items_in_one_sentence_wait_side_by_side(new_kiosk):
         await h.call("set_options", item_id="americano", temperature="ice")
         await h.reply("사이즈는요?")
         await h.say("둘 다 라지로요")
-        assert "added" in await h.call("set_options", item_id="green_grape_ade", size="large")
-        assert "added" in await h.call("set_options", item_id="americano", size="large")
+        assert "extras" in await h.call("set_options", item_id="green_grape_ade", size="large")
+        assert "extras" in await h.call("set_options", item_id="americano", size="large")
+        await h.reply("추가하실 거 있으세요?")
+        await h.say("아니요 없어요")
+        assert "added" in await h.call("finish_item", item_id="green_grape_ade")
+        assert "added" in await h.call("finish_item", item_id="americano")
         assert [line.option_text for line in h.kiosk.order.lines] == ["Large", "ICE, Large"]
 
     run(scenario, new_kiosk)
@@ -598,3 +617,21 @@ def test_done_waits_for_a_reply_that_starts_after_the_cue(new_kiosk):
         assert h.listener.finished
 
     run(scenario, new_kiosk)
+
+
+def test_the_staff_question_comes_before_the_read_back(new_kiosk):
+    async def scenario(h: Harness):
+        await order_ready(h)
+        await h.say("결제할게요")
+        result = await h.call("request_payment")
+        assert result["ask_first"] == "직원에게 따로 전달할 말씀 있으세요?"
+        assert h.kiosk.view.screen is Screen.REVIEW
+        await h.reply("직원에게 따로 전달할 말씀 있으세요?")
+        await h.say("얼음은 조금만 넣어 주세요")
+        assert "noted" in await h.call("note_for_staff", text="얼음 적게")
+        await h.reply("네, 알겠습니다. 해당 사항은 직원에게 전달하겠습니다.")
+        result = await h.call("request_payment")  # they asked to pay before the question
+        assert result["read_back"].startswith("주문 확인해 드릴게요.")
+        assert h.kiosk.order.notes == ["얼음 적게"]
+
+    run(scenario, new_kiosk, staff_question=True)

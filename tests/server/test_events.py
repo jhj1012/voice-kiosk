@@ -38,9 +38,11 @@ def test_image_urls(menu, tmp_path):
 
 def test_state_event_snapshot(kiosk: Kiosk):
     kiosk.show_menu(title="추천", item_ids=["americano", "cafe_latte"], highlight_ids=["americano"])
-    kiosk.choose_item("americano", 2, {"temperature": "ice", "size": "large"})
+    kiosk.choose_item("americano", 2, {"temperature": "ice", "size": "large", "shot": "decaf"})
+    kiosk.finish_item()
     kiosk.choose_item("cafe_latte", selection={"temperature": "hot"})
     kiosk.set_dining(Dining.TO_GO)
+    kiosk.add_note("얼음 적게")
     event = state_event(kiosk, "speaking", 7)
     assert event["seq"] == 7 and event["assistant"] == "speaking"
     assert event["phase"] == "ordering"
@@ -50,6 +52,8 @@ def test_state_event_snapshot(kiosk: Kiosk):
         "item_ids": [],
         "highlight": [],
         "item_id": "cafe_latte",
+        "group": "size",  # the option asked now
+        "line": 0,
         "topic": "",
     }
     assert event["pending"] == {
@@ -64,15 +68,22 @@ def test_state_event_snapshot(kiosk: Kiosk):
                 "line": 1,
                 "item_id": "americano",
                 "name": "아메리카노",
-                "options": "ICE, Large",
+                "options": "ICE, Large, 디카페인",
+                "chosen": {
+                    "temperature": ["ice"],
+                    "size": ["large"],
+                    "shot": ["decaf"],
+                    "syrup": ["none"],  # an optional group's default
+                },
                 "quantity": 2,
-                "unit_price": 4500,
-                "total": 9000,
+                "unit_price": 5500,
+                "total": 11000,
             }
         ],
         "dining": "to_go",
+        "notes": ["얼음 적게"],
         "count": 2,
-        "total": 9000,
+        "total": 11000,
     }
     assert event["payment"] is None
 
