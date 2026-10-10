@@ -6,6 +6,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+import mimetypes
 from collections.abc import AsyncIterator
 from pathlib import Path
 
@@ -19,6 +20,10 @@ from kiosk.server.events import Event
 log = logging.getLogger(__name__)
 
 LOCAL_CLIENTS = {"127.0.0.1", "::1", "localhost"}
+
+# Windows' own list may lack these (the avatar's clips and images).
+for _type, _suffix in [("image/webp", ".webp"), ("video/webm", ".webm"), ("video/mp4", ".mp4")]:
+    mimetypes.add_type(_type, _suffix)
 
 NOT_BUILT = """<!doctype html><meta charset="utf-8"><title>Voice Kiosk</title>
 <p style="font-family:sans-serif">The display is not built yet. Run
