@@ -1,12 +1,21 @@
 import pytest
 
-from kiosk.domain.flow import Kiosk, PaymentStep, Phase, Screen
+from kiosk.domain.flow import EXTRAS, Kiosk, PaymentStep, Phase, Screen
 from kiosk.domain.menu import KioskError
-from kiosk.domain.order import Dining
+from kiosk.domain.order import CartLine, Dining
+
+
+def add(kiosk: Kiosk, item_id: str, quantity: int = 1, **selection: str) -> CartLine:
+    """Choose an item with its options and say no to the extras."""
+    result = kiosk.choose_item(item_id, quantity=quantity, selection=selection)
+    if result.line is None:
+        result = kiosk.finish_item(item_id)
+    assert result.line is not None
+    return result.line
 
 
 def order_ready(kiosk: Kiosk) -> None:
-    kiosk.choose_item("americano", selection={"temperature": "ice", "size": "regular"})
+    add(kiosk, "americano", temperature="ice", size="regular")
     kiosk.set_dining(Dining.TO_GO)
 
 
@@ -21,14 +30,19 @@ def test_idle_kiosk_refuses_orders(menu, cafe):
         kiosk.choose_item("americano")
 
 
-def test_session_starts_with_welcome_and_hanging_up_clears_everything(kiosk: Kiosk):
+def test_session_starts_with_the_take_out_question_and_hanging_up_clears_everything(
+    kiosk: Kiosk,
+):
     assert kiosk.phase is Phase.ORDERING
+    assert kiosk.view.screen is Screen.DINING  # "매장에서 드시고 가세요, 포장하세요?"
+    kiosk.set_dining(Dining.HERE)
     assert kiosk.view.screen is Screen.WELCOME
     order_ready(kiosk)
+    kiosk.add_note("케이크는 포장해 주세요")
     kiosk.choose_item("cafe_latte")  # pending
     kiosk.end_session()
     assert kiosk.phase is Phase.IDLE
-    assert kiosk.order.is_empty and kiosk.order.dining is None
+    assert kiosk.order.is_empty and kiosk.order.dining is None and kiosk.order.notes == []
     assert kiosk.pending is None
     assert kiosk.view.screen is Screen.ATTRACT
 
@@ -104,31 +118,38 @@ def test_show_item_and_info(kiosk: Kiosk):
 # --- choosing items ----------------------------------------------------------------------------
 
 
-def test_item_with_all_required_options_is_added_at_once(kiosk: Kiosk):
+def test_options_are_asked_one_at_a_time_then_the_extras(kiosk: Kiosk):
     kiosk.show_menu(category="coffee")
-    result = kiosk.choose_item(
-        "americano", quantity=2, selection={"temperature": "ice", "size": "large"}
-    )
+    result = kiosk.choose_item("americano", quantity=2)
+    assert result.line is None and result.pending is not None
+    assert result.pending.asking == "temperature"  # one question at a time
+    assert (kiosk.view.item_id, kiosk.view.group) == ("americano", "temperature")
+    kiosk.set_options({"temperature": "ice"})
+    assert kiosk.view.group == "size"
+    result = kiosk.set_options({"size": "large"})
+    assert result.line is None and kiosk.view.group == EXTRAS  # "추가하실 거 있으세요?"
+    kiosk.set_options({"shot": "extra_shot"})
+    assert kiosk.view.group == EXTRAS  # "더 추가하실 거 있으세요?"
+    result = kiosk.finish_item()
     assert result.line is not None and result.line.quantity == 2
+    assert result.line.option_text == "ICE, Large, 샷 추가"
     assert kiosk.pending is None
     assert kiosk.view.screen is Screen.MENU  # back to where the customer was
 
 
-def test_missing_required_options_are_asked_then_added(kiosk: Kiosk):
-    result = kiosk.choose_item("americano", selection={"size": "large"})
-    assert result.line is None
-    assert [g.id for g in result.missing] == ["temperature"]
-    assert (kiosk.view.screen, kiosk.view.item_id) == (Screen.ITEM, "americano")
-    result = kiosk.set_options({"temperature": "hot"}, quantity=3)
-    assert result.line is not None
-    assert result.line.option_text == "HOT, Large"
-    assert result.line.quantity == 3
-    assert kiosk.pending is None
+def test_options_said_at_once_skip_to_the_extras(kiosk: Kiosk):
+    result = kiosk.choose_item("americano", selection={"temperature": "hot", "size": "large"})
+    assert result.line is None and result.pending is not None
+    assert result.pending.asking == EXTRAS
+    with pytest.raises(KioskError, match="ask for size"):
+        kiosk.choose_item("cafe_latte", selection={"temperature": "hot"})
+        kiosk.finish_item("cafe_latte")
 
 
-def test_items_without_required_options_need_no_question(kiosk: Kiosk):
-    assert kiosk.choose_item("chocolate_cookie").line is not None
-    assert kiosk.choose_item("cold_brew", selection={"temperature": "ice"}).missing[0].id == "size"
+def test_items_without_extras_are_added_once_the_required_options_are_known(kiosk: Kiosk):
+    assert kiosk.choose_item("chocolate_cookie").line is not None  # nothing to ask
+    result = kiosk.choose_item("cold_brew", selection={"temperature": "ice"})
+    assert result.pending is not None and result.pending.asking == "size"
 
 
 def test_invalid_choice_keeps_the_previous_pending_item(kiosk: Kiosk):
@@ -159,11 +180,86 @@ def test_choosing_another_item_replaces_the_pending_one(kiosk: Kiosk):
 # --- changing the order ------------------------------------------------------------------------
 
 
-def test_change_line_options_keeps_the_other_choices(kiosk: Kiosk):
-    kiosk.choose_item("americano", selection={"temperature": "ice", "size": "large"})
-    line = kiosk.change_line(1, selection={"shot": "extra_shot"})
+def test_change_line_options_keeps_the_other_choices_and_shows_the_option(kiosk: Kiosk):
+    kiosk.show_menu(category="coffee")
+    add(kiosk, "americano", temperature="ice", size="large")
+    line = kiosk.change_line(1, selection={"size": "regular"})
     assert line is not None
-    assert line.option_text == "ICE, Large, 샷 추가"
+    assert line.option_text == "ICE, Regular"
+    # The size choices are on screen again, the new one marked (display: from the line).
+    view = kiosk.view
+    assert (view.screen, view.item_id, view.line, view.group) == (
+        Screen.ITEM,
+        "americano",
+        1,
+        "size",
+    )
+    kiosk.change_line(1, selection={"temperature": "hot", "shot": "extra_shot"})
+    assert kiosk.view.group == ""  # several changed: all options at a glance
+    assert kiosk.order.line(1).option_text == "HOT, Regular, 샷 추가"
+
+
+def test_edit_line_shows_an_ordered_item_again(kiosk: Kiosk):
+    add(kiosk, "chocolate_cookie")
+    add(kiosk, "cafe_latte", temperature="hot", size="regular")
+    kiosk.edit_line(2)
+    assert (kiosk.view.item_id, kiosk.view.line, kiosk.view.group) == ("cafe_latte", 2, "")
+    kiosk.edit_line(2, "size")
+    assert kiosk.view.group == "size"
+    with pytest.raises(KioskError, match="has no size option"):
+        kiosk.edit_line(1, "size")
+    kiosk.change_line(1, quantity=0)  # removing the cookie renumbers the latte
+    kiosk.edit_line(1, "temperature")
+    kiosk.change_line(1, quantity=2)
+    assert (kiosk.view.line, kiosk.view.group) == (1, "temperature")
+
+
+def test_go_back_returns_to_the_previous_screens(kiosk: Kiosk):
+    kiosk.set_dining(Dining.HERE)
+    kiosk.show_categories()
+    kiosk.show_menu(category="latte")
+    kiosk.choose_item("cafe_latte")
+    kiosk.set_options({"temperature": "hot"})  # option steps of one item are one screen
+    kiosk.set_options({"size": "large"})
+    kiosk.finish_item()
+    assert kiosk.view.screen is Screen.MENU
+    # Back to the latte, now an order line: its options at a glance.
+    view = kiosk.go_back()
+    assert (view.screen, view.item_id, view.line, view.group) == (Screen.ITEM, "cafe_latte", 1, "")
+    assert kiosk.go_back().screen is Screen.MENU
+    assert kiosk.go_back().screen is Screen.CATEGORIES
+    with pytest.raises(KioskError, match="no previous screen"):
+        kiosk.go_back()
+
+
+def test_go_back_to_an_item_still_being_chosen(kiosk: Kiosk):
+    kiosk.choose_item("americano", selection={"temperature": "ice"})
+    kiosk.show_info("wifi")  # "와이파이 비번 뭐예요?" in between
+    view = kiosk.go_back()
+    assert (view.item_id, view.group, view.line) == ("americano", "size", 0)
+
+
+def test_notes_for_the_staff(kiosk: Kiosk):
+    kiosk.add_note("  아메리카노는 포장, 카페모카는 매장에서  ")
+    kiosk.add_note("아메리카노는 포장, 카페모카는 매장에서")  # the same note once
+    assert kiosk.order.notes == ["아메리카노는 포장, 카페모카는 매장에서"]
+    with pytest.raises(KioskError, match="empty"):
+        kiosk.add_note("   ")
+
+
+def test_the_staff_question_comes_once_before_the_review(kiosk: Kiosk):
+    order_ready(kiosk)
+    assert kiosk.ask_staff_question()
+    assert kiosk.view.screen is Screen.REVIEW  # the order is on screen meanwhile
+    assert not kiosk.ask_staff_question()
+    kiosk.review()
+
+
+def test_paying_without_dining_shows_the_take_out_question(kiosk: Kiosk):
+    add(kiosk, "chocolate_cookie")
+    with pytest.raises(KioskError, match="eats here or takes out"):
+        kiosk.review()
+    assert kiosk.view.screen is Screen.DINING
 
 
 def test_change_line_quantity_and_remove(kiosk: Kiosk):
@@ -179,7 +275,7 @@ def test_cancel_order(kiosk: Kiosk):
     kiosk.cancel_order()
     assert kiosk.order.is_empty
     assert kiosk.phase is Phase.ORDERING
-    assert kiosk.view.screen is Screen.WELCOME
+    assert kiosk.view.screen is Screen.DINING
 
 
 # --- review and payment ------------------------------------------------------------------------
@@ -213,7 +309,7 @@ def test_payment_needs_a_current_review(kiosk: Kiosk):
     with pytest.raises(KioskError, match="review"):
         kiosk.start_payment()
     kiosk.review()
-    kiosk.choose_item("chocolate_cookie")  # the order changed after the review
+    add(kiosk, "chocolate_cookie")  # the order changed after the review
     assert not kiosk.review_is_current
     with pytest.raises(KioskError, match="review"):
         kiosk.start_payment()
@@ -289,10 +385,12 @@ def test_several_items_can_wait_for_options(kiosk: Kiosk):
     assert kiosk.view.item_id == "americano"  # the screen shows the one touched last
     with pytest.raises(KioskError, match="still being chosen: green_grape_ade, americano"):
         kiosk.review()
-    result = kiosk.set_options({"size": "large"}, item_id="green_grape_ade")
+    kiosk.set_options({"size": "large"}, item_id="green_grape_ade")
+    result = kiosk.finish_item("green_grape_ade")
     assert result.line is not None and result.line.item.id == "green_grape_ade"
     assert kiosk.view.item_id == "americano"  # the next one still waiting
-    assert kiosk.set_options({"size": "large"}).line is not None  # the last one by default
+    kiosk.set_options({"size": "large"})  # the last one by default
+    assert kiosk.finish_item().line is not None
     assert kiosk.pending_items == []
     assert len(kiosk.order.lines) == 3
 
