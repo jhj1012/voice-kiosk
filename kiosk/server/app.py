@@ -26,7 +26,9 @@ NOT_BUILT = """<!doctype html><meta charset="utf-8"><title>Voice Kiosk</title>
 (<code>npm --prefix frontend run dev</code>, then open http://localhost:5173).</p>"""
 
 
-def create_app(controller: KioskController, dist_dir: Path, images_dir: Path) -> FastAPI:
+def create_app(
+    controller: KioskController, dist_dir: Path, images_dir: Path, avatar_dir: Path | None = None
+) -> FastAPI:
     @contextlib.asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         asyncio.get_running_loop().set_exception_handler(_ignore_connection_resets)
@@ -70,6 +72,8 @@ def create_app(controller: KioskController, dist_dir: Path, images_dir: Path) ->
         return JSONResponse({"result": await controller.set_api_key(key)})
 
     app.mount("/images", StaticFiles(directory=images_dir, check_dir=False), name="images")
+    if avatar_dir is not None:
+        app.mount("/avatar", StaticFiles(directory=avatar_dir, check_dir=False), name="avatar")
     if (dist_dir / "index.html").exists():
         app.mount("/", StaticFiles(directory=dist_dir, html=True), name="display")
     else:

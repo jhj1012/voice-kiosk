@@ -2,7 +2,9 @@
 
 Backend -> display:
 - `init`: the menu and cafe information, once per connection (items carry `image_url` when an
-  image file exists in data/images/).
+  image file exists in data/images/), and the avatar's animation files in data/avatar/.
+- `settings`: the display settings from the developer panel (colours, ...), on connect and
+  whenever someone changes them.
 - `state`: a full snapshot of what to show: phase, assistant state, view, pending item, order,
   payment. Always complete, so the display can (re)connect at any time.
 - `subtitle`: what the customer said / the assistant says. `id` changes with each new utterance;
@@ -12,7 +14,8 @@ Backend -> display:
 - `setup`: whether the Gemini API key works (`api_key`: ok, missing or rejected); unless it is
   ok the display asks for a key (never the key itself).
 
-Display -> backend (developer mode): `hook`, `dev_text`, `dev_mute`. See docs/architecture.md.
+Display -> backend (developer mode): `hook`, `dev_text`, `dev_mute`, `settings`. See
+docs/architecture.md.
 """
 
 from __future__ import annotations
@@ -22,10 +25,32 @@ from typing import Any
 
 from kiosk.domain.cafe import Cafe
 from kiosk.domain.flow import Kiosk
-from kiosk.domain.loader import find_image
+from kiosk.domain.loader import IMAGE_SUFFIXES, find_image
 from kiosk.domain.menu import Menu
 
 Event = dict[str, Any]
+
+# The avatar's animations (data/avatar/<clip>.webm, transparent background) and a still image
+# (data/avatar/avatar.png) for clips that do not exist yet.
+AVATAR_CLIPS = ("idle", "pick_up", "listening", "talking", "put_down")
+VIDEO_SUFFIXES = (".webm", ".mp4")
+
+
+def avatar_urls(avatar_dir: Path) -> dict[str, str | None]:
+    """`/avatar/<file>?v=<mtime>` for each clip and the still image, None when missing."""
+    urls: dict[str, str | None] = {}
+    for name, suffixes in [*((c, VIDEO_SUFFIXES) for c in AVATAR_CLIPS), ("still", ())]:
+        stem = "avatar" if name == "still" else name
+        path = next(
+            (
+                avatar_dir / f"{stem}{suffix}"
+                for suffix in (suffixes or IMAGE_SUFFIXES)
+                if (avatar_dir / f"{stem}{suffix}").is_file()
+            ),
+            None,
+        )
+        urls[name] = None if path is None else f"/avatar/{path.name}?v={int(path.stat().st_mtime)}"
+    return urls
 
 
 def image_urls(menu: Menu, images_dir: Path) -> dict[str, str]:
@@ -38,10 +63,16 @@ def image_urls(menu: Menu, images_dir: Path) -> dict[str, str]:
     return urls
 
 
-def init_event(menu: Menu, cafe: Cafe, images: dict[str, str] | None = None) -> Event:
+def init_event(
+    menu: Menu,
+    cafe: Cafe,
+    images: dict[str, str] | None = None,
+    avatar: dict[str, str | None] | None = None,
+) -> Event:
     images = images or {}
     return {
         "type": "init",
+        "avatar": avatar or {name: None for name in (*AVATAR_CLIPS, "still")},
         "cafe": {
             "name": cafe.name,
             "topics": [{"id": t.id, "title": t.title, "text": t.text} for t in cafe.topics],
@@ -164,6 +195,10 @@ def level_event(mic: float, out: float) -> Event:
 
 def _unit(value: float) -> float:
     return round(min(max(value, 0.0), 1.0), 3)
+
+
+def settings_event(values: dict[str, Any]) -> Event:
+    return {"type": "settings", "values": values}
 
 
 def setup_event(api_key: str) -> Event:

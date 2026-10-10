@@ -57,6 +57,7 @@ def test_websocket_init_hook_text_and_events(menu, cafe, tmp_path):
         init = socket.receive_json()
         assert init["type"] == "init"
         assert init["menu"]["items"][1]["image_url"].startswith("/images/americano.png")
+        assert socket.receive_json() == {"type": "settings", "values": {}}
         assert socket.receive_json() == {"type": "setup", "api_key": "ok"}
         assert socket.receive_json()["phase"] == "idle"
 

@@ -2,7 +2,14 @@ import os
 
 from kiosk.domain.flow import Kiosk
 from kiosk.domain.order import Dining
-from kiosk.server.events import Subtitles, image_urls, init_event, level_event, state_event
+from kiosk.server.events import (
+    Subtitles,
+    avatar_urls,
+    image_urls,
+    init_event,
+    level_event,
+    state_event,
+)
 
 
 def test_init_event_carries_menu_cafe_and_images(menu, cafe):
@@ -94,3 +101,14 @@ def test_subtitle_ids_follow_utterances():
 
 def test_level_is_clamped():
     assert level_event(1.7, -0.2) == {"type": "level", "mic": 1.0, "out": 0.0}
+
+
+def test_avatar_urls(tmp_path):
+    (tmp_path / "idle.webm").write_bytes(b"v")
+    (tmp_path / "talking.mp4").write_bytes(b"v")
+    (tmp_path / "avatar.webp").write_bytes(b"i")
+    urls = avatar_urls(tmp_path)
+    assert urls["idle"].startswith("/avatar/idle.webm?v=")
+    assert urls["talking"].startswith("/avatar/talking.mp4?v=")
+    assert urls["still"].startswith("/avatar/avatar.webp?v=")
+    assert urls["pick_up"] is None and urls["listening"] is None and urls["put_down"] is None

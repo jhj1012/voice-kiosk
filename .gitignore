@@ -22,6 +22,7 @@ logs/
 # Local overrides and secrets
 .env
 *.local.yaml
+*.local.json
 
 # Editors / OS
 .vscode/
