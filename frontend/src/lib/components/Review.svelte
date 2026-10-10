@@ -10,10 +10,10 @@
 </script>
 
 <div class="review">
-  <ul>
+  <ul class="list">
     {#each order.lines as line, i (line.line)}
       {@const item = itemById(ui.menu, line.item_id)}
-      <li in:fade|global={{ duration: 400, delay: 150 + i * 80 }}>
+      <li class="row" in:fade|global={{ duration: 400, delay: 150 + i * 80 }}>
         <div class="thumb">
           {#if item}<ItemImage {item} size="s" />{/if}
         </div>
@@ -26,7 +26,7 @@
       </li>
     {/each}
   </ul>
-  <div class="total">
+  <div class="total box">
     {#if order.dining}<span class="dining">{order.dining === 'here' ? '매장' : '포장'}</span>{/if}
     <span class="label">합계</span>
     <span class="value">{won(order.total)}</span>
@@ -35,25 +35,18 @@
 
 <style>
   .review {
-    height: 100%;
     display: flex;
     flex-direction: column;
-    justify-content: center;
-    gap: 2.4rem;
-    padding: 0 2rem;
+    gap: 1.8rem;
   }
   ul {
     list-style: none;
     margin: 0;
     padding: 0;
   }
-  li {
+  li.row {
     display: grid;
     grid-template-columns: 6rem 1fr auto 11rem;
-    align-items: center;
-    gap: 1.8rem;
-    padding: 1.4rem 0;
-    border-bottom: 1px solid var(--line);
   }
   .what {
     display: flex;
@@ -80,6 +73,7 @@
     display: flex;
     align-items: baseline;
     gap: 1.4rem;
+    padding: 1.2rem 1.6rem;
   }
   .dining {
     padding: 0.5rem 1.4rem;

@@ -2,6 +2,7 @@
 
 import type {
   ApiKeyStatus,
+  AvatarFiles,
   Cafe,
   Menu,
   NoticeEvent,
@@ -21,6 +22,8 @@ export interface Subtitle {
 export interface DisplayState {
   menu: Menu | null;
   cafe: Cafe | null;
+  avatar: AvatarFiles | null;
+  settings: Record<string, unknown>; // as saved; settings.ts gives them meaning
   state: StateEvent;
   subtitles: Subtitle[]; // the latest few utterances, oldest first
   level: { mic: number; out: number };
@@ -48,6 +51,8 @@ export function initialDisplay(): DisplayState {
   return {
     menu: null,
     cafe: null,
+    avatar: null,
+    settings: {},
     state: idleState(),
     subtitles: [],
     level: { mic: 0, out: 0 },
@@ -60,7 +65,9 @@ export function initialDisplay(): DisplayState {
 export function apply(display: DisplayState, event: ServerEvent, now = 0): DisplayState {
   switch (event.type) {
     case 'init':
-      return { ...display, menu: event.menu, cafe: event.cafe };
+      return { ...display, menu: event.menu, cafe: event.cafe, avatar: event.avatar ?? null };
+    case 'settings':
+      return { ...display, settings: event.values };
     case 'state':
       return applyState(display, event, now);
     case 'subtitle':

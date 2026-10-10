@@ -35,7 +35,8 @@
     gap: 1.6rem;
     padding: 1.4rem 2.4rem 1.4rem 1.4rem;
     border-radius: var(--radius-l);
-    background: var(--tint);
+    background: var(--panel-soft);
+    backdrop-filter: blur(2rem);
   }
   .thumbs {
     display: flex;

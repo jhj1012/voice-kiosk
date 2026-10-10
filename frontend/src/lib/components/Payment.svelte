@@ -7,7 +7,7 @@
   const step = $derived(ui.state.payment?.step ?? 'insert_card');
 </script>
 
-<div class="payment">
+<div class="payment box">
   <div class="terminal" class:processing={step !== 'insert_card'}>
     <div class="card"><span class="chip"></span></div>
     <div class="slot"></div>
@@ -30,12 +30,11 @@
 
 <style>
   .payment {
-    height: 100%;
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
-    gap: 4rem;
+    gap: 3rem;
+    padding: 5rem 3rem 3rem;
   }
   .terminal {
     position: relative;

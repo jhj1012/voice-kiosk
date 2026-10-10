@@ -1,6 +1,6 @@
 <script lang="ts">
-  // The image slot of a menu item: data/images/<item_id>.png when it exists, otherwise the
-  // item's emoji on a soft blue tile.
+  // The image slot of a menu item: data/images/<item_id>.png when it exists (a transparent
+  // background shows the "menu image background" colour), otherwise the item's emoji.
   import type { MenuItem } from '../events';
 
   let { item, size = 'm' }: { item: MenuItem; size?: 's' | 'm' | 'l' } = $props();
@@ -23,7 +23,7 @@
     overflow: hidden;
     display: grid;
     place-items: center;
-    background: linear-gradient(160deg, #f6f9ff, var(--tint-2));
+    background: var(--image-bg);
   }
   .tile.l {
     border-radius: var(--radius-l);
@@ -34,7 +34,7 @@
   img {
     width: 100%;
     height: 100%;
-    object-fit: cover;
+    object-fit: contain;
   }
   .emoji {
     font-size: 5.5rem;
