@@ -57,6 +57,7 @@ def test_websocket_init_hook_text_and_events(menu, cafe, tmp_path):
         init = socket.receive_json()
         assert init["type"] == "init"
         assert init["menu"]["items"][1]["image_url"].startswith("/images/americano.png")
+        assert socket.receive_json() == {"type": "settings", "values": {}}
         assert socket.receive_json() == {"type": "setup", "api_key": "ok"}
         assert socket.receive_json()["phase"] == "idle"
 
@@ -87,3 +88,17 @@ def test_api_key_form(menu, cafe, tmp_path):
         assert client.post("/api/key", json={"nope": 1}).status_code == 400
         # No key handling configured in this app: nothing is checked or saved.
         assert client.post("/api/key", json={"key": "x"}).json() == {"result": "unavailable"}
+
+
+def test_avatar_files_are_served_with_their_types(menu, cafe, tmp_path):
+    avatar = tmp_path / "avatar"
+    avatar.mkdir()
+    (avatar / "idle.webm").write_bytes(b"webm")
+    (avatar / "avatar.webp").write_bytes(b"webp")
+    controller = KioskController(
+        Kiosk(menu, cafe), FakeConnector(), FlowConfig(), Hub(), SimulatedHook(), tmp_path
+    )
+    app = create_app(controller, tmp_path / "dist", tmp_path, avatar)
+    with TestClient(app) as client:
+        assert client.get("/avatar/idle.webm").headers["content-type"] == "video/webm"
+        assert client.get("/avatar/avatar.webp").headers["content-type"] == "image/webp"

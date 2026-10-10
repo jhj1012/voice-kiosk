@@ -6,6 +6,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+import mimetypes
 from collections.abc import AsyncIterator
 from pathlib import Path
 
@@ -20,13 +21,19 @@ log = logging.getLogger(__name__)
 
 LOCAL_CLIENTS = {"127.0.0.1", "::1", "localhost"}
 
+# Windows' own list may lack these (the avatar's clips and images).
+for _type, _suffix in [("image/webp", ".webp"), ("video/webm", ".webm"), ("video/mp4", ".mp4")]:
+    mimetypes.add_type(_type, _suffix)
+
 NOT_BUILT = """<!doctype html><meta charset="utf-8"><title>Voice Kiosk</title>
 <p style="font-family:sans-serif">The display is not built yet. Run
 <code>npm --prefix frontend run build</code> and reload, or use the development server
 (<code>npm --prefix frontend run dev</code>, then open http://localhost:5173).</p>"""
 
 
-def create_app(controller: KioskController, dist_dir: Path, images_dir: Path) -> FastAPI:
+def create_app(
+    controller: KioskController, dist_dir: Path, images_dir: Path, avatar_dir: Path | None = None
+) -> FastAPI:
     @contextlib.asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         asyncio.get_running_loop().set_exception_handler(_ignore_connection_resets)
@@ -70,6 +77,8 @@ def create_app(controller: KioskController, dist_dir: Path, images_dir: Path) ->
         return JSONResponse({"result": await controller.set_api_key(key)})
 
     app.mount("/images", StaticFiles(directory=images_dir, check_dir=False), name="images")
+    if avatar_dir is not None:
+        app.mount("/avatar", StaticFiles(directory=avatar_dir, check_dir=False), name="avatar")
     if (dist_dir / "index.html").exists():
         app.mount("/", StaticFiles(directory=dist_dir, html=True), name="display")
     else:

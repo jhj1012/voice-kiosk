@@ -141,7 +141,7 @@ git push origin v0.1.1
 | `kiosk/voice/` | Audio devices (handset mic and earpiece) and the hook switch. |
 | `kiosk/server/` | Wiring, the WebSocket server for the display and the API key form. |
 | `frontend/` | The display (Svelte). |
-| `data/` | `menu.yaml`, `cafe.yaml` and `images/<item_id>.png`: edit these to change the menu. |
+| `data/` | `menu.yaml`, `cafe.yaml`, `images/<item_id>.png` and the avatar's clips in `avatar/` (see [docs/setup.md](docs/setup.md#the-avatars-animations)). |
 | `configs/` | `settings.yaml`; personal overrides go in git-ignored `settings.local.yaml`. |
 | `scripts/` | `start.ps1` (behind `Start Kiosk.bat`), `voice_demo.py`, `live_check.py`, `make_demo_events.py`. |
 | `docs/` | [Architecture](docs/architecture.md), [decisions](docs/decisions.md), [setup](docs/setup.md), [Live API check](docs/live-check.md). |

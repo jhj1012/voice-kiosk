@@ -1,15 +1,17 @@
 :root {
-  /* White and soft blue, flat: no shadows */
+  /* The colours can be changed in the developer panel (settings.ts sets these on the page);
+     these are the defaults. White and soft blue, flat: no shadows. */
   --bg: #ffffff;
-  --tint: #f2f7ff;
-  --tint-2: #e7f0fe;
+  --glow: #dcebff;
+  --panel: #ffffff;
+  --panel-soft: rgb(255 255 255 / 0.72);
+  --image-bg: #eef4ff;
   --line: #e2ebf8;
   --text: #0e1a2b;
   --text-2: #4b5b71;
   --muted: #94a3b8;
   --accent: #2f6fed;
-  --accent-2: #74aefc;
-  --accent-soft: #e6f0ff;
+  --on-accent: #ffffff;
   --ok: #2f6fed;
   --warn: #e0a21b;
   --error: #d6453b;
@@ -73,4 +75,60 @@ p {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* Shades derived from the chosen colours (declared where the colours are set). */
+.page,
+:root {
+  --tint: color-mix(in srgb, var(--accent) 7%, var(--panel));
+  --tint-2: color-mix(in srgb, var(--accent) 13%, var(--panel));
+  --accent-soft: color-mix(in srgb, var(--accent) 14%, var(--panel));
+  --accent-2: color-mix(in srgb, var(--accent) 55%, var(--panel));
+}
+
+/* Lists of choices over the avatar. With "boxes" each row has its own box; otherwise the
+   blurred patch or the gradient behind the whole list makes it readable. */
+.list {
+  display: flex;
+  flex-direction: column;
+}
+.list .row {
+  display: flex;
+  align-items: center;
+  gap: 1.8rem;
+  padding: 1.2rem 1.6rem;
+  border-radius: var(--radius-m);
+  transition:
+    background 0.35s var(--ease-out),
+    color 0.35s;
+}
+.list .row + .row {
+  border-top: 1px solid var(--line);
+}
+.backdrop-boxes .list {
+  gap: 1rem;
+}
+.backdrop-boxes .list .row {
+  border-top: none;
+  background: var(--panel-soft);
+}
+.list .row.chosen {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.backdrop-boxes .box {
+  border-radius: var(--radius-l);
+  background: var(--panel-soft);
+}
+.caption {
+  font-size: 1.7rem;
+  font-weight: 600;
+  color: var(--text-2);
+  text-align: center;
+}
+.backdrop-boxes .caption {
+  align-self: center;
+  padding: 0.4rem 1.4rem;
+  border-radius: 999px;
+  background: var(--panel-soft);
 }

@@ -23,14 +23,17 @@ from kiosk.domain.flow import Kiosk
 from kiosk.server.events import (
     Event,
     Subtitles,
+    avatar_urls,
     image_urls,
     init_event,
     level_event,
     notice_event,
+    settings_event,
     setup_event,
     state_event,
 )
 from kiosk.server.hub import Hub
+from kiosk.server.settings import DisplaySettings
 from kiosk.voice.hook import SimulatedHook
 from kiosk.voice.pcm import level
 
@@ -73,6 +76,8 @@ class KioskController(SessionListener):
         images_dir: Path,
         *,
         keys: ApiKeys | None = None,
+        avatar_dir: Path | None = None,
+        settings: DisplaySettings | None = None,
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
         self.kiosk = kiosk
@@ -84,6 +89,8 @@ class KioskController(SessionListener):
         self.hub = hub
         self.hook = hook
         self.images_dir = images_dir
+        self.avatar_dir = avatar_dir
+        self.settings = settings
         self.session: AssistantSession | None = None
         self.audio_enabled = True
         # The handset (set by the server when audio devices are open):
@@ -107,7 +114,13 @@ class KioskController(SessionListener):
         """What a newly connected display needs: the menu (with current images) and the state."""
         menu, cafe = self.kiosk.menu, self.kiosk.cafe
         return [
-            init_event(menu, cafe, image_urls(menu, self.images_dir)),
+            init_event(
+                menu,
+                cafe,
+                image_urls(menu, self.images_dir),
+                avatar_urls(self.avatar_dir) if self.avatar_dir else None,
+            ),
+            settings_event(self.settings.values if self.settings else {}),
             setup_event(self.key_status),
             self.state(),
         ]
@@ -118,7 +131,7 @@ class KioskController(SessionListener):
         return state_event(self.kiosk, assistant, self._seq)
 
     async def handle_client(self, message: Any) -> None:
-        """A developer event from a display: `hook`, `dev_text` or `dev_mute`."""
+        """A developer event from a display: `hook`, `dev_text`, `dev_mute` or `settings`."""
         if not isinstance(message, dict):
             return
         kind = message.get("type")
@@ -131,8 +144,20 @@ class KioskController(SessionListener):
             if not self.audio_enabled and self.audio_stop is not None:
                 self.audio_stop()
             log.info("audio %s", "on" if self.audio_enabled else "muted")
+        elif kind == "settings":
+            self.update_settings(message.get("values"), reset=bool(message.get("reset")))
         else:
             log.warning("unknown display event: %r", message)
+
+    def update_settings(self, values: Any, reset: bool = False) -> None:
+        """Display settings changed in a developer panel: saved, and sent to every display."""
+        if self.settings is None:
+            return
+        if reset:
+            self.settings.reset()
+        elif not self.settings.update(values):
+            return
+        self.hub.publish(settings_event(self.settings.values))
 
     async def set_api_key(self, key: str) -> str:
         """A key typed on the display: checked with Google, then saved and used at once.

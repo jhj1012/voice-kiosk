@@ -1,23 +1,31 @@
 <script lang="ts">
-  // One item, large: its card's image grows into this one. While the customer is choosing it,
-  // only the required options are shown, as minimal choices.
-  import { fade } from 'svelte/transition';
+  // One item. While the customer is choosing it, only the option the assistant is asking about
+  // is listed; what was already chosen stays as small chips. Asked about the item instead, it
+  // shows the item's facts (no description: the assistant tells it when asked).
+  import { fade, fly } from 'svelte/transition';
+  import { cubicOut } from 'svelte/easing';
   import { won } from '../format';
   import { allergenNames, CAFFEINE, groupById, itemById, SERVED } from '../menu';
   import { ui } from '../store.svelte';
-  import { receive, send } from '../transitions';
   import ItemImage from './ItemImage.svelte';
 
   const item = $derived(itemById(ui.menu, ui.state.view.item_id));
   const pending = $derived(
     ui.state.pending?.item_id === ui.state.view.item_id ? ui.state.pending : null,
   );
-  const groups = $derived(
-    pending && item
-      ? item.options
-          .map((id) => groupById(ui.menu, id))
-          .filter((g) => g && (g.required || pending.chosen[g.id]))
+  const chips = $derived(
+    pending
+      ? Object.entries(pending.chosen).flatMap(([groupId, ids]) => {
+          const group = groupById(ui.menu, groupId);
+          return ids.map((id) => group?.choices.find((c) => c.id === id)?.say ?? id);
+        })
       : [],
+  );
+  // The option being asked: the first missing one, in the item's own order.
+  const asking = $derived(
+    pending && item
+      ? groupById(ui.menu, item.options.find((id) => pending.missing.includes(id)) ?? '')
+      : undefined,
   );
   const allergens = $derived(item && ui.menu ? allergenNames(ui.menu, item.allergens) : []);
   const facts = $derived(
@@ -34,40 +42,43 @@
 
 {#if item}
   <div class="item">
-    <div
-      class="hero"
-      data-fly-source={item.id}
-      in:receive|global={{ key: item.id }}
-      out:send|global={{ key: item.id }}
-    >
-      <ItemImage {item} size="l" />
-    </div>
-
-    <div class="text" in:fade|global={{ duration: 400, delay: 350 }}>
-      <h2>{item.name}</h2>
-      <p class="price">
-        {won(item.price)}{#if pending && pending.quantity > 1}<span class="qty">
-            × {pending.quantity}</span
-          >{/if}
-      </p>
-      <p class="description">{item.description}</p>
-      <p class="facts">{item.ingredients.join(', ')}</p>
-      <p class="facts">{facts.join('  ·  ')}</p>
-    </div>
-
-    {#if groups.length && pending}
-      <div class="choices" in:fade|global={{ duration: 400, delay: 500 }}>
-        {#each groups as group (group!.id)}
-          {@const chosen = pending.chosen[group!.id] ?? []}
-          <div class="group" class:missing={pending.missing.includes(group!.id)}>
-            {#each group!.choices as choice (choice.id)}
-              <span class="choice" class:chosen={chosen.includes(choice.id)}>
-                {choice.say || choice.name}
-                {#if choice.price}<small>+{won(choice.price)}</small>{/if}
-              </span>
+    <div class="head box">
+      <div class="thumb" data-fly-source={item.id}><ItemImage {item} size="s" /></div>
+      <div class="what">
+        <h2>{item.name}</h2>
+        <p class="price">
+          {won(item.price)}{#if pending && pending.quantity > 1}<span class="qty">
+              × {pending.quantity}</span
+            >{/if}
+        </p>
+        {#if chips.length}
+          <div class="chips" in:fade>
+            {#each chips as chip (chip)}
+              <span class="chip" in:fade={{ duration: 300 }}>{chip}</span>
             {/each}
           </div>
-        {/each}
+        {/if}
+      </div>
+    </div>
+
+    {#if asking}
+      {#key asking.id}
+        <div class="asking" in:fly={{ y: 16, opacity: 0, duration: 400, easing: cubicOut }}>
+          <p class="caption">{asking.name}</p>
+          <ul class="list">
+            {#each asking.choices as choice (choice.id)}
+              <li class="row">
+                <span class="choice">{choice.say || choice.name}</span>
+                {#if choice.price}<span class="extra">+{won(choice.price)}</span>{/if}
+              </li>
+            {/each}
+          </ul>
+        </div>
+      {/key}
+    {:else if !pending}
+      <div class="facts box" in:fade={{ duration: 400, delay: 200 }}>
+        <p>{item.ingredients.join(', ')}</p>
+        <p>{facts.join('  ·  ')}</p>
       </div>
     {/if}
   </div>
@@ -75,89 +86,81 @@
 
 <style>
   .item {
-    height: 100%;
     display: flex;
     flex-direction: column;
+    gap: 2.2rem;
+  }
+  .head {
+    display: flex;
     align-items: center;
-    gap: 2.6rem;
+    gap: 2.2rem;
+    padding: 1.4rem 1.6rem;
   }
-  .hero {
-    width: 32rem;
+  .thumb {
+    width: 11rem;
+    flex: none;
   }
-  .text {
+  .what {
     display: flex;
     flex-direction: column;
-    align-items: center;
-    text-align: center;
-    gap: 0.8rem;
+    gap: 0.4rem;
   }
   h2 {
-    font-size: 4.4rem;
+    font-size: 3.4rem;
     font-weight: 800;
-    letter-spacing: -0.04em;
+    letter-spacing: -0.03em;
   }
   .price {
-    font-size: 2.2rem;
+    font-size: 2rem;
     color: var(--text-2);
   }
   .qty {
     color: var(--accent);
     font-weight: 700;
   }
-  .description {
-    margin-top: 0.8rem;
-    font-size: 2rem;
-    line-height: 1.5;
-    color: var(--text-2);
-    word-break: keep-all;
-    max-width: 50rem;
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    margin-top: 0.4rem;
   }
-  .facts {
-    font-size: 1.6rem;
-    color: var(--muted);
-    white-space: pre;
+  .chip {
+    padding: 0.3rem 1.1rem;
+    border-radius: 999px;
+    background: var(--accent);
+    color: var(--on-accent);
+    font-size: 1.5rem;
+    font-weight: 700;
   }
-  .choices {
+  .asking {
     display: flex;
     flex-direction: column;
-    gap: 1.4rem;
-    width: 100%;
-    max-width: 48rem;
+    gap: 1rem;
   }
-  .group {
-    display: grid;
-    grid-auto-flow: column;
-    grid-auto-columns: 1fr;
-    gap: 1.2rem;
+  ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .row {
+    min-height: 7.5rem;
   }
   .choice {
-    padding: 1.6rem 1rem;
-    border-radius: var(--radius-m);
-    background: var(--tint);
-    font-size: 2.2rem;
-    font-weight: 600;
-    text-align: center;
+    flex: 1;
+    font-size: 2.6rem;
+    font-weight: 700;
+  }
+  .extra {
+    font-size: 1.8rem;
     color: var(--text-2);
-    transition:
-      background 0.35s var(--ease-out),
-      color 0.35s;
   }
-  .choice small {
-    display: block;
-    font-size: 1.3rem;
-    font-weight: 500;
-    opacity: 0.8;
-  }
-  .choice.chosen {
-    background: var(--accent);
-    color: white;
-  }
-  .missing .choice {
-    animation: invite 1.8s ease-in-out infinite;
-  }
-  @keyframes invite {
-    50% {
-      background: var(--tint-2);
-    }
+  .facts {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    padding: 1.4rem 1.6rem;
+    font-size: 1.7rem;
+    color: var(--text-2);
+    line-height: 1.5;
   }
 </style>

@@ -1,8 +1,10 @@
 <script lang="ts">
-  // Developer mode (F2): type what the customer says, mute the audio, see the events.
+  // Developer mode (F2): type what the customer says, mute the audio, change the display
+  // settings, see the events.
   // Space lifts / puts down the simulated handset. Customers never see this panel.
   import type { ClientEvent, ServerEvent } from '../events';
   import { openKeyForm, ui } from '../store.svelte';
+  import DisplaySettings from './DisplaySettings.svelte';
 
   let {
     send,
@@ -72,8 +74,9 @@
     {/if}
     <span class="hint">Space: 수화기 · F2: 닫기</span>
   </div>
+  <DisplaySettings {send} />
   <ol>
-    {#each log.slice(-14) as entry (entry.at)}
+    {#each log.slice(-8) as entry (entry.at)}
       <li>{summary(entry.event)}</li>
     {/each}
   </ol>
@@ -86,6 +89,8 @@
     top: 1.2rem;
     z-index: 40;
     width: 34rem;
+    max-height: calc(100% - 2.4rem);
+    overflow-y: auto;
     padding: 1.2rem;
     border-radius: var(--radius-m);
     background: rgb(30 24 20 / 0.92);
@@ -152,7 +157,7 @@
     font-family: ui-monospace, monospace;
     font-size: 0.95rem;
     color: #d5c9be;
-    max-height: 18rem;
+    max-height: 10rem;
     overflow: hidden;
   }
 </style>

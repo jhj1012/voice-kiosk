@@ -21,6 +21,7 @@ from kiosk.config import FlowConfig
 from kiosk.domain.flow import Kiosk, Phase
 from kiosk.server.controller import ApiKeys, KioskController, MissingKeyConnector
 from kiosk.server.hub import Hub
+from kiosk.server.settings import DisplaySettings
 from kiosk.voice.hook import SimulatedHook
 from kiosk.voice.pcm import level
 from tests.fakes import FakeConnector
@@ -65,7 +66,8 @@ def run(
 
 def test_init_events_carry_the_menu_and_the_state(menu, cafe, tmp_path):
     async def test(s: Setup) -> None:
-        init, setup, state = s.controller.init_events()
+        init, settings, setup, state = s.controller.init_events()
+        assert settings == {"type": "settings", "values": {}}
         assert init["type"] == "init" and init["menu"]["items"]
         assert setup == {"type": "setup", "api_key": "ok"}
         assert state["type"] == "state" and state["phase"] == "idle"
@@ -77,7 +79,7 @@ def test_init_events_carry_the_menu_and_the_state(menu, cafe, tmp_path):
 def test_init_events_pick_up_new_images(menu, cafe, tmp_path):
     async def test(s: Setup) -> None:
         (tmp_path / "americano.png").write_bytes(b"x")
-        init, _, _ = s.controller.init_events()
+        init, _, _, _ = s.controller.init_events()
         urls = {i["id"]: i["image_url"] for i in init["menu"]["items"]}
         assert urls["americano"].startswith("/images/americano.png?v=")
 
@@ -177,7 +179,7 @@ class Keys:
 
 def test_missing_api_key_asks_for_one(menu, cafe, tmp_path):
     async def test(s: Setup) -> None:
-        assert s.controller.init_events()[1] == {"type": "setup", "api_key": "missing"}
+        assert s.controller.init_events()[2] == {"type": "setup", "api_key": "missing"}
         await s.controller.handset(True)
         assert s.controller.session is None
         assert s.drain()[-1]["phase"] == "idle"
@@ -311,5 +313,25 @@ def test_levels_come_from_the_handset(menu, cafe, tmp_path):
         await asyncio.sleep(0.2)
         levels = [e for e in s.drain() if e["type"] == "level"]
         assert levels and levels[0] == {"type": "level", "mic": 0.4, "out": 0.7}
+
+    run(menu, cafe, tmp_path, test)
+
+
+def test_display_settings_are_saved_and_sent_to_every_display(menu, cafe, tmp_path):
+    async def test(s: Setup) -> None:
+        s.controller.settings = DisplaySettings(tmp_path / "display.local.json")
+        await s.controller.handle_client(
+            {"type": "settings", "values": {"subtitles": True, "colors": {"text": "#111111"}}}
+        )
+        values = {"subtitles": True, "colors": {"text": "#111111"}}
+        assert s.drain() == [{"type": "settings", "values": values}]
+        assert DisplaySettings(tmp_path / "display.local.json").values == values
+        assert s.controller.init_events()[1]["values"] == values
+
+        await s.controller.handle_client({"type": "settings", "values": "nonsense"})
+        assert s.drain() == []
+        await s.controller.handle_client({"type": "settings", "reset": True})
+        assert s.drain() == [{"type": "settings", "values": {}}]
+        assert not (tmp_path / "display.local.json").exists()
 
     run(menu, cafe, tmp_path, test)

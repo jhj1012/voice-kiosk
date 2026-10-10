@@ -5,7 +5,7 @@
   import { ui } from '../store.svelte';
 </script>
 
-<div class="done">
+<div class="done box">
   <svg class="check" viewBox="0 0 52 52" in:scale|global={{ duration: 500, easing: backOut }}>
     <circle cx="26" cy="26" r="24" />
     <path d="M15 27 l7 7 l15 -16" />
@@ -21,12 +21,11 @@
 
 <style>
   .done {
-    height: 100%;
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
     gap: 1.2rem;
+    padding: 3rem;
   }
   .check {
     width: 7rem;
@@ -38,7 +37,7 @@
   }
   .check path {
     fill: none;
-    stroke: white;
+    stroke: var(--on-accent);
     stroke-width: 4;
     stroke-linecap: round;
     stroke-linejoin: round;

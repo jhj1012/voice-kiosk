@@ -1,12 +1,12 @@
 <script lang="ts">
   // Picks the event source: the backend's WebSocket, or a recorded demo timeline
   // (?demo=order, ?demo=allergy; &at=<ms> starts later, &pause stops there; &dev opens the
-  // developer panel).
+  // developer panel; &backdrop=blur|gradient|boxes picks the choices' background).
   import { onMount } from 'svelte';
   import type { ClientEvent, ServerEvent } from './lib/events';
   import { connect, type Connection } from './lib/connection';
   import { play, type Timeline } from './lib/player';
-  import { dispatch, ui } from './lib/store.svelte';
+  import { dispatch, previewSettings, ui } from './lib/store.svelte';
   import DevPanel from './lib/components/DevPanel.svelte';
   import Stage from './lib/components/Stage.svelte';
 
@@ -47,6 +47,7 @@
     const demo = (await import('./dev/demo.json')).default;
     const scenarios = demo.scenarios as unknown as Record<string, Timeline>;
     dispatch(demo.init as ServerEvent);
+    if (params.get('backdrop')) previewSettings({ backdrop: params.get('backdrop') });
     connected = true;
     return play(scenarios[demoName!] ?? Object.values(scenarios)[0], receive, {
       startAt: Number(params.get('at') ?? 0),

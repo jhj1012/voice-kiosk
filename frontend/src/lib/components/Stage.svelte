@@ -1,36 +1,37 @@
 <script lang="ts">
-  // One continuous page. The assistant and the conversation stay at the top, the order at the
-  // bottom; in between, what the assistant chose appears and disappears in place.
+  // One continuous page. The avatar stands behind everything; what the assistant is asking
+  // about appears over his chest, on a see-through background (blur, a gradient from the bottom,
+  // or boxes: the developer panel's choice). The order stays at the bottom.
   import { tick } from 'svelte';
   import { fade } from 'svelte/transition';
-  import { cubicOut } from 'svelte/easing';
   import { ui } from '../store.svelte';
+  import { cssVariables } from '../settings';
   import { appear, disappear } from '../transitions';
   import ApiKeyForm from './ApiKeyForm.svelte';
-  import AssistantPresence from './AssistantPresence.svelte';
-  import Categories from './Categories.svelte';
+  import Avatar from './Avatar.svelte';
+  import CategoryList from './CategoryList.svelte';
   import Done from './Done.svelte';
-  import Hint from './Hint.svelte';
   import Info from './Info.svelte';
   import ItemDetail from './ItemDetail.svelte';
-  import MenuGrid from './MenuGrid.svelte';
+  import MenuList from './MenuList.svelte';
   import Notice from './Notice.svelte';
   import OrderBar from './OrderBar.svelte';
   import Payment from './Payment.svelte';
   import Review from './Review.svelte';
   import Subtitles from './Subtitles.svelte';
 
-  const STATUS: Record<string, string> = {
-    connecting: '연결 중',
-    listening: '듣고 있어요',
-    thinking: '생각 중',
-    speaking: '',
-    idle: '',
-  };
+  const CONTENT = ['menu', 'categories', 'item', 'info', 'review', 'payment', 'done'];
 
+  const settings = $derived(ui.settings);
+  const style = $derived(
+    Object.entries(cssVariables(settings))
+      .map(([name, value]) => `${name}: ${value}`)
+      .join('; '),
+  );
   const view = $derived(ui.state.view);
   const idle = $derived(view.screen === 'attract');
-  // Menus with other titles or items stay one block: the cards themselves come and go.
+  const hasContent = $derived(CONTENT.includes(view.screen));
+  // Menus with other titles or items stay one block: the rows themselves come and go.
   const block = $derived(
     view.screen === 'item'
       ? `item|${view.item_id}`
@@ -40,13 +41,6 @@
   );
   const showOrder = $derived(
     ui.state.order.count > 0 && !['review', 'payment', 'done'].includes(view.screen),
-  );
-  const level = $derived(
-    ui.state.assistant === 'speaking'
-      ? ui.level.out
-      : ui.state.assistant === 'listening'
-        ? ui.level.mic
-        : 0,
   );
 
   // An item that went into the order flies from its picture into the order bar.
@@ -93,53 +87,51 @@
   }
 </script>
 
-<div class="page" class:idle>
+<div class="page backdrop-{settings.backdrop}" {style}>
   <div class="glow"></div>
+  <Avatar />
 
-  <section class="talk">
-    <div class="presence">
-      <AssistantPresence state={idle ? 'idle' : ui.state.assistant} {level} size={idle ? 17 : 8} />
-      {#if !idle}
-        <span class="status" transition:fade={{ duration: 200 }}>{STATUS[ui.state.assistant]}</span>
-      {/if}
-    </div>
-    {#if idle}
-      <p class="prompt" in:fade={{ duration: 600, delay: 400 }} out:fade={{ duration: 200 }}>
-        수화기를 들고 말씀해 주세요
-      </p>
-    {:else}
-      <div class="subtitles" in:fade={{ duration: 400, delay: 500, easing: cubicOut }}>
-        <Subtitles />
-      </div>
-    {/if}
-  </section>
+  {#if settings.backdrop === 'gradient' && (hasContent || showOrder || idle)}
+    <div class="fade" transition:fade={{ duration: 400 }}></div>
+  {/if}
+
+  {#if settings.subtitles && !idle}
+    <section class="subtitles" transition:fade={{ duration: 300 }}>
+      <Subtitles />
+    </section>
+  {/if}
 
   <main class="content">
     {#key block}
       <div class="block" in:appear out:disappear>
-        {#if view.screen === 'welcome'}
-          <!-- Only before anything is ordered; later the middle simply stays clean. -->
-          {#if ui.state.order.count === 0}
-            <div class="hint" out:fade={{ duration: 200 }}><Hint /></div>
-          {/if}
-        {:else if view.screen === 'menu'}
-          <MenuGrid />
-        {:else if view.screen === 'categories'}
-          <Categories />
-        {:else if view.screen === 'item'}
-          <ItemDetail />
-        {:else if view.screen === 'info'}
-          <Info />
-        {:else if view.screen === 'review'}
-          <Review />
-        {:else if view.screen === 'payment'}
-          <Payment />
-        {:else if view.screen === 'done'}
-          <Done />
+        {#if hasContent}
+          <div class="surface">
+            {#if view.screen === 'menu'}
+              <MenuList />
+            {:else if view.screen === 'categories'}
+              <CategoryList />
+            {:else if view.screen === 'item'}
+              <ItemDetail />
+            {:else if view.screen === 'info'}
+              <Info />
+            {:else if view.screen === 'review'}
+              <Review />
+            {:else if view.screen === 'payment'}
+              <Payment />
+            {:else if view.screen === 'done'}
+              <Done />
+            {/if}
+          </div>
         {/if}
       </div>
     {/key}
   </main>
+
+  {#if idle}
+    <p class="prompt box" in:fade={{ duration: 600, delay: 400 }} out:fade={{ duration: 200 }}>
+      수화기를 들고 말씀해 주세요
+    </p>
+  {/if}
 
   {#if showOrder}
     <div class="order" transition:fade={{ duration: 350 }}>
@@ -162,69 +154,40 @@
     inset: 0;
     overflow: hidden;
     background: var(--bg);
+    color: var(--text);
   }
-  /* Soft blue light at the top and bottom of a white page */
   .glow {
     position: absolute;
     inset: 0;
-    background:
-      radial-gradient(60rem 34rem at 50% -6rem, #dcebff, transparent 70%),
-      radial-gradient(70rem 30rem at 50% 128rem, #e3efff, transparent 70%);
-    transition: opacity 1.2s;
-  }
-  .idle .glow {
-    background:
-      radial-gradient(56rem 56rem at 50% 44rem, #e2eeff, transparent 70%),
-      radial-gradient(70rem 30rem at 50% 130rem, #edf4ff, transparent 70%);
+    background: radial-gradient(70rem 50rem at 50% 0, var(--glow), transparent 70%);
   }
 
-  .talk {
+  /* "Gradient": the panel colour rises from the bottom of the screen over the avatar. */
+  .fade {
     position: absolute;
     left: 0;
     right: 0;
-    top: 5rem;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 2rem;
-    padding: 0 5rem;
-    transition: top 0.9s var(--ease-out);
-  }
-  .idle .talk {
-    top: 40rem;
-    gap: 4rem;
-  }
-  .presence {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 0.6rem;
-  }
-  .status {
-    height: 1.6rem;
-    font-size: 1.3rem;
-    color: var(--muted);
-  }
-  .prompt {
-    font-size: 3.2rem;
-    font-weight: 600;
-    letter-spacing: -0.03em;
-    color: var(--text);
-  }
-  /* The latest words stay visible; older lines fade out at the top. */
-  .subtitles {
-    width: 100%;
-    height: 13rem;
-    display: flex;
-    flex-direction: column;
-    justify-content: flex-end;
-    overflow: hidden;
-    mask-image: linear-gradient(transparent, black 3rem);
+    bottom: 0;
+    top: 44rem;
+    background: linear-gradient(to top, var(--panel-soft) 70%, transparent);
+    pointer-events: none;
   }
 
+  .subtitles {
+    position: absolute;
+    top: 3rem;
+    left: 5rem;
+    right: 5rem;
+    z-index: 5;
+    padding: 1.4rem 2rem;
+    border-radius: var(--radius-l);
+    background: var(--panel-soft);
+  }
+
+  /* Over the avatar's chest: his face stays visible above. */
   .content {
     position: absolute;
-    top: 32.5rem;
+    top: 54rem;
     bottom: 15rem;
     left: 4.5rem;
     right: 4.5rem;
@@ -233,9 +196,44 @@
   .block {
     grid-area: 1 / 1;
     min-height: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
   }
-  .hint {
-    height: 100%;
+  .surface {
+    position: relative;
+    isolation: isolate; /* keeps the blurred patch behind the choices, above the avatar */
+    max-height: 100%;
+  }
+  /* "Blur": a soft, blurred patch behind the choices, fading out at its edges. */
+  .backdrop-blur .surface::before {
+    content: '';
+    position: absolute;
+    inset: -3.5rem;
+    z-index: -1;
+    background: var(--panel-soft);
+    backdrop-filter: blur(2.4rem) saturate(1.2);
+    mask:
+      linear-gradient(to bottom, transparent, #000 3.5rem, #000 calc(100% - 3.5rem), transparent),
+      linear-gradient(to right, transparent, #000 3.5rem, #000 calc(100% - 3.5rem), transparent);
+    mask-composite: intersect;
+  }
+
+  .prompt {
+    position: absolute;
+    left: 50%;
+    bottom: 12rem;
+    translate: -50% 0;
+    white-space: nowrap;
+    font-size: 3.2rem;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    padding: 1.8rem 3.6rem;
+    border-radius: 999px;
+    background: var(--panel-soft);
+  }
+  .backdrop-blur .prompt {
+    backdrop-filter: blur(2rem);
   }
 
   .order {

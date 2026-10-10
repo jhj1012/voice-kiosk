@@ -24,6 +24,7 @@ from kiosk.domain.loader import load_cafe, load_menu
 from kiosk.domain.order import Dining
 from kiosk.server.events import (
     Subtitles,
+    avatar_urls,
     image_urls,
     init_event,
     level_event,
@@ -209,9 +210,20 @@ def build() -> dict[str, Any]:
         run(recorder)
         scenarios[name] = {"title": title, "duration": recorder.t, "events": recorder.events}
     return {
-        "init": init_event(menu, cafe, image_urls(menu, DATA_DIR / "images")),
+        "init": init_event(
+            menu,
+            cafe,
+            unversioned(image_urls(menu, DATA_DIR / "images")),
+            unversioned(avatar_urls(DATA_DIR / "avatar")),
+        ),
         "scenarios": scenarios,
     }
+
+
+def unversioned(urls: dict[str, Any]) -> dict[str, Any]:
+    """Without the `?v=<file time>` part: a fresh checkout has other file times (the test
+    compares the timelines with the files)."""
+    return {k: v.split("?")[0] if v else v for k, v in urls.items()}
 
 
 def main() -> int:

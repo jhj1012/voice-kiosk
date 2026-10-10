@@ -85,10 +85,21 @@ export interface Order {
   total: number;
 }
 
+// The avatar's animation files (data/avatar/), null when a clip does not exist yet.
+export type AvatarClip = 'idle' | 'pick_up' | 'listening' | 'talking' | 'put_down';
+export type AvatarFiles = Record<AvatarClip | 'still', string | null>;
+
 export interface InitEvent {
   type: 'init';
   menu: Menu;
   cafe: Cafe;
+  avatar?: AvatarFiles;
+}
+
+// The developer panel's display settings, as saved by the backend (see settings.ts).
+export interface SettingsEvent {
+  type: 'settings';
+  values: Record<string, unknown>;
 }
 
 export interface StateEvent {
@@ -131,10 +142,11 @@ export interface SetupEvent {
 }
 
 export type ServerEvent =
-  InitEvent | StateEvent | SubtitleEvent | LevelEvent | NoticeEvent | SetupEvent;
+  InitEvent | StateEvent | SubtitleEvent | LevelEvent | NoticeEvent | SetupEvent | SettingsEvent;
 
 // Display -> backend (developer mode only).
 export type ClientEvent =
   | { type: 'hook'; off_hook: boolean }
   | { type: 'dev_text'; text: string }
-  | { type: 'dev_mute'; audio: boolean };
+  | { type: 'dev_mute'; audio: boolean }
+  | { type: 'settings'; values?: Record<string, unknown>; reset?: boolean };

@@ -7,7 +7,7 @@
 </script>
 
 {#if topic}
-  <div class="info">
+  <div class="info box">
     <span class="icon">{TOPIC_ICONS[topic.id] ?? 'ℹ️'}</span>
     <h2>{topic.title}</h2>
     <p>{topic.text}</p>
@@ -16,14 +16,12 @@
 
 <style>
   .info {
-    height: 100%;
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
     text-align: center;
-    gap: 1.6rem;
-    padding: 0 3rem;
+    gap: 1.4rem;
+    padding: 3rem;
   }
   .icon {
     font-size: 6rem;

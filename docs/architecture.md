@@ -183,7 +183,9 @@ data in the instructions; if the data does not say, the assistant says so.
 One WebSocket at `/ws`. Backend → display:
 
 ```jsonc
-{"type": "init", "menu": {...}, "cafe": {...}}       // on connect; items carry image_url when a file exists
+{"type": "init", "menu": {...}, "cafe": {...},       // on connect; items carry image_url when a file exists
+ "avatar": {"idle": "/avatar/idle.webm?v=1", "pick_up": null, ..., "still": "/avatar/avatar.png?v=1"}}
+{"type": "settings", "values": {"backdrop": "boxes", "subtitles": true, "colors": {...}}}
 {"type": "state", "seq": 42,
  "phase": "idle|ordering|paying|done",   // "review" is a screen, not a phase
  "assistant": "idle|connecting|listening|thinking|speaking",
@@ -209,47 +211,59 @@ One WebSocket at `/ws`. Backend → display:
 {"type": "hook", "off_hook": true}      // the Space key: simulated hook switch
 {"type": "dev_text", "text": "아이스 아메리카노 주세요"}
 {"type": "dev_mute", "audio": false}
+{"type": "settings", "values": {"backdrop": "gradient"}}   // or {"type": "settings", "reset": true}
 ```
 
 The API key form uses HTTP instead: `POST /api/key` with `{"key": "..."}` answers
 `{"result": "ok|invalid|rejected|offline"}` (403 unless the request comes from this computer).
 
-## Display: one continuous page
+## Display: the avatar and one continuous page
 
 A portrait screen (designed for 1080×1920; on a landscape monitor it is a centered portrait
-frame). White with soft blue light, flat surfaces (no shadows), as little as possible on screen.
-Nothing "moves to the next screen": the assistant and the conversation stay at the top, the
-order at the bottom, and in between what the assistant chose appears and disappears in place.
+frame). An **avatar** (a café employee) stands behind everything and fills the screen; what the
+assistant is asking about appears **over his chest**, so his face stays visible. Nothing "moves
+to the next screen": choices appear and disappear in place.
 
-- **Start**: only the assistant's orb and "수화기를 들고 말씀해 주세요". When the handset is lifted
-  the orb glides up and shrinks; a quiet hint of what to say appears.
-- **Assistant presence**: `<AssistantPresence state level>` (orb + rings): idle breathes,
-  connecting spins, listening follows the mic level, thinking orbits, speaking follows the output
-  level. A real avatar can replace it later behind the same props.
-- **Conversation**: under the orb, what the customer said (blue, in quotes) and what the
-  assistant says; older words fade out at the top.
-- **Menus**: the items the assistant chose (3–5 recommendations, a category, or a filtered set),
-  no heading except a small caption for a filter or a category. Modest cards of one size
-  (picture, name, price), centered; they never fill the whole screen. When the assistant shows
-  other items, the cards that stay move to their new places and the others fade (`flip`).
-- **Kinds of menu** (`show_categories`): four tiles of the same size, for "다른 메뉴도 보여 주세요".
-- **Item**: the card's picture grows into a large image (`crossfade`); name, price, description,
-  ingredients and facts; only the required choices, which fill in blue when chosen. An added item
-  flies into the order bar and the total counts up.
-- **Order bar**: a quiet bar at the bottom while ordering (thumbnails, count, total). The review,
-  card terminal and order number appear in the middle in its place.
-- **Developer mode** (`F2`): typed input, mute, event log; `Space` lifts / puts down the
-  simulated handset. `?demo=order|allergy` plays recorded event timelines without a backend
-  (`scripts/make_demo_events.py` records them by driving a real `Kiosk` with
-  `kiosk/server/events.py`, so they always match the real event format).
+- **Avatar** (`Avatar.svelte`, `lib/avatar.ts`): plays `data/avatar/<clip>.webm` (transparent
+  background): `idle` (nobody there, loops), `pick_up` (the customer lifted the handset, once),
+  `listening` / `talking` (loops, by whether the assistant's voice plays), `put_down` (hung up,
+  once, then `idle`). One-time clips play to their end; missing ones are skipped; a missing loop
+  shows the still image `data/avatar/avatar.png` (`.webp`, `.jpg`). All clips are loaded at
+  once and only the current one is visible, so switching is instant.
+- **Start**: the avatar and "수화기를 들고 말씀해 주세요".
+- **Choices as lists**, only what the assistant is asking now:
+  - **Menus**: the items it chose (3–5 recommendations, a category, a filtered set; two columns
+    for long lists), with a small caption for a filter or a category. Rows that stay move to their
+    new places (`flip`).
+  - **Kinds of menu** (`show_categories`).
+  - **Item**: name, picture and price; while choosing, only the option being asked (the first
+    missing one), with earlier choices as small chips. Asked about the item: its ingredients and
+    facts (no description: the assistant tells it).
+  - **Review**, **card terminal**, **order number**, **cafe information**.
+- **Background of the choices** (developer panel): *blur* (a blurred, see-through patch fading
+  out at its edges), *gradient* (the panel colour rising from the bottom of the screen) or
+  *boxes* (each row its own see-through box).
+- **Order bar**: a quiet bar at the bottom while ordering. An added item flies into it.
+- **Subtitles**: off by default; the developer panel turns them on (top of the screen).
+- **Colours**: every main colour (background, its light, the choices' background and how see-through it
+  is, the menu pictures' background, text, secondary and faint text, highlight, text on the
+  highlight, lines) can be changed in the developer panel (`lib/settings.ts`).
+- **Developer mode** (`F2`): typed input, mute, the display settings, the API key, the event log;
+  `Space` lifts / puts down the simulated handset. **Display settings are saved by the backend**
+  (`configs/display.local.json`, git-ignored) and sent to every display (`settings` event), so
+  full-screen mode's separate Edge profile (`--kiosk`) gets them too. `?demo=order|allergy` plays
+  recorded event timelines without a backend (`&backdrop=blur|gradient|boxes` picks the
+  background); `scripts/make_demo_events.py` records them by driving a real `Kiosk` with
+  `kiosk/server/events.py`, so they always match the real event format.
 
 The display's code (`frontend/src/`): `lib/events.ts` (event types), `lib/display.ts` (pure state
-updates, unit tested), `lib/store.svelte.ts` (runes), `lib/player.ts` (demo timelines),
-`lib/connection.ts` (WebSocket), `lib/components/` (`Stage` is the page; one component per kind
-of content, the order bar, the assistant presence).
+updates, unit tested), `lib/settings.ts` and `lib/avatar.ts` (pure, unit tested),
+`lib/store.svelte.ts` (runes), `lib/player.ts` (demo timelines), `lib/connection.ts`
+(WebSocket), `lib/components/` (`Stage` is the page; one component per kind of content).
 
-Menu images: drop `data/images/<item_id>.png` (or `.jpg`, `.webp`). Missing images show the item's
-emoji on a soft blue tile.
+Menu images: drop `data/images/<item_id>.png` (or `.jpg`, `.webp`), ideally with a transparent
+background (the "menu image background" colour shows behind it). Missing images show the item's
+emoji.
 
 ## Milestones
 

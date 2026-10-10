@@ -21,12 +21,13 @@ from pathlib import Path
 import uvicorn
 
 from kiosk.assistant.live import GeminiConnector, LiveConnector, check_api_key
-from kiosk.config import REPO_ROOT, Config, load_config, load_env_file, save_env_value
+from kiosk.config import CONFIG_DIR, REPO_ROOT, Config, load_config, load_env_file, save_env_value
 from kiosk.domain.flow import Kiosk
 from kiosk.domain.loader import load_cafe, load_menu
 from kiosk.server.app import create_app
 from kiosk.server.controller import ApiKeys, KioskController, MissingKeyConnector
 from kiosk.server.hub import Hub
+from kiosk.server.settings import DisplaySettings
 from kiosk.voice.handset import Handset
 from kiosk.voice.hook import SimulatedHook
 
@@ -97,9 +98,16 @@ def main() -> int:
         SimulatedHook(),
         config.data_dir / "images",
         keys=keys,
+        avatar_dir=config.data_dir / "avatar",
+        settings=DisplaySettings(CONFIG_DIR / "display.local.json"),
     )
     handset = open_handset(config, controller) if config.audio.enabled else None
-    app = create_app(controller, REPO_ROOT / "frontend" / "dist", config.data_dir / "images")
+    app = create_app(
+        controller,
+        REPO_ROOT / "frontend" / "dist",
+        config.data_dir / "images",
+        config.data_dir / "avatar",
+    )
     print(f"Kiosk running: open {url}  (F2: developer panel, Space: handset)")
     print("Close this window (or press Ctrl+C) to stop the kiosk.")
     if args.open or args.kiosk:
