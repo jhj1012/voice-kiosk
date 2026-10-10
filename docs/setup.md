@@ -83,6 +83,33 @@ Then check the data; it prints mistakes, the facts not verified yet and which it
 uv run python -m kiosk.domain.check
 ```
 
+## The avatar's animations
+
+The avatar's clips go in `data/avatar/`. Each one that is missing is simply skipped (or, for the
+standing and talking loops, replaced by the still image), so they can be added one at a time:
+
+| File | When it plays | |
+|---|---|---|
+| `idle.webm` | standing, nobody at the kiosk | loops |
+| `pick_up.webm` | the customer lifted the handset: he picks up his | once |
+| `listening.webm` | holding the handset, listening | loops |
+| `talking.webm` | holding the handset, speaking (while the assistant's voice plays) | loops |
+| `put_down.webm` | the customer hung up: he puts his down, then `idle` | once |
+| `avatar.png` (`.webp`, `.jpg`) | the still image, for clips that do not exist yet | |
+
+- **WebM (VP9) with a transparent background** (Edge shows MP4 without transparency). From
+  frames or another video, e.g.
+  `ffmpeg -i frames/%04d.png -c:v libvpx-vp9 -pix_fmt yuva420p -b:v 2M idle.webm`.
+- **The same frame in every clip**: same size (portrait 1080×1920 is ideal) and camera, the
+  character in the same place. The display fills the screen with it (`cover`, anchored at the
+  bottom), and the choices appear over his chest, about the lower half of the screen.
+- Each clip should start and end in the pose of the clips before and after it (`pick_up` ends
+  in the `listening` pose; `listening` and `talking` start and end in the same pose), so cuts
+  are invisible.
+- No sound: the voice comes from the handset's earpiece. `talking` is a loop, not lip-sync.
+- Reload the display after adding a clip. Videos over 1 MB are fine in git for this folder (the
+  size check skips it).
+
 ## Checks
 
 ```bash
