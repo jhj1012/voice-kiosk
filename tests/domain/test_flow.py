@@ -194,7 +194,9 @@ def test_change_line_options_keeps_the_other_choices_and_shows_the_option(kiosk:
         1,
         "size",
     )
-    kiosk.change_line(1, selection={"temperature": "hot", "shot": "extra_shot"})
+    kiosk.change_line(1, selection={"temperature": "ice", "size": "large"})  # ice: as it was
+    assert kiosk.view.group == "size"
+    kiosk.change_line(1, selection={"temperature": "hot", "shot": "extra_shot", "size": "regular"})
     assert kiosk.view.group == ""  # several changed: all options at a glance
     assert kiosk.order.line(1).option_text == "HOT, Regular, 샷 추가"
 

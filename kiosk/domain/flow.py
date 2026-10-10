@@ -314,13 +314,16 @@ class Kiosk:
             self._touch()
             return None
         resolved = self.menu.resolve(line.item, selection or {})
+        before = line.chosen()
+        # Models often repeat options that stay the same: only real changes count.
+        changed = [g for g, choices in resolved.items() if before.get(g) != choices] or [*resolved]
         if resolved:
-            line = self.order.set_choices(number, line.item.complete(line.chosen() | resolved))
+            line = self.order.set_choices(number, line.item.complete(before | resolved))
         if quantity is not None:
             self.order.set_quantity(self.order.number_of(line), quantity)
         if resolved:
             # The changed option is on screen again, with the new choice marked.
-            self._show_line(line, next(iter(resolved)) if len(resolved) == 1 else "")
+            self._show_line(line, changed[0] if len(changed) == 1 else "")
         elif self.view.line:
             self._show_line(line, self.view.group)  # its number may have changed
         self._touch()
