@@ -10,6 +10,7 @@
   import ApiKeyForm from './ApiKeyForm.svelte';
   import Avatar from './Avatar.svelte';
   import CategoryList from './CategoryList.svelte';
+  import DiningChoice from './DiningChoice.svelte';
   import Done from './Done.svelte';
   import Info from './Info.svelte';
   import ItemDetail from './ItemDetail.svelte';
@@ -20,7 +21,7 @@
   import Review from './Review.svelte';
   import Subtitles from './Subtitles.svelte';
 
-  const CONTENT = ['menu', 'categories', 'item', 'info', 'review', 'payment', 'done'];
+  const CONTENT = ['dining', 'menu', 'categories', 'item', 'info', 'review', 'payment', 'done'];
 
   const settings = $derived(ui.settings);
   const style = $derived(
@@ -34,7 +35,7 @@
   // Menus with other titles or items stay one block: the rows themselves come and go.
   const block = $derived(
     view.screen === 'item'
-      ? `item|${view.item_id}`
+      ? `item|${view.item_id}|${view.line}`
       : view.screen === 'info'
         ? `info|${view.topic}`
         : view.screen,
@@ -106,7 +107,9 @@
       <div class="block" in:appear out:disappear>
         {#if hasContent}
           <div class="surface">
-            {#if view.screen === 'menu'}
+            {#if view.screen === 'dining'}
+              <DiningChoice />
+            {:else if view.screen === 'menu'}
               <MenuList />
             {:else if view.screen === 'categories'}
               <CategoryList />

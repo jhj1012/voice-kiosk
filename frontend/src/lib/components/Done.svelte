@@ -1,25 +1,35 @@
 <script lang="ts">
-  // Paid: the order number, large. The backend returns to the start.
+  // Paid: the order number, large (and the requests passed on to the staff). The backend
+  // returns to the start.
   import { fade, scale } from 'svelte/transition';
   import { backOut } from 'svelte/easing';
   import { ui } from '../store.svelte';
+  import StaffNotes from './StaffNotes.svelte';
 </script>
 
-<div class="done box">
-  <svg class="check" viewBox="0 0 52 52" in:scale|global={{ duration: 500, easing: backOut }}>
-    <circle cx="26" cy="26" r="24" />
-    <path d="M15 27 l7 7 l15 -16" />
-  </svg>
-  <p class="label" in:fade|global={{ delay: 250, duration: 400 }}>주문 번호</p>
-  <p class="number" in:fade|global={{ delay: 400, duration: 500 }}>
-    {ui.state.payment?.order_number ?? ''}
-  </p>
-  <p class="note" in:fade|global={{ delay: 600, duration: 500 }}>
-    번호가 불리면 픽업대에서 받아 가세요
-  </p>
+<div class="wrap">
+  <div class="done box">
+    <svg class="check" viewBox="0 0 52 52" in:scale|global={{ duration: 500, easing: backOut }}>
+      <circle cx="26" cy="26" r="24" />
+      <path d="M15 27 l7 7 l15 -16" />
+    </svg>
+    <p class="label" in:fade|global={{ delay: 250, duration: 400 }}>주문 번호</p>
+    <p class="number" in:fade|global={{ delay: 400, duration: 500 }}>
+      {ui.state.payment?.order_number ?? ''}
+    </p>
+    <p class="note" in:fade|global={{ delay: 600, duration: 500 }}>
+      번호가 불리면 픽업대에서 받아 가세요
+    </p>
+  </div>
+  <StaffNotes />
 </div>
 
 <style>
+  .wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 1.6rem;
+  }
   .done {
     display: flex;
     flex-direction: column;

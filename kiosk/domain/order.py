@@ -13,6 +13,7 @@ from enum import StrEnum
 from kiosk.domain.menu import SIZE, TEMPERATURE, KioskError, Menu, MenuItem, OptionChoice
 
 MAX_QUANTITY = 20
+MAX_NOTE = 200
 
 
 class Dining(StrEnum):
@@ -79,6 +80,7 @@ class CartLine:
 class Order:
     lines: list[CartLine] = field(default_factory=list)
     dining: Dining | None = None
+    notes: list[str] = field(default_factory=list)  # requests passed on to the staff
     version: int = 0
 
     def add(self, item: MenuItem, choices: tuple[OptionChoice, ...], quantity: int = 1) -> CartLine:
@@ -140,10 +142,20 @@ class Order:
             self.dining = dining
             self._changed()
 
+    def add_note(self, text: str) -> None:
+        text = " ".join(text.split())
+        if not text:
+            raise KioskError("the note is empty")
+        if len(text) > MAX_NOTE:
+            raise KioskError(f"keep the note under {MAX_NOTE} characters")
+        if text not in self.notes:
+            self.notes.append(text)
+
     def clear(self) -> None:
         """Start a brand new order."""
         self.lines.clear()
         self.dining = None
+        self.notes.clear()
         self._changed()
 
     @property

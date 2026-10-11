@@ -131,6 +131,8 @@ def state_event(kiosk: Kiosk, assistant: str, seq: int) -> Event:
             "item_ids": list(view.item_ids),
             "highlight": list(view.highlight),
             "item_id": view.item_id,
+            "group": view.group,
+            "line": view.line,
             "topic": view.topic,
         },
         "pending": None
@@ -148,6 +150,7 @@ def state_event(kiosk: Kiosk, assistant: str, seq: int) -> Event:
                     "item_id": line.item.id,
                     "name": line.item.name,
                     "options": line.option_text,
+                    "chosen": {g: [c.id for c in cs] for g, cs in line.chosen().items() if cs},
                     "quantity": line.quantity,
                     "unit_price": line.unit_price,
                     "total": line.total,
@@ -155,6 +158,7 @@ def state_event(kiosk: Kiosk, assistant: str, seq: int) -> Event:
                 for n, line in enumerate(order.lines, start=1)
             ],
             "dining": order.dining.value if order.dining else None,
+            "notes": list(order.notes),
             "count": sum(line.quantity for line in order.lines),
             "total": order.total,
         },

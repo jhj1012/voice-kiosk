@@ -40,9 +40,18 @@ export function idleState(): StateEvent {
     seq: 0,
     phase: 'idle',
     assistant: 'idle',
-    view: { screen: 'attract', title: '', item_ids: [], highlight: [], item_id: '', topic: '' },
+    view: {
+      screen: 'attract',
+      title: '',
+      item_ids: [],
+      highlight: [],
+      item_id: '',
+      group: '',
+      line: 0,
+      topic: '',
+    },
     pending: null,
-    order: { lines: [], dining: null, count: 0, total: 0 },
+    order: { lines: [], dining: null, notes: [], count: 0, total: 0 },
     payment: null,
   };
 }

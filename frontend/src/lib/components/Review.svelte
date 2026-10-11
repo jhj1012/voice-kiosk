@@ -5,6 +5,7 @@
   import { itemById, unitOf } from '../menu';
   import { ui } from '../store.svelte';
   import ItemImage from './ItemImage.svelte';
+  import StaffNotes from './StaffNotes.svelte';
 
   const order = $derived(ui.state.order);
 </script>
@@ -31,6 +32,7 @@
     <span class="label">합계</span>
     <span class="value">{won(order.total)}</span>
   </div>
+  <StaffNotes />
 </div>
 
 <style>

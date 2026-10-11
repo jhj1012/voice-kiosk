@@ -13,7 +13,7 @@ from collections.abc import Callable
 from typing import Any
 
 from kiosk.assistant.tools import selection_from_args
-from kiosk.domain.flow import ItemResult, Kiosk, PendingItem
+from kiosk.domain.flow import EXTRAS, ItemResult, Kiosk, PendingItem, Screen, View
 from kiosk.domain.menu import KioskError, OptionGroup
 from kiosk.domain.order import CartLine, Dining, won
 
@@ -21,11 +21,22 @@ log = logging.getLogger(__name__)
 
 Result = dict[str, Any]
 
-# The screen marks each choice as soon as it is set, so partial answers must not wait.
-ANSWER_AT_ONCE = (
-    "Ask for these. Each time the customer answers even one of them, call set_options at once "
-    "with just that answer (e.g. temperature only), before asking for the rest."
+# The screen shows one question at a time and marks each answer as soon as it is set.
+ASK_ONE = (
+    "Ask only this, naming the choices. When the customer answers, call set_options at once "
+    "(with anything else they said too); the result says what to ask next."
 )
+ASK_EXTRAS = (
+    "Ask briefly '추가하실 거 있으세요?' without reading the extras out (the screen lists "
+    "them). For what they want, call set_options and ask '더 추가하실 거 있으세요?'. When they "
+    "want nothing (more), call finish_item: only then is the item in the order."
+)
+STAFF_QUESTION = "직원에게 따로 전달할 말씀 있으세요?"
+ASK_STAFF = (
+    "Before the read-back, ask exactly this. If they have something, call note_for_staff. Then "
+    "call request_payment again (they already asked to pay)."
+)
+NOTED = "네, 알겠습니다. 해당 사항은 직원에게 전달하겠습니다."
 
 
 class Actions:
@@ -38,7 +49,11 @@ class Actions:
             "show_info": self._show_info,
             "choose_item": self._choose_item,
             "set_options": self._set_options,
+            "finish_item": self._finish_item,
             "cancel_item": self._cancel_item,
+            "edit_line": self._edit_line,
+            "go_back": self._go_back,
+            "note_for_staff": self._note_for_staff,
             "change_line": self._change_line,
             "set_dining": self._set_dining,
             "show_order": self._show_order,
@@ -112,9 +127,23 @@ class Actions:
         )
         return self._item_result(result)
 
+    def _finish_item(self, args: dict[str, Any]) -> Result:
+        return self._item_result(self.kiosk.finish_item(args.get("item_id") or None))
+
     def _cancel_item(self, args: dict[str, Any]) -> Result:
         self.kiosk.cancel_item(args.get("item_id") or None)
         return {"ok": True, **self._order(), **self._waiting()}
+
+    def _edit_line(self, args: dict[str, Any]) -> Result:
+        line = self.kiosk.edit_line(_int(args.get("line", 0)), str(args.get("option") or ""))
+        return {"shown": self._spoken(line), "options": self._options(line)}
+
+    def _go_back(self, args: dict[str, Any]) -> Result:
+        return {"shown": self._describe(self.kiosk.go_back())}
+
+    def _note_for_staff(self, args: dict[str, Any]) -> Result:
+        self.kiosk.add_note(str(args.get("text", "")))
+        return {"noted": self.kiosk.order.notes[-1], "say": NOTED}
 
     def _change_line(self, args: dict[str, Any]) -> Result:
         quantity = args.get("quantity")
@@ -143,6 +172,8 @@ class Actions:
     def _request_payment(self, args: dict[str, Any]) -> Result:
         """The review before payment. The session checks that the customer asked to pay, and
         starts the terminal (`Kiosk.start_payment`) once the read-back has been said."""
+        if self.kiosk.ask_staff_question():
+            return {"ask_first": STAFF_QUESTION, "next": ASK_STAFF}
         return {"read_back": self.kiosk.review()}
 
     def _cancel_payment(self, args: dict[str, Any]) -> Result:
@@ -160,12 +191,39 @@ class Actions:
             return {"added": self._spoken(result.line), **self._order(), **self._waiting()}
         pending = result.pending
         assert pending is not None
+        if pending.asking == EXTRAS:
+            chosen = [c.spoken for cs in pending.chosen.values() for c in cs if not c.is_none]
+            question: Result = {
+                "extras": [_question(g, extra=True) for g in pending.extras],
+                **({"chosen": chosen} if chosen else {}),
+                "next": ASK_EXTRAS,
+            }
+        else:
+            group = pending.item.group(pending.asking)
+            assert group is not None
+            question = {"ask": _question(group), "next": ASK_ONE}
+        return {"not_added_yet": pending.item.name, **question, **self._waiting(besides=pending)}
+
+    def _options(self, line: CartLine) -> dict[str, str]:
+        """An order line's options by name, e.g. {"온도": "아이스", "시럽": "없음"}."""
         return {
-            "not_added_yet": pending.item.name,
-            "ask": [_question(g) for g in result.missing],
-            "next": ANSWER_AT_ONCE,
-            **self._waiting(besides=pending),
+            group.name: ", ".join(c.spoken for c in line.chosen()[group.id]) or "없음"
+            for group in line.item.option_groups
         }
+
+    def _describe(self, view: View) -> str:
+        """What a view shows, for the model."""
+        menu = self.kiosk.menu
+        if view.screen is Screen.ITEM:
+            name = menu.item(view.item_id).name
+            return f"{view.line}번 주문 {name}" if view.line else name
+        if view.screen is Screen.MENU:
+            return view.title or ", ".join(self._names(view.item_ids))
+        if view.screen is Screen.INFO:
+            return self.kiosk.cafe.topic(view.topic).title
+        return {Screen.CATEGORIES: "메뉴 종류", Screen.REVIEW: "주문 내역"}.get(
+            view.screen, view.screen.value
+        )
 
     def _waiting(self, besides: PendingItem | None = None) -> Result:
         """Other items still waiting for options, so the model does not forget them."""
@@ -199,12 +257,11 @@ class Actions:
         return [self.kiosk.menu.item(i).name for i in item_ids]
 
 
-def _question(group: OptionGroup) -> Result:
+def _question(group: OptionGroup, extra: bool = False) -> Result:
+    choices = [c for c in group.choices if not (extra and c.is_none)]
     return {
         "option": group.name,
-        "choices": [
-            f"{c.spoken} (+{won(c.price)})" if c.price else c.spoken for c in group.choices
-        ],
+        "choices": [f"{c.spoken} (+{won(c.price)})" if c.price else c.spoken for c in choices],
     }
 
 

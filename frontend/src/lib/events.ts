@@ -5,7 +5,16 @@ export type Speaker = 'customer' | 'assistant';
 export type Phase = 'idle' | 'ordering' | 'paying' | 'done';
 export type AssistantState = 'idle' | 'connecting' | 'listening' | 'thinking' | 'speaking';
 export type Screen =
-  'attract' | 'welcome' | 'menu' | 'categories' | 'item' | 'info' | 'review' | 'payment' | 'done';
+  | 'attract'
+  | 'dining'
+  | 'welcome'
+  | 'menu'
+  | 'categories'
+  | 'item'
+  | 'info'
+  | 'review'
+  | 'payment'
+  | 'done';
 export type PaymentStep = 'insert_card' | 'processing' | 'approved';
 
 export interface Choice {
@@ -58,6 +67,10 @@ export interface View {
   item_ids: string[];
   highlight: string[];
   item_id: string;
+  // item screen: the option group listed (a group id, 'extras', or '' for the facts or an order
+  // line's options at a glance), and the order line shown (0 = none)
+  group: string;
+  line: number;
   topic: string;
 }
 
@@ -73,6 +86,7 @@ export interface OrderLine {
   item_id: string;
   name: string;
   options: string;
+  chosen: Record<string, string[]>;
   quantity: number;
   unit_price: number;
   total: number;
@@ -81,6 +95,7 @@ export interface OrderLine {
 export interface Order {
   lines: OrderLine[];
   dining: 'here' | 'to_go' | null;
+  notes: string[]; // requests passed on to the staff
   count: number;
   total: number;
 }

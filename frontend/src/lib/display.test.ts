@@ -12,6 +12,7 @@ const line = (item_id: string, quantity: number, n = 1) => ({
   item_id,
   name: item_id,
   options: '',
+  chosen: {},
   quantity,
   unit_price: 1000,
   total: 1000 * quantity,
@@ -87,13 +88,13 @@ describe('apply', () => {
 
   it('remembers the item that was just added', () => {
     let display = apply(initialDisplay(), state({ seq: 1 }));
-    const order = { lines: [line('americano', 2)], dining: null, count: 2, total: 2000 };
+    const order = { lines: [line('americano', 2)], dining: null, notes: [], count: 2, total: 2000 };
     display = apply(display, state({ seq: 2, order }), 1234);
     expect(display.lastAdded).toEqual({ itemId: 'americano', at: 1234 });
   });
 
   it('does not animate the first snapshot after connecting', () => {
-    const order = { lines: [line('americano', 2)], dining: null, count: 2, total: 2000 };
+    const order = { lines: [line('americano', 2)], dining: null, notes: [], count: 2, total: 2000 };
     const display = apply(initialDisplay(), state({ seq: 40, order }));
     expect(display.lastAdded).toBeNull();
   });
@@ -101,7 +102,7 @@ describe('apply', () => {
 
 describe('addedItem', () => {
   const withLines = (lines: ReturnType<typeof line>[]) =>
-    state({ order: { lines, dining: null, count: 0, total: 0 } });
+    state({ order: { lines, dining: null, notes: [], count: 0, total: 0 } });
 
   it('finds a new line or a higher quantity', () => {
     expect(addedItem(withLines([]), withLines([line('latte', 1)]))).toBe('latte');

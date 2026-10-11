@@ -73,7 +73,18 @@ def has_item(state: State, item_id: str, *options: str) -> bool:
     )
 
 
+def line_shown(state: State, item_id: str, group: str) -> bool:
+    view = state["view"]
+    return view["screen"] == "item" and view["item_id"] == item_id and view["group"] == group
+
+
 STEPS = [
+    Step(
+        "to-go",
+        "포장이요",  # the greeting asks: here or to go?
+        "take-out set",
+        lambda s: s["order"]["dining"] == "to_go",
+    ),
     Step(
         "menu",
         "메뉴 뭐 있어요?",
@@ -83,14 +94,26 @@ STEPS = [
     Step(
         "americano",
         "아이스 아메리카노 라지로 한 잔 주세요",
-        "ICE Large americano in the order",
+        "ICE Large americano in the order (after the extras question)",
         lambda s: has_item(s, "americano", "ICE", "Large"),
     ),
     Step(
         "latte",
         "따뜻한 카페라떼도 하나 주세요. 레귤러로요",
         "a hot regular latte in the order",
-        lambda s: has_item(s, "cafe_latte", "HOT"),
+        lambda s: has_item(s, "cafe_latte", "HOT", "Regular"),
+    ),
+    Step(
+        "change",
+        "아, 카페라떼는 라지로 바꿔 주세요",
+        "the latte is Large, its size shown again",
+        lambda s: has_item(s, "cafe_latte", "HOT", "Large") and line_shown(s, "cafe_latte", "size"),
+    ),
+    Step(
+        "staff-note",
+        "아메리카노는 얼음 조금만 넣어 주세요",
+        "a note for the staff, not a refusal",
+        lambda s: len(s["order"]["notes"]) >= 1,
     ),
     Step(
         "question",
@@ -99,14 +122,20 @@ STEPS = [
         lambda s: s["view"]["screen"] == "info" and s["view"]["topic"] == "restroom",
     ),
     Step(
-        "pay",
-        "이제 결제할게요",
-        "asks for dining (or reads back)",
-        lambda s: s["order"]["count"] >= 2,
+        "back",
+        "이전 화면 보여 주세요",
+        "the screen before the restroom card",
+        lambda s: s["view"]["screen"] not in ("info", "welcome"),
     ),
     Step(
-        "to-go",
-        "포장이요",
+        "pay",
+        "이제 결제할게요",
+        "the staff question, with the order on screen",
+        lambda s: s["view"]["screen"] == "review" and s["phase"] == "ordering",
+    ),
+    Step(
+        "nothing-more",
+        "없어요",
         "read-back, card terminal, order number",
         lambda s: s["phase"] == "done" and s["payment"]["order_number"] is not None,
         until=lambda s: s["phase"] == "done",
@@ -115,13 +144,23 @@ STEPS = [
 ]
 
 
-# When the assistant asks for a missing option (e.g. the first word was not heard), the customer
-# answers like a person would.
-ANSWERS = {"temperature": "따뜻한 걸로요", "size": "레귤러요"}
-MAX_ANSWERS = 2
+# When the assistant asks for an option (or the extras, or here / to go) the customer answers
+# like a person would: e.g. when the first word was not heard.
+ANSWERS = {"temperature": "따뜻한 걸로요", "size": "레귤러요", "extras": "없어요"}
+MAX_ANSWERS = 3
 # The customer talks after this much silence (a reply after a function call can come 1-2 s
 # after a first short sentence).
 QUIET_S = 2.5
+
+
+def follow_up(state: State) -> str | None:
+    """What the customer answers to the question on screen, if any."""
+    view = state.get("view") or {}
+    if view.get("screen") == "dining":
+        return "포장이요"
+    if view.get("screen") == "item" and state.get("pending") and not view.get("line"):
+        return ANSWERS.get(view.get("group", ""))
+    return None
 
 
 class SilentEarpiece:
@@ -327,11 +366,11 @@ class Demo:
             self.snapshot = {}
             delay = await self.wait_reply(stopped, step, name)
             for _ in range(MAX_ANSWERS if step.until is None else 0):
-                missing = (self.state.get("pending") or {}).get("missing") or []
-                if not missing or missing[0] not in ANSWERS:
+                answer = follow_up(self.state)
+                if answer is None:
                     break
-                print(f"    > (asked for {missing[0]}) {ANSWERS[missing[0]]}")
-                await self.wait_reply(await self.say(ANSWERS[missing[0]]), step)
+                print(f"    > (answering the screen's question) {answer}")
+                await self.wait_reply(await self.say(answer), step)
             state = self.snapshot or self.state
             ok = bool(state) and step.check(state)
             results.append((step, ok, delay))
