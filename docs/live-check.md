@@ -102,6 +102,26 @@ variant (median time from the end of speech to the first audio of the reply):
 
 Decision: keep the raw transcription for now.
 
+## Ignoring speech not meant for the kiosk
+
+The team asked for a switch so the assistant does not answer when the customer talks to someone
+else. Measured with synthesized speech: five things said to the kiosk and five not ("야 너 어제
+그 드라마 봤어?", "엄마 나 지금 카페야, 이따 다시 전화할게", "너도 뭐 마실래? 골라 봐", ...), mixed
+in one conversation:
+
+| Variant | Said to the kiosk: answered | Not for the kiosk: no answer | Problems |
+|---|---|---|---|
+| Today (nothing) | 5 / 5 | 0 / 5 | answers everything ("회의 시간은 알 수 없어요") |
+| An instruction: stay silent | 5 / 5 | 2 / 5 | said "[no speech detected]" aloud; once read its own notes |
+| Google's proactive audio (`proactivity`, only on API version `v1alpha`) | 5 / 5 | 0 / 5 | no effect |
+| Proactive audio + the instruction | 5 / 5 | 0 / 5 | "<no speech detected>"; once called request_payment after chatter |
+| **A `stay_quiet` function** (non-blocking, answered silently; the session mutes the turn) | **15 / 15** | **14 / 15** | none; it never spoke after calling it |
+
+The `stay_quiet` function is used when the developer panel's switch is on. Its turn is muted
+in code, and the customer's words count for nothing (a friend's "내가 결제할게" is not a request
+to pay). `uv run python scripts/voice_demo.py --ignore-unrelated` adds two such sentences to the
+spoken order; the last run passed 12/12.
+
 ## Still to check by a person
 
 - **Real voice recognition and barge-in**: `uv run python scripts/live_check.py mic
