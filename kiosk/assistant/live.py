@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import contextlib
 import logging
-from collections.abc import AsyncIterator, Sequence
+from collections.abc import AsyncIterator, Sequence, Set
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
@@ -127,8 +127,11 @@ class LiveConnection(Protocol):
 
     async def send_text(self, text: str) -> None: ...
 
-    async def send_results(self, results: Sequence[tuple[FunctionCall, dict[str, Any]]]) -> None:
-        """Answer function calls with their results."""
+    async def send_results(
+        self, results: Sequence[tuple[FunctionCall, dict[str, Any]]], silent: Set[str] = frozenset()
+    ) -> None:
+        """Answer function calls with their results; calls whose id is in `silent` get no
+        spoken reply."""
         ...
 
     def events(self) -> AsyncIterator[ServerEvent]:
@@ -237,9 +240,16 @@ class GeminiConnection:
     async def send_text(self, text: str) -> None:
         await self._session.send_realtime_input(text=text)
 
-    async def send_results(self, results: Sequence[tuple[FunctionCall, dict[str, Any]]]) -> None:
+    async def send_results(
+        self, results: Sequence[tuple[FunctionCall, dict[str, Any]]], silent: Set[str] = frozenset()
+    ) -> None:
         responses = [
-            types.FunctionResponse(id=call.id, name=call.name, response=result)
+            types.FunctionResponse(
+                id=call.id,
+                name=call.name,
+                response=result,
+                scheduling=types.FunctionResponseScheduling.SILENT if call.id in silent else None,
+            )
             for call, result in results
         ]
         await self._session.send_tool_response(function_responses=responses)

@@ -149,6 +149,11 @@ class KioskController(SessionListener):
         else:
             log.warning("unknown display event: %r", message)
 
+    @property
+    def ignore_unrelated(self) -> bool:
+        """The developer panel's "ignore speech that is not for the kiosk" (next customer)."""
+        return self.settings is not None and self.settings.values.get("ignoreUnrelated") is True
+
     def update_settings(self, values: Any, reset: bool = False) -> None:
         """Display settings changed in a developer panel: saved, and sent to every display."""
         if self.settings is None:
@@ -198,7 +203,12 @@ class KioskController(SessionListener):
             if self.session is not None:
                 return
             log.info("handset lifted")
-            session = AssistantSession(self.kiosk, self.connector, self.flow, self)
+            ignore = self.ignore_unrelated
+            if ignore:
+                log.info("speech not meant for the kiosk is ignored")
+            session = AssistantSession(
+                self.kiosk, self.connector, self.flow, self, ignore_unrelated=ignore
+            )
             self.session = session
             if not await session.start():
                 self.session = None

@@ -18,6 +18,16 @@ from kiosk.domain.order import Order, won
 
 GREETING_CUE = "[손님이 수화기를 들었습니다]"
 
+# Only when "ignore speech that is not for the kiosk" is on (developer panel). Measured in
+# docs/live-check.md: the instruction alone made the model say odd things instead of nothing;
+# a function the code acts on (it mutes the turn) works.
+IGNORE_RULE = """\
+## Speech that is not for you
+The customer may talk to someone next to them or on their phone, or other people may be heard. \
+If the words are clearly not meant for you (not about ordering, the menu, the cafe or your \
+question), call stay_quiet and nothing else: the customer will not hear you. If you are unsure, \
+answer briefly as usual."""
+
 RULES = """\
 You are the voice of the self-order kiosk at {cafe_name}, a cafe. A customer holds a telephone \
 handset: they speak Korean into it and hear you through its earpiece. There are no buttons: \
@@ -129,11 +139,14 @@ def instructions(
     current_order: Order | None = None,
     waiting: Sequence[PendingItem] = (),
     recent: Sequence[tuple[str, str]] = (),
+    *,
+    ignore_unrelated: bool = False,
 ) -> str:
     """The rules, menu and cafe information. After a dropped connection a fresh session also
     gets the order so far, the items still waiting for options and the last words said."""
     parts = [
         RULES.format(cafe_name=cafe.name, greeting_cue=GREETING_CUE),
+        *([IGNORE_RULE] if ignore_unrelated else []),
         menu_text(menu),
         cafe_text(cafe),
     ]

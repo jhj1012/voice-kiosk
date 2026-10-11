@@ -8,6 +8,7 @@ from google.genai import errors, types
 from kiosk.assistant.live import (
     AudioOut,
     FunctionCall,
+    GeminiConnection,
     GoAway,
     InputText,
     Interrupted,
@@ -123,3 +124,16 @@ def test_key_errors():
     assert is_key_error(errors.ClientError(403, {"error": {"message": "permission denied"}}))
     assert not is_key_error(errors.ClientError(429, {"error": {"message": "quota"}}))
     assert not is_key_error(ConnectionError("API key"))
+
+
+def test_silent_results_get_no_spoken_reply():
+    class Session:
+        async def send_tool_response(self, function_responses):
+            self.sent = function_responses
+
+    session = Session()
+    connection = GeminiConnection(None, session)
+    calls = [FunctionCall("a", "stay_quiet"), FunctionCall("b", "show_order")]
+    asyncio.run(connection.send_results([(c, {"ok": True}) for c in calls], silent={"a"}))
+    scheduling = {r.id: r.scheduling for r in session.sent}
+    assert scheduling == {"a": types.FunctionResponseScheduling.SILENT, "b": None}
