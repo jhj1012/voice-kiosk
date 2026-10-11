@@ -8,6 +8,7 @@ step. Each step prints PASS/FAIL and how long the reply took.
     uv run python scripts/voice_demo.py                  # screenshots to recordings/voice_demo/
     uv run python scripts/voice_demo.py --listen         # hear the assistant on the speakers
     uv run python scripts/voice_demo.py --shots docs/screenshots
+    uv run python scripts/voice_demo.py --ignore-unrelated   # + chatter that must get no answer
 
 Needs Windows (the voice and Edge), GEMINI_API_KEY and the built display
 (`npm --prefix frontend run build`). Not a test: it talks to Google and its answers vary.
@@ -44,6 +45,7 @@ from kiosk.domain.loader import load_cafe, load_menu
 from kiosk.server.app import create_app
 from kiosk.server.controller import KioskController
 from kiosk.server.hub import Hub
+from kiosk.server.settings import DisplaySettings
 from kiosk.voice.handset import Speaker
 from kiosk.voice.hook import SimulatedHook
 
@@ -64,6 +66,26 @@ class Step:
     check: Callable[[State], bool]
     until: Callable[[State], bool] | None = None  # also wait for this (then photographed)
     timeout_s: float = 30.0
+    quiet: bool = False  # not meant for the kiosk: passes if nothing is said
+
+
+QUIET_WAIT_S = 7.0  # chatter passes if the assistant says nothing for this long
+CHATTER = [
+    Step(
+        "chatter",
+        "야 너 어제 그 드라마 봤어? 진짜 재밌더라",
+        "no answer to a friend's chatter",
+        lambda s: True,
+        quiet=True,
+    ),
+    Step(
+        "phone",
+        "엄마 나 지금 카페야, 이따 다시 전화할게",
+        "no answer to a phone call",
+        lambda s: True,
+        quiet=True,
+    ),
+]
 
 
 def has_item(state: State, item_id: str, *options: str) -> bool:
@@ -200,6 +222,10 @@ class Demo:
         self.kiosk = Kiosk(load_menu(data / "menu.yaml"), load_cafe(data / "cafe.yaml"))
         self.hub = Hub()
         self.events = self.hub.connect()
+        self.steps = [*STEPS]
+        if args.ignore_unrelated:  # chatter after the menu and after the change
+            self.steps[2:2] = CHATTER[:1]
+            self.steps[6:6] = CHATTER[1:]
         self.controller = KioskController(
             self.kiosk,
             GeminiConnector(self.config.live, key),
@@ -208,6 +234,10 @@ class Demo:
             SimulatedHook(),
             data / "images",
         )
+        if args.ignore_unrelated:
+            settings = DisplaySettings(Path(tempfile.mkdtemp()) / "display.local.json")
+            settings.update({"ignoreUnrelated": True})
+            self.controller.settings = settings
         self.listen = args.listen
         self.fake_sd = None if args.listen else SilentEarpiece()
         self.speaker = Speaker(self.config.audio, self.fake_sd)
@@ -359,10 +389,16 @@ class Demo:
         print(f"      greeting after {seconds(delay)}")
         await self.shot("01-greeting")
         results = []
-        for n, step in enumerate(STEPS, start=2):
+        for n, step in enumerate(self.steps, start=2):
             print(f"\n  > {step.say}")
             stopped = await self.say(step.say)
             name = f"{n:02d}-{step.name}"
+            if step.quiet:
+                await asyncio.sleep(QUIET_WAIT_S)
+                ok = self.heard_at <= stopped
+                results.append((step, ok, None))
+                print(f"    {'PASS' if ok else 'FAIL'}  {step.expect}")
+                continue
             self.snapshot = {}
             delay = await self.wait_reply(stopped, step, name)
             for _ in range(MAX_ANSWERS if step.until is None else 0):
@@ -436,6 +472,11 @@ def main() -> int:
     )
     parser.add_argument("--listen", action="store_true", help="play the assistant on the speakers")
     parser.add_argument("--shots", default=str(REPO_ROOT / "recordings" / "voice_demo"))
+    parser.add_argument(
+        "--ignore-unrelated",
+        action="store_true",
+        help="switch on 'ignore speech not meant for the kiosk' and add chatter to ignore",
+    )
     args = parser.parse_args()
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
