@@ -51,6 +51,7 @@ class Utterance:
     text: str = ""
     typed: bool = False
     open: bool = True  # still growing (transcription arrives in pieces)
+    ignored: bool = False  # not meant for the kiosk (stay_quiet): does not count for anything
 
 
 @dataclass
@@ -86,10 +87,16 @@ class Transcript:
         return len(self.entries)
 
     def customer_since(self, index: int) -> list[Utterance]:
-        return [u for u in self.entries[index:] if u.speaker == "customer" and u.text.strip()]
+        return [
+            u
+            for u in self.entries[index:]
+            if u.speaker == "customer" and u.text.strip() and not u.ignored
+        ]
 
     def last_customer(self) -> Utterance | None:
-        return next((u for u in reversed(self.entries) if u.speaker == "customer"), None)
+        return next(
+            (u for u in reversed(self.entries) if u.speaker == "customer" and not u.ignored), None
+        )
 
     def assistant_before(self, utterance: Utterance) -> Utterance | None:
         """What the assistant said last before `utterance`."""
@@ -108,6 +115,8 @@ _PAY = re.compile(
 )
 _NOT_PAY = re.compile(r"결제(안|말고|하지|는나중|전에)|계산(안|말고|하지)|아직")
 _ANYTHING_ELSE = re.compile(r"더(필요|주문|드실|하실|원하|추가)|추가로|다른(메뉴|거|것|건)")
+# "추가하실 거 있으세요?" asks about an item's extras: "없어요" there is not "that's all".
+_EXTRAS_QUESTION = re.compile(r"추가하실|추가할|옵션|샷|시럽|텀블러|토핑|휘핑")
 _PAY_QUESTION = re.compile(r"결제|계산")
 _CANCEL_QUESTION = re.compile(r"취소")
 _YES = re.compile(r"^(네|넵|예|응|어|그래|좋아|맞아|부탁|그렇게|오케이|ok|yes|당연|물론|취소해)")
@@ -138,7 +147,7 @@ def asks_to_pay(customer: str, assistant_before: str = "") -> bool:
     a = normalize(assistant_before)
     if _PAY.search(c) and not _NOT_PAY.search(c):
         return True
-    if _ANYTHING_ELSE.search(a) and is_no(customer):
+    if _ANYTHING_ELSE.search(a) and not _EXTRAS_QUESTION.search(a) and is_no(customer):
         return True  # "더 필요하신 거 있으세요?" - "아니요, 없어요"
     return bool(_PAY_QUESTION.search(a) and is_yes(customer))  # "결제 도와드릴까요?" - "네"
 
