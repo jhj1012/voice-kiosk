@@ -335,3 +335,18 @@ def test_display_settings_are_saved_and_sent_to_every_display(menu, cafe, tmp_pa
         assert not (tmp_path / "display.local.json").exists()
 
     run(menu, cafe, tmp_path, test)
+
+
+def test_the_ignore_switch_applies_to_the_next_customer(menu, cafe, tmp_path):
+    async def test(s: Setup) -> None:
+        s.controller.settings = DisplaySettings(tmp_path / "display.local.json")
+        await s.controller.handset(True)
+        assert s.controller.session is not None
+        assert not s.controller.session.ignore_unrelated
+        await s.controller.handle_client({"type": "settings", "values": {"ignoreUnrelated": True}})
+        assert not s.controller.session.ignore_unrelated  # this customer: as it started
+        await s.controller.handset(False)
+        await s.controller.handset(True)
+        assert s.controller.session is not None and s.controller.session.ignore_unrelated
+
+    run(menu, cafe, tmp_path, test)

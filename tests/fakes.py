@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncIterator, Sequence
+from collections.abc import AsyncIterator, Sequence, Set
 from typing import Any
 
 from kiosk.assistant.live import FunctionCall, ServerEvent, SessionSetup
@@ -15,6 +15,7 @@ class FakeConnection:
         self.texts: list[str] = []
         self.audio: list[bytes] = []
         self.results: list[list[tuple[FunctionCall, dict[str, Any]]]] = []
+        self.silent: set[str] = set()  # ids of calls answered without a spoken reply
         self.closed = False
 
     async def send_audio(self, pcm: bytes) -> None:
@@ -23,8 +24,11 @@ class FakeConnection:
     async def send_text(self, text: str) -> None:
         self.texts.append(text)
 
-    async def send_results(self, results: Sequence[tuple[FunctionCall, dict[str, Any]]]) -> None:
+    async def send_results(
+        self, results: Sequence[tuple[FunctionCall, dict[str, Any]]], silent: Set[str] = frozenset()
+    ) -> None:
         self.results.append(list(results))
+        self.silent.update(silent)
 
     async def events(self) -> AsyncIterator[ServerEvent]:
         while (event := await self.queue.get()) is not None:

@@ -245,3 +245,12 @@ def test_item_words(menu: Menu):
 )
 def test_wants_to_stop(text, stop):
     assert wants_to_stop(text) is stop
+
+
+@pytest.mark.parametrize(
+    "assistant",
+    ["추가하실 거 있으세요?", "더 추가하실 거 있으세요?", "샷이나 시럽 더 추가하실 건가요?"],
+)
+def test_no_to_the_extras_question_is_not_asking_to_pay(assistant):
+    assert not asks_to_pay("없어요", assistant)
+    assert asks_to_pay("없어요, 결제할게요", assistant)

@@ -10,7 +10,7 @@ def by_name(menu: Menu, cafe: Cafe) -> dict[str, dict]:
 
 
 def test_declarations_are_valid_for_the_sdk(menu: Menu, cafe: Cafe):
-    for declaration in function_declarations(menu, cafe):
+    for declaration in function_declarations(menu, cafe, ignore_unrelated=True):
         types.FunctionDeclaration.model_validate(declaration)
 
 

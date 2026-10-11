@@ -60,7 +60,12 @@ def selection_from_args(menu: Menu, args: dict[str, Any]) -> dict[str, str | lis
     return selection
 
 
-def function_declarations(menu: Menu, cafe: Cafe) -> list[dict[str, Any]]:
+STAY_QUIET = "stay_quiet"
+
+
+def function_declarations(
+    menu: Menu, cafe: Cafe, ignore_unrelated: bool = False
+) -> list[dict[str, Any]]:
     item_ids = [i.id for i in menu.items]
     quantity = {"type": "INTEGER", "description": "Number of this item (1-20)."}
     options = option_params(menu)
@@ -201,5 +206,19 @@ def function_declarations(menu: Menu, cafe: Cafe) -> list[dict[str, Any]]:
             "cancel_order",
             "Throw away the whole order. Only after the customer said yes to your question "
             "whether to cancel everything.",
+        ),
+        *(
+            [
+                {
+                    **declare(
+                        STAY_QUIET,
+                        "The words just heard were not meant for the kiosk (the customer talking "
+                        "to someone else): say nothing and wait.",
+                    ),
+                    "behavior": "NON_BLOCKING",  # answered silently: no reply follows
+                }
+            ]
+            if ignore_unrelated
+            else []
         ),
     ]

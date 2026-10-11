@@ -67,11 +67,13 @@ class RecordingListener(SessionListener):
 
 
 class Harness:
-    def __init__(self, kiosk: Kiosk, connector: FakeConnector) -> None:
+    def __init__(self, kiosk: Kiosk, connector: FakeConnector, **options: Any) -> None:
         self.kiosk = kiosk
         self.connector = connector
         self.listener = RecordingListener()
-        self.session = AssistantSession(kiosk, connector, FAST, self.listener, read_back_grace_s=0)
+        self.session = AssistantSession(
+            kiosk, connector, FAST, self.listener, read_back_grace_s=0, **options
+        )
 
     @property
     def conn(self) -> FakeConnection:
@@ -105,6 +107,7 @@ def run(
     kiosk_factory,
     connector=None,
     staff_question: bool = False,
+    **options: Any,
 ) -> Harness:
     """Run an async scenario with a started session; the session is stopped afterwards.
 
@@ -112,7 +115,7 @@ def run(
     scenarios are about other things."""
 
     async def main() -> Harness:
-        harness = Harness(kiosk_factory(), connector or FakeConnector())
+        harness = Harness(kiosk_factory(), connector or FakeConnector(), **options)
         assert await harness.session.start()
         harness.kiosk.staff_asked = not staff_question
         try:
@@ -635,3 +638,63 @@ def test_the_staff_question_comes_before_the_read_back(new_kiosk):
         assert h.kiosk.order.notes == ["얼음 적게"]
 
     run(scenario, new_kiosk, staff_question=True)
+
+
+# --- speech not meant for the kiosk (developer panel switch) -----------------------------------
+
+
+def test_stay_quiet_is_offered_only_when_switched_on(new_kiosk):
+    async def scenario(h: Harness):
+        names = {t["name"]: t for t in h.connector.setups[0].tools}
+        assert names["stay_quiet"]["behavior"] == "NON_BLOCKING"
+        assert "## Speech that is not for you" in h.connector.setups[0].instructions
+
+    run(scenario, new_kiosk, ignore_unrelated=True)
+
+    async def off(h: Harness):
+        assert "stay_quiet" not in {t["name"] for t in h.connector.setups[0].tools}
+        assert "## Speech that is not for you" not in h.connector.setups[0].instructions
+
+    run(off, new_kiosk)
+
+
+def test_words_not_for_the_kiosk_get_no_answer_and_count_for_nothing(new_kiosk):
+    async def scenario(h: Harness):
+        await order_ready(h)
+        await h.say("내가 결제할게, 너는 자리 좀 잡아 줘")  # to a friend
+        h.conn.push(ToolCall((FunctionCall("q1", "stay_quiet", {}),)))
+        await h.settle()
+        assert h.conn.silent == {"q1"}  # answered without a spoken reply
+        assert h.session.state is AssistantState.LISTENING
+        before = len(h.listener.audio)
+        await h.reply("네, 결제 도와드릴게요.")  # if it speaks anyway: muted
+        assert len(h.listener.audio) == before
+        assert not any(
+            s == ("assistant", "네, 결제 도와드릴게요.", True) for s in h.listener.subtitles
+        )
+        assert h.session.transcript.entries[-1].speaker == "customer"
+        # A friend's "결제할게" is not the customer asking to pay.
+        assert "blocked" in await h.call("request_payment")
+        # The customer talks to the kiosk again: heard and answered as usual.
+        await h.say("결제할게요")
+        assert "read_back" in await h.call("request_payment")
+        await h.reply("주문 확인해 드릴게요.")
+        assert len(h.listener.audio) > before
+
+    run(scenario, new_kiosk, ignore_unrelated=True)
+
+
+def test_no_more_extras_is_not_asking_to_pay(new_kiosk):
+    async def scenario(h: Harness):
+        await h.say("아이스 아메리카노 레귤러 하나요")
+        await h.call("choose_item", item_id="americano", temperature="ice", size="regular")
+        await h.reply("추가하실 거 있으세요?")
+        await h.say("시럽 넣어 주세요")
+        await h.call("set_options", syrup="vanilla")
+        await h.reply("더 추가하실 거 있으세요?")
+        await h.say("없어요")
+        await h.call("finish_item")
+        await h.call("set_dining", dining="to_go")
+        assert "blocked" in await h.call("request_payment")
+
+    run(scenario, new_kiosk)

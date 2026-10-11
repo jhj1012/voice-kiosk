@@ -1,6 +1,7 @@
 <script lang="ts">
-  // The developer panel's display settings: subtitles, the choices' background, the colours.
-  // A change shows at once; the backend saves it and sends it to every display.
+  // The developer panel's settings: the conversation (ignore speech not meant for the kiosk),
+  // subtitles, the choices' background, the colours. A change shows at once; the backend saves
+  // it and sends it to every display.
   import type { ClientEvent } from '../events';
   import { BACKDROPS, COLORS } from '../settings';
   import { previewSettings, ui } from '../store.svelte';
@@ -25,6 +26,19 @@
     send({ type: 'settings', reset: true });
   }
 </script>
+
+<section>
+  <h3>대화 설정</h3>
+  <label class="line">
+    <input
+      type="checkbox"
+      checked={settings.ignoreUnrelated}
+      onchange={(e) => save({ ignoreUnrelated: e.currentTarget.checked })}
+    />
+    키오스크에 하는 말이 아니면 대답하지 않기
+  </label>
+  <p class="note">옆 사람과의 대화나 통화에는 대답하지 않아요. 다음 손님부터 적용돼요.</p>
+</section>
 
 <section>
   <h3>화면 설정</h3>
@@ -83,6 +97,11 @@
   h3 {
     margin: 0;
     font-size: 1.15rem;
+  }
+  .note {
+    margin: -0.3rem 0 0 2.2rem;
+    color: #b9aca1;
+    word-break: keep-all;
   }
   .line {
     display: flex;

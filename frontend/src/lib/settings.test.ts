@@ -10,11 +10,13 @@ describe('display settings', () => {
     const settings = normalize({
       backdrop: 'boxes',
       subtitles: true,
+      ignoreUnrelated: true,
       panelOpacity: 0.5,
       colors: { text: '#ABCDEF', accent: 'red', nope: '#000000' },
     });
     expect(settings.backdrop).toBe('boxes');
     expect(settings.subtitles).toBe(true);
+    expect(settings.ignoreUnrelated).toBe(true);
     expect(settings.panelOpacity).toBe(0.5);
     expect(settings.colors.text).toBe('#abcdef');
     expect(settings.colors.accent).toBe(DEFAULTS.colors.accent);

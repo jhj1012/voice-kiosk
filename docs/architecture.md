@@ -189,6 +189,7 @@ with a milk allergy).
 | `request_payment()` | **Blocked unless the customer asked to pay** (see above); also needs items, dining and no pending item. The first time it returns `ask_first`: "직원에게 따로 전달할 말씀 있으세요?" (the order is on screen meanwhile). Then it shows the review and returns the read-back; code starts the terminal after it was said. |
 | `cancel_payment()` | Back to ordering while the terminal waits for the card. |
 | `cancel_order()` | **Blocked unless** the customer just said yes to the cancel question. Hanging up clears the order without asking. |
+| `stay_quiet()` | Only when the developer panel's "ignore speech not meant for the kiosk" is on (read when a customer lifts the handset). Non-blocking and answered silently; the session mutes whatever the model says in that turn, and the customer's words count for nothing in the safety checks. |
 
 Questions ("디카페인 돼요?", "많이 달아요?", "화장실 어디예요?") are answered from the menu and cafe
 data in the instructions; if the data does not say, the assistant says so.
@@ -267,7 +268,8 @@ to the next screen": choices appear and disappear in place.
 - **Colours**: every main colour (background, its light, the choices' background and how see-through it
   is, the menu pictures' background, text, secondary and faint text, highlight, text on the
   highlight, lines) can be changed in the developer panel (`lib/settings.ts`).
-- **Developer mode** (`F2`): typed input, mute, the display settings, the API key, the event log;
+- **Developer mode** (`F2`): typed input, mute, ignoring speech not meant for the kiosk (from
+  the next customer), the display settings, the API key, the event log;
   `Space` lifts / puts down the simulated handset. **Display settings are saved by the backend**
   (`configs/display.local.json`, git-ignored) and sent to every display (`settings` event), so
   full-screen mode's separate Edge profile (`--kiosk`) gets them too. `?demo=order|allergy` plays

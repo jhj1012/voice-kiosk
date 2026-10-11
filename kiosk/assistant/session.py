@@ -51,7 +51,12 @@ from kiosk.assistant.safety import (
     unheard_required,
     wants_to_stop,
 )
-from kiosk.assistant.tools import function_declarations, option_params, selection_from_args
+from kiosk.assistant.tools import (
+    STAY_QUIET,
+    function_declarations,
+    option_params,
+    selection_from_args,
+)
 from kiosk.config import FlowConfig
 from kiosk.domain.flow import Kiosk, Phase
 from kiosk.domain.menu import KioskError, MenuItem
@@ -151,8 +156,12 @@ class AssistantSession:
         *,
         clock: Callable[[], float] = time.monotonic,
         read_back_grace_s: float = 0.5,
+        ignore_unrelated: bool = False,
     ) -> None:
         self.kiosk = kiosk
+        # Speech not meant for the kiosk gets no answer (developer panel): the model calls
+        # stay_quiet, and whatever it says in that turn is muted.
+        self.ignore_unrelated = ignore_unrelated
         self.connector = connector
         self.flow = flow
         self.listener = listener or SessionListener()
@@ -176,6 +185,7 @@ class AssistantSession:
         self._lines_mark = 0  # transcript mark when the items last changed (payment intent)
         self._read_back: _ReadBack | None = None
         self._terminal_id = 0
+        self._quiet_turn = False  # stay_quiet was called: this turn is not heard
 
     # --- lifecycle ---------------------------------------------------------------------------
 
@@ -264,12 +274,15 @@ class AssistantSession:
             case Resumable(handle):
                 self._resume_handle = handle
             case InputText(text) if not mostly_foreign(text):
+                self._quiet_turn = False  # the customer talks again
                 utterance = self.transcript.add("customer", text)
                 self.listener.on_subtitle("customer", utterance.text, False)
                 if self.state is not AssistantState.SPEAKING:
                     self._set_state(AssistantState.THINKING)
             case OutputText(text) if mostly_foreign(text):
                 log.debug("dropped foreign transcription: %r", text[:80])
+            case OutputText(text) if self._quiet_turn:
+                log.info("muted (stay_quiet): %r", text[:80])
             case OutputText(text):
                 self._close_utterance("customer")
                 utterance = self.transcript.add("assistant", text)
@@ -288,6 +301,8 @@ class AssistantSession:
                     await self._planned_reconnect()
 
     def _on_audio(self, data: bytes) -> None:
+        if self._quiet_turn:
+            return  # muted: the words were not for the kiosk
         self._close_utterance("customer")
         if not self._turn_audio:
             self._turn_audio_at = self._clock()
@@ -327,7 +342,7 @@ class AssistantSession:
             self._spoken_turn_at = self._turn_audio_at
         elif not self._turn_calls:
             self._set_state(AssistantState.LISTENING)  # nothing to say
-        self._turn_audio = self._turn_calls = False
+        self._turn_audio = self._turn_calls = self._quiet_turn = False
         read_back = self._read_back
         if read_back is not None and read_back.spoke and not read_back.interrupted:
             self._spawn(self._check_read_back())
@@ -346,12 +361,30 @@ class AssistantSession:
 
     async def _on_tool_call(self, calls: tuple[FunctionCall, ...]) -> None:
         self._close_utterance("customer")
+        quiet = {c.id for c in calls if c.name == STAY_QUIET}
+        if quiet and len(quiet) == len(calls):
+            await self._stay_quiet(calls)
+            return
         self._turn_calls = True
         self._set_state(AssistantState.THINKING)
-        results = [(call, self._run(call)) for call in calls]
+        results = [(call, {"ok": True} if call.id in quiet else self._run(call)) for call in calls]
         if self._conn is not None:
-            await self._conn.send_results(results)
+            await self._conn.send_results(results, silent=quiet)
         self.listener.on_state()
+
+    async def _stay_quiet(self, calls: tuple[FunctionCall, ...]) -> None:
+        """The words were not meant for the kiosk: nothing is said, and they count for nothing
+        (e.g. a friend's "내가 결제할게" is not the customer asking to pay)."""
+        self._quiet_turn = True
+        latest = self.transcript.last_customer()
+        if latest is not None:
+            latest.ignored = True
+            log.info("not for the kiosk, ignored: %s", latest.text.strip())
+        if self._conn is not None:
+            await self._conn.send_results(
+                [(c, {"ok": True}) for c in calls], silent={c.id for c in calls}
+            )
+        self._set_state(AssistantState.LISTENING)
 
     def _run(self, call: FunctionCall) -> Result:
         """Check one call against the safety rules, run it, and note what changed."""
@@ -531,18 +564,23 @@ class AssistantSession:
     async def _connect(self) -> LiveConnection:
         resuming = self._resume_handle is not None
         setup = SessionSetup(
-            instructions=instructions(self.kiosk.menu, self.kiosk.cafe)
+            instructions=instructions(
+                self.kiosk.menu, self.kiosk.cafe, ignore_unrelated=self.ignore_unrelated
+            )
             if resuming
             else instructions(
                 self.kiosk.menu,
                 self.kiosk.cafe,
                 self.kiosk.order,
                 self.kiosk.pending_items,
-                [(u.speaker, u.text.strip()) for u in self.transcript.entries if u.text.strip()][
-                    -RECENT_FOR_RECONNECT:
-                ],
+                [
+                    (u.speaker, u.text.strip())
+                    for u in self.transcript.entries
+                    if u.text.strip() and not u.ignored
+                ][-RECENT_FOR_RECONNECT:],
+                ignore_unrelated=self.ignore_unrelated,
             ),
-            tools=function_declarations(self.kiosk.menu, self.kiosk.cafe),
+            tools=function_declarations(self.kiosk.menu, self.kiosk.cafe, self.ignore_unrelated),
             vocabulary=transcription_vocabulary(self.kiosk.menu),
             resume_handle=self._resume_handle,
         )

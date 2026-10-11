@@ -1,5 +1,6 @@
-// The display settings from the developer panel (F2): the choices' background style, subtitles
-// and the colours. The backend saves them (configs/display.local.json) and sends them to every
+// The settings from the developer panel (F2): the choices' background style, subtitles, the
+// colours, and whether the assistant ignores speech not meant for the kiosk (read by the backend
+// when the next customer lifts the handset). The backend saves them (configs/display.local.json) and sends them to every
 // display; anything missing or malformed falls back to the defaults here. Pure, unit tested.
 
 export type Backdrop = 'blur' | 'gradient' | 'boxes';
@@ -34,6 +35,7 @@ export interface Settings {
   backdrop: Backdrop;
   panelOpacity: number; // 0..1, the choices' background
   subtitles: boolean; // what the customer and the assistant say, as text
+  ignoreUnrelated: boolean; // no answer to words not meant for the kiosk (next customer)
   colors: Record<string, string>;
 }
 
@@ -41,6 +43,7 @@ export const DEFAULTS: Settings = {
   backdrop: 'blur',
   panelOpacity: 0.72,
   subtitles: false,
+  ignoreUnrelated: false,
   colors: Object.fromEntries(COLORS.map((c) => [c.key, c.value])),
 };
 
@@ -65,6 +68,10 @@ export function normalize(values: Record<string, unknown>): Settings {
     panelOpacity:
       typeof opacity === 'number' && opacity >= 0 && opacity <= 1 ? opacity : DEFAULTS.panelOpacity,
     subtitles: typeof values.subtitles === 'boolean' ? values.subtitles : DEFAULTS.subtitles,
+    ignoreUnrelated:
+      typeof values.ignoreUnrelated === 'boolean'
+        ? values.ignoreUnrelated
+        : DEFAULTS.ignoreUnrelated,
     colors,
   };
 }
