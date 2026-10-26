@@ -67,6 +67,27 @@ Alt + f4, 검은 명령어 입력 창 닫기.
 
 키오스크는 Windows의 **기본** 마이크와 스피커를 사용. 헤드셋이나 수화기를 쓰려면 먼저 꽂고,
 **설정 → 시스템 → 소리**에서 **출력**과 **입력**을 그 장치로 고르기. 그다음 재실행.
+### 휴대폰으로 쓰기 (안드로이드)
+
+노트북이 키오스크를 실행하고, **휴대폰**이 화면이 됨. 수화기는 **휴대폰**에 꽂음. 케이블 없이
+휴대폰 핫스팟으로 연결.
+
+1. 휴대폰 **핫스팟** 켜고, 노트북을 그 핫스팟 Wi-Fi에 연결.
+2. 노트북: **설정 → 네트워크 및 인터넷 → Wi-Fi → (핫스팟 이름)** 에서
+   **네트워크 프로필 유형**을 **개인 네트워크**로. (공용이면 휴대폰이 노트북에 접속 못 함.
+   처음 한 번만)
+3. 수화기를 휴대폰에 꽂기.
+4. `voice-kiosk` 폴더 안 **`Start Kiosk (phone).bat`** 실행.
+   처음에 **Windows 보안 경고**(방화벽) 창이 뜨면 **허용**.
+5. 검은 창에 나온 주소(예: `https://192.168.43.12:8766`)를 휴대폰 **Chrome** 주소창에 입력.
+6. "연결이 비공개로 설정되어 있지 않습니다"가 나오면 **고급** → **(주소)(으)로 이동(안전하지 않음)**.
+   키오스크가 직접 만든 인증서라서 나오는 경고. 처음 한 번만 (노트북 주소가 바뀌면 다시 한 번).
+7. 화면 **아무 곳이나 누르면** 대화 시작. 처음엔 마이크 권한을 물어봄 → **허용**.
+8. 대화 끝내기: 오른쪽 위 **대화 끝내기**. 결제가 끝나면 저절로 끝남.
+
+설정(F2)과 API 키는 **노트북**의 브라우저에서 `http://localhost:8765` 를 열어서. 바꾼 설정은
+휴대폰 화면에도 바로 적용됨.
+
 ### 새 버전 받기
 
 새 `voice-kiosk.zip`을 받아서 **새** 폴더에 압축을 풀기 (1~2단계).
@@ -82,6 +103,10 @@ Alt + f4, 검은 명령어 입력 창 닫기.
 | AI가 내 말을 못 들음 | Windows에서 맞는 마이크를 고르고 (위 참고) 재실행. |
 | AI가 말하다가 혼자 멈춤 | 스피커 소리를 AI가 듣는 것. 이어폰이나 헤드셋 사용 권장. |
 | 스페이스바를 눌러도 아무 일도 없음 | 키오스크 창 안을 먼저 한 번 클릭하세요. |
+| 휴대폰에서 주소가 안 열림 | 노트북과 휴대폰이 같은 핫스팟인지 확인. 노트북 Wi-Fi가 **개인 네트워크**인지 확인 (위 2번). 검은 창에 "안 열리면"으로 나온 다른 주소도 해 보기. 그래도 안 되면 **제어판 → Windows Defender 방화벽 → 앱 허용**에서 Python의 **개인** 체크. |
+| 휴대폰에 "마이크를 쓸 수 없어요" | Chrome 주소창 왼쪽 아이콘 → **권한** → **마이크** 허용, 화면 다시 누르기. |
+| 소리가 수화기가 아니라 휴대폰 스피커로 나옴 | 수화기를 다시 꽂고, 휴대폰 블루투스를 끄고, 페이지를 새로고침. |
+| 휴대폰에 "API 키가 필요해요" | 노트북에서 `http://localhost:8765` 를 열고 키 넣기. |
 
 그래도 안 되면 `voice-kiosk` 폴더 안 `logs` 폴더에서 가장 최근 파일을 개발팀에 보내 주세요.
 ## For developers
@@ -108,7 +133,14 @@ uv sync
 npm --prefix frontend ci
 npm --prefix frontend run build
 uv run python -m kiosk --open   # or double-click Start Kiosk.bat
+uv run python -m kiosk --phone  # phone mode: Start Kiosk (phone).bat
 ```
+
+**Phone mode**: an Android phone is the screen, and the handset plugged into it is the
+microphone and speaker. The laptop runs everything else and serves the phone over HTTPS on
+`server.phone_port` (8766) with a self-signed certificate it makes itself
+(`configs/phone-*.local.pem`, git-ignored); see
+[docs/architecture.md](docs/architecture.md#phone-mode).
 
 The API key goes in `.env` (`GEMINI_API_KEY=...`, see `.env.example`) or into the form the
 display shows. Audio devices: `configs/settings.local.yaml`, see
