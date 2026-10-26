@@ -28,6 +28,7 @@ audio:
 server:
   host: 127.0.0.1
   port: 8765
+  phone_port: 8766        # phone mode (Start Kiosk (phone).bat): the phone opens https://<laptop>:8766
 
 flow:
   insert_card_s: 3.0      # simulated "카드를 단말기에 꽂아 주세요" step

@@ -60,6 +60,7 @@ class AudioConfig:
 class ServerConfig:
     host: str = "127.0.0.1"
     port: int = 8765
+    phone_port: int = 8766  # phone mode: https://<this laptop's address>:<phone_port> on the phone
 
 
 @dataclass(frozen=True)

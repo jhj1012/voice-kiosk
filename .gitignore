@@ -23,6 +23,7 @@ logs/
 .env
 *.local.yaml
 *.local.json
+*.local.pem
 
 # Editors / OS
 .vscode/

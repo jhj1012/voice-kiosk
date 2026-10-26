@@ -69,10 +69,15 @@ def init_event(
     cafe: Cafe,
     images: dict[str, str] | None = None,
     avatar: dict[str, str | None] | None = None,
+    *,
+    phone: bool = False,
 ) -> Event:
+    """`phone`: this display is the phone of the phone mode (its microphone and speaker are the
+    handset; a tap starts and ends the conversation)."""
     images = images or {}
     return {
         "type": "init",
+        "phone": phone,
         "avatar": avatar or {name: None for name in (*AVATAR_CLIPS, "still")},
         "cafe": {
             "name": cafe.name,
