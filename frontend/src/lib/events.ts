@@ -72,10 +72,24 @@ export interface View {
   // line's options at a glance), and the order line shown (0 = none)
   group: string;
   line: number;
+  draft: number; // item screen: the drink being chosen (0 = none)
   topic: string;
 }
 
+// What the kiosk asks now (kiosk/domain/flow.py); the screen shows it.
+export type QuestionKind =
+  'dining' | 'menu' | 'option' | 'extras' | 'line' | 'staff' | 'review' | 'none';
+
+export interface Question {
+  kind: QuestionKind;
+  draft: number;
+  item_id: string;
+  group: string;
+  line: number;
+}
+
 export interface Pending {
+  draft: number; // the drink's number (the same item can be chosen more than once)
   item_id: string;
   quantity: number;
   chosen: Record<string, string[]>;
@@ -124,6 +138,7 @@ export interface StateEvent {
   phase: Phase;
   assistant: AssistantState;
   view: View;
+  question: Question;
   pending: Pending | null;
   order: Order;
   payment: { step: PaymentStep; order_number: number | null } | null;
