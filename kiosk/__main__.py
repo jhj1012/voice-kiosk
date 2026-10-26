@@ -188,6 +188,7 @@ def print_phone_addresses(addresses: list[str], port: int, laptop_url: str) -> N
     else:
         print("네트워크에 연결되어 있지 않아요. 노트북을 화면 기기와 같은 Wi-Fi에 연결하세요.")
     print(f"설정(F2)과 API 키는 이 노트북의 브라우저에서: {laptop_url}")
+    print("화면 기기에서 계속 로딩만 되면: README의 '방화벽' 부분을 보세요.")
     print()
 
 
