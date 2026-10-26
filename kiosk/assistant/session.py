@@ -44,22 +44,20 @@ from kiosk.assistant.safety import (
     asks_to_pay,
     confirmed_cancel,
     customer_asked_to_pay,
+    guessed_groups,
     is_yes,
-    mention_start,
     mostly_foreign,
     said_amount,
-    unheard_required,
     wants_to_stop,
 )
 from kiosk.assistant.tools import (
     STAY_QUIET,
     function_declarations,
-    option_params,
     selection_from_args,
 )
 from kiosk.config import FlowConfig
 from kiosk.domain.flow import Kiosk, Phase
-from kiosk.domain.menu import KioskError, MenuItem
+from kiosk.domain.menu import KioskError
 
 log = logging.getLogger(__name__)
 
@@ -71,11 +69,11 @@ PAYMENT_DONE_CUE = (
 CARD_CUE = "[카드 단말기가 화면에 나왔어요. 카드를 단말기에 꽂아 달라고 짧게 말해 주세요.]"
 READ_BACK_CUE = "[결제 전에 주문 내역을 그대로 읽어 주세요: {read_back}]"
 PAYMENT_STOPPED_CUE = (
-    "[결제를 시작하지 않았어요. 손님이 원하면 다시 결제를 요청할 때 request_payment를 호출하세요.]"
+    "[결제를 시작하지 않았어요. 손님이 원하면 다시 결제를 요청할 때 pay를 호출하세요.]"
 )
 ORDER_CHANGED_NOTE = (
     "The payment did not start because the order changed. Ask whether they want anything else "
-    "or would like to pay; call request_payment again when they ask to pay."
+    "or would like to pay; call pay again when they ask to pay."
 )
 RECONNECTED_CUE = (
     "[대화가 잠시 끊겼다가 이어졌어요. 연결 이야기는 하지 말고, 마지막 대화에 이어서 짧게 "
@@ -91,13 +89,13 @@ NOT_ASKED_TO_PAY = (
     "BLOCKED: the customer has not asked to pay (or changed the order since). Do not start the "
     "payment. Ask whether they want anything else or would like to pay."
 )
+NOT_SAID = (
+    "The customer did not mention {groups}, so it was not set: never fill in an option. Ask the "
+    "result's question."
+)
 CANCEL_NOT_CONFIRMED = (
     "BLOCKED: cancel the whole order only right after the customer said yes to your question "
     '"주문을 모두 취소할까요?". Ask it first.'
-)
-NOT_HEARD = (
-    "The customer did not say these required options, so they were not set: {groups}. Ask the "
-    "customer; never choose a required option for them."
 )
 
 
@@ -136,7 +134,7 @@ class SessionListener:
 
 @dataclass
 class _ReadBack:
-    """request_payment succeeded; the terminal starts once the assistant said the total."""
+    """pay returned the read-back; the terminal starts once the assistant said the total."""
 
     read_back: str
     total: int
@@ -159,8 +157,9 @@ class AssistantSession:
         ignore_unrelated: bool = False,
     ) -> None:
         self.kiosk = kiosk
-        # Speech not meant for the kiosk gets no answer (developer panel): the model calls
-        # stay_quiet, and whatever it says in that turn is muted.
+        # Hesitation ("음…") always gets no answer, and with this switch (developer panel) also
+        # speech not meant for the kiosk: the model calls stay_quiet, and whatever it says in
+        # that turn is muted.
         self.ignore_unrelated = ignore_unrelated
         self.connector = connector
         self.flow = flow
@@ -373,8 +372,8 @@ class AssistantSession:
         self.listener.on_state()
 
     async def _stay_quiet(self, calls: tuple[FunctionCall, ...]) -> None:
-        """The words were not meant for the kiosk: nothing is said, and they count for nothing
-        (e.g. a friend's "내가 결제할게" is not the customer asking to pay)."""
+        """Hesitation, or words not meant for the kiosk: nothing is said, and they count for
+        nothing (e.g. a friend's "내가 결제할게" is not the customer asking to pay)."""
         self._quiet_turn = True
         latest = self.transcript.last_customer()
         if latest is not None:
@@ -390,12 +389,16 @@ class AssistantSession:
         """Check one call against the safety rules, run it, and note what changed."""
         before = self.kiosk.order.lines_signature
         args = dict(call.args)
-        if call.name == "request_payment":
-            result = self._request_payment()
-        elif call.name == "cancel_order" and not confirmed_cancel(self.transcript):
+        if call.name == "pay":
+            result = self._pay()
+        elif (
+            call.name == "cancel_order"
+            and self.kiosk.phase is Phase.ORDERING
+            and not confirmed_cancel(self.transcript)
+        ):
             result = {"blocked": CANCEL_NOT_CONFIRMED}
-        elif call.name in ("choose_item", "set_options", "change_line"):
-            result = self._order_call(call.name, args)
+        elif call.name in ("order", "set_options"):
+            result = self._without_guesses(call.name, args)
         else:
             result = self.actions.call(call.name, args)
         if self.kiosk.order.lines_signature != before:
@@ -407,62 +410,49 @@ class AssistantSession:
         log.info("call %s(%s) -> %s", call.name, args, result)
         return result
 
-    def _order_call(self, name: str, args: dict[str, Any]) -> Result:
-        """Run choose_item / set_options / change_line without required options nobody said."""
-        target = self._order_target(name, args)
-        if target is None:  # unknown item or line, no pending item: let the domain explain
-            return self.actions.call(name, args)
-        item, already, since = target
-        menu = self.kiosk.menu
-        texts = [u.text for u in self.transcript.customer_since(since)]
-        unheard = unheard_required(item, selection_from_args(menu, args), texts, already)
-        for group in unheard:
-            args.pop(group.id, None)
-        names = ", ".join(g.name for g in unheard)
-        if unheard and name != "choose_item":
-            settable = set(option_params(menu)) | {"quantity"}
-            if not any(key in settable for key in args):
-                return {"blocked": NOT_HEARD.format(groups=names)}
-        result = self.actions.call(name, args)
-        if unheard and "error" not in result:
-            result["not_heard"] = NOT_HEARD.format(groups=names)
-        return result
-
-    def _order_target(
-        self, name: str, args: dict[str, Any]
-    ) -> tuple[MenuItem, dict[str, tuple[str, ...]], int] | None:
-        """(item, choices it already has, where the customer's words about it start)."""
+    def _without_guesses(self, name: str, args: dict[str, Any]) -> Result:
+        """Run order / set_options without required options the customer never mentioned
+        (unless the screen asks for that option: then any answer is taken)."""
         try:
-            if name == "choose_item":
+            if name == "order":
                 item = self.kiosk.menu.item(str(args.get("item_id", "")))
-                return item, {}, mention_start(self.transcript, item)
-            if name == "set_options":
-                pending = self.kiosk.pending_item(
-                    args.get("item_id") or None, selection_from_args(self.kiosk.menu, args)
-                )
-                chosen = {g: tuple(c.id for c in cs) for g, cs in pending.chosen.items()}
-                return pending.item, chosen, mention_start(self.transcript, pending.item)
-            line = self.kiosk.order.line(int(float(args.get("line", 0))))
+            else:
+                draft = args.get("draft")
+                item = self.kiosk.find_draft(
+                    args.get("item_id") or None,
+                    selection_from_args(self.kiosk.menu, args),
+                    int(float(draft)) if draft else None,
+                ).item
         except (KioskError, TypeError, ValueError):
-            return None
-        chosen = {g: tuple(c.id for c in cs) for g, cs in line.chosen().items()}
-        return line.item, chosen, mention_start(self.transcript, line.item)
+            return self.actions.call(name, args)  # the domain explains the mistake
+        question = self.kiosk.question
+        asked = question.group if question.item_id == item.id else ""
+        latest = self.transcript.last_customer()
+        selection = selection_from_args(self.kiosk.menu, args)
+        guessed = guessed_groups(item, selection, latest.text if latest else "", asked)
+        for group in guessed:
+            args.pop(group.id, None)
+        result = self.actions.call(name, args)
+        if guessed and "error" not in result:
+            names = ", ".join(g.name for g in guessed)
+            log.info("guessed %s left out for %s", names, item.id)
+            result["not_said"] = NOT_SAID.format(groups=names)
+        return result
 
     # --- payment -----------------------------------------------------------------------------
 
-    def _request_payment(self) -> Result:
+    def _pay(self) -> Result:
         if self.kiosk.phase is Phase.ORDERING and not customer_asked_to_pay(
             self.transcript, self._lines_mark
         ):
             return {"blocked": NOT_ASKED_TO_PAY}
-        result = self.actions.call("request_payment", {})
+        result = self.actions.call("pay", {})
         if "read_back" in result:
             self._read_back = _ReadBack(
                 read_back=result["read_back"],
                 total=self.kiosk.order.total,
                 index=len(self.transcript.entries),
             )
-            result["next"] = "Say the read_back now, word for word; nothing about the card yet."
         return result
 
     def _decide_read_back(self) -> None:
@@ -574,7 +564,7 @@ class AssistantSession:
                 self.kiosk.menu,
                 self.kiosk.cafe,
                 self.kiosk.order,
-                self.kiosk.pending_items,
+                self.kiosk.drafts,
                 [
                     (u.speaker, u.text.strip())
                     for u in self.transcript.entries
@@ -582,7 +572,7 @@ class AssistantSession:
                 ][-RECENT_FOR_RECONNECT:],
                 ignore_unrelated=self.ignore_unrelated,
             ),
-            tools=function_declarations(self.kiosk.menu, self.kiosk.cafe, self.ignore_unrelated),
+            tools=function_declarations(self.kiosk.menu, self.kiosk.cafe),
             vocabulary=transcription_vocabulary(self.kiosk.menu),
             resume_handle=self._resume_handle,
         )

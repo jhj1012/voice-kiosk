@@ -35,7 +35,7 @@
   // Menus with other titles or items stay one block: the rows themselves come and go.
   const block = $derived(
     view.screen === 'item'
-      ? `item|${view.item_id}|${view.line}`
+      ? `item|${view.item_id}|${view.line}|${view.draft}`
       : view.screen === 'info'
         ? `info|${view.topic}`
         : view.screen,

@@ -1,38 +1,38 @@
-"""The kiosk's state for one customer at a time: phase, order, the item being chosen, and what
-the display shows.
+"""The kiosk's state for one customer at a time: the order, the drinks still being chosen, the
+current question, and what the display shows.
 
 Phases: idle -> ordering -> paying (insert card -> processing) -> done -> idle. Lifting the
-handset starts a session (the screen asks: here or to go?), hanging up ends it from any phase.
+handset starts a session, hanging up ends it from any phase.
 
-An item is chosen in steps: each required option (one at a time, in the item's order), then its
-extras (shots, syrups, ...), then `finish_item` adds it. Items without extras are added as soon
-as the required options are known. The views the customer saw are remembered, so `go_back`
-returns to the previous one. Every method either changes the
-state or raises `KioskError` with a message for the model; `revision` counts the changes so the
-server knows when to push a new snapshot.
+The **current question** (`Kiosk.question`) is decided here, from the state: here or to go,
+then each drink's missing required options one at a time, the first drink's extras, what else
+they would like, and when they pay: anything for the staff, then the read-back. The display
+shows it and the assistant is told to ask it, so the two always match. The assistant's actions
+are not tied to it: a customer may say more than was asked ("아메리카노 아이스로, 카페라떼는
+따뜻한 걸로"), and every action can change any drink; afterwards the question is decided again.
 
-Rules that need the conversation (did the customer ask to pay? did they say yes?) are checked by
-the assistant; the rules here only need the state itself.
+Every view the customer saw is remembered, so `go_back` returns to the previous one (or to a
+named item); it only changes the screen and the question, never the order.
+
+Every method either changes the state (and `revision`) or raises `KioskError` with a message
+for the model. Rules that need the conversation (did the customer ask to pay? did they say yes
+to cancelling?) are checked by the assistant session.
 """
 
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import StrEnum
 
 from kiosk.domain.cafe import Cafe
-from kiosk.domain.menu import (
-    Chosen,
-    KioskError,
-    Menu,
-    MenuItem,
-    OptionGroup,
-    item_allergens,
-)
+from kiosk.domain.menu import Chosen, KioskError, Menu, MenuItem, OptionGroup, item_allergens
 from kiosk.domain.order import CartLine, Dining, Order, OrderNumbers, check_quantity
 
 Selection = Mapping[str, str | Sequence[str]]  # option group id -> choice id(s)
+
+EXTRAS = "extras"  # View.group / Question.group: the item's extras, all at once
+HISTORY = 30  # views remembered for go_back
 
 
 class Phase(StrEnum):
@@ -51,7 +51,7 @@ class PaymentStep(StrEnum):
 class Screen(StrEnum):
     ATTRACT = "attract"
     DINING = "dining"  # here or to go?
-    WELCOME = "welcome"
+    WELCOME = "welcome"  # "메뉴판에서 메뉴를 고른 뒤 말씀해 주세요"
     MENU = "menu"
     CATEGORIES = "categories"
     ITEM = "item"
@@ -61,36 +61,59 @@ class Screen(StrEnum):
     DONE = "done"
 
 
+class Ask(StrEnum):
+    """What the customer is asked now."""
+
+    DINING = "dining"  # here or to go
+    MENU = "menu"  # what they would like (from the menu board) / anything else
+    OPTION = "option"  # a required option of a drink being chosen
+    EXTRAS = "extras"  # the first drink's extras: "추가하실 거 있으세요?"
+    LINE = "line"  # an order line shown again (go_back): change it if they want
+    STAFF = "staff"  # before the read-back: "직원에게 따로 전달할 말씀 있으세요?"
+    REVIEW = "review"  # the read-back
+    NONE = "none"  # not ordering (idle, paying, done)
+
+
+@dataclass(frozen=True)
+class Question:
+    kind: Ask
+    draft: int = 0  # OPTION / EXTRAS: the drink being chosen
+    item_id: str = ""
+    group: str = ""  # OPTION: the option group; LINE: the group shown, or "" for all
+    line: int = 0  # LINE: the order line (from 1)
+
+
 @dataclass(frozen=True)
 class View:
-    """What the display shows. The assistant chooses it through the show_* actions."""
+    """What the display shows: what the assistant chose (show), or the current question."""
 
     screen: Screen = Screen.ATTRACT
     title: str = ""
     item_ids: tuple[str, ...] = ()  # menu screen: the items to show, in order
     highlight: tuple[str, ...] = ()  # menu screen: recommended items among them
     item_id: str = ""  # item screen
-    # item screen: the option group listed (a group id, EXTRAS for the item's extras, or "" for
-    # none: the facts, or an order line's options at a glance)
+    # item screen: the option group listed (a group id, EXTRAS, or "" for none: the item's
+    # facts, or an order line's options at a glance)
     group: str = ""
-    line: int = 0  # item screen: the order line shown (from 1), 0 = not an order line
+    line: int = 0  # item screen: the order line shown (from 1)
+    draft: int = 0  # item screen: the drink being chosen
     topic: str = ""  # info screen
 
 
-EXTRAS = "extras"  # View.group: the item's extras (shots, syrups, ...), all at once
-HISTORY = 20  # views remembered for go_back
 # Views worth going back to (not the start, the take-out question, payment or done).
 _REMEMBERED = {Screen.MENU, Screen.CATEGORIES, Screen.ITEM, Screen.INFO, Screen.REVIEW}
 
 
 @dataclass
-class PendingItem:
-    """The item the customer is choosing options for: required ones first, then its extras."""
+class Draft:
+    """A drink being chosen: its required options first, then (first drink only) its extras."""
 
+    id: int
     item: MenuItem
     quantity: int = 1
     chosen: Chosen = field(default_factory=dict)
-    extras_done: bool = False  # the customer said they want no (more) extras
+    ask_extras: bool = True  # only the order's first drink asks "추가하실 거 있으세요?"
+    extras_done: bool = False
 
     @property
     def missing(self) -> tuple[OptionGroup, ...]:
@@ -102,10 +125,10 @@ class PendingItem:
 
     @property
     def asking(self) -> str:
-        """What is asked now: a required group's id, EXTRAS, or "" (ready to be added)."""
+        """What is still asked: a required group's id, EXTRAS, or "" (ready to be added)."""
         if self.missing:
             return self.missing[0].id
-        if self.extras and not self.extras_done:
+        if self.ask_extras and self.extras and not self.extras_done:
             return EXTRAS
         return ""
 
@@ -118,12 +141,11 @@ class MenuShown:
 
 @dataclass(frozen=True)
 class ItemResult:
-    """`line` is set when the item went into the order; otherwise `pending` is the item still
-    being chosen, and `pending.asking` says what to ask next."""
+    """`line` is set when the drink went into the order; otherwise `draft` is still being
+    chosen (or was cancelled, then both are None)."""
 
-    line: CartLine | None
-    missing: tuple[OptionGroup, ...] = ()
-    pending: PendingItem | None = None
+    line: CartLine | None = None
+    draft: Draft | None = None
 
 
 class Kiosk:
@@ -134,27 +156,73 @@ class Kiosk:
         self.revision = 0
         self.phase = Phase.IDLE
         self.order = Order()
-        # Items waiting for required options ("라떼 하나랑 아메리카노 하나" waits for both).
-        self.pending_items: list[PendingItem] = []
+        self.drafts: list[Draft] = []  # touched last at the end
         self.view = View()
         self.payment_step: PaymentStep | None = None
         self.order_number: int | None = None
         self.reviewed_version: int | None = None
-        self.staff_asked = False  # "직원에게 전달할 말씀 있으세요?" was asked before payment
-        self._menu_view: View | None = None  # where to return after an item was added
-        self._history: list[View] = []  # views to go back to, oldest first
+        self.staff_asked = False  # the staff question comes once, before the first read-back
+        self.read_back = ""  # the current read-back (Ask.REVIEW)
+        self._stage: Ask | None = None  # STAFF / REVIEW while paying is being prepared
+        self._focus: Question | None = None  # set by go_back until the customer answers
+        self._asked = 0  # the drink asked about: it stays asked until it needs nothing more
+        self._next_draft = 1
+        self._added: dict[int, CartLine] = {}  # draft id -> the line it became
+        self._menu_view: View | None = None  # where to return after a drink was added
+        self._history: list[View] = []
 
     # --- session -----------------------------------------------------------------------------
 
     def start_session(self) -> None:
-        """The handset was lifted."""
+        """The handset was lifted: the first question is here or to go."""
         if self.phase is not Phase.IDLE:
             raise KioskError("a session is already running")
-        self._reset(Phase.ORDERING, View(screen=Screen.DINING))
+        self._reset(Phase.ORDERING)
+        self._sync()
 
     def end_session(self) -> None:
         """The handset was put down (or the done screen timed out): forget everything."""
-        self._reset(Phase.IDLE, View())
+        self._reset(Phase.IDLE)
+        self._set_view(View(), remember=False)
+
+    # --- the current question ----------------------------------------------------------------
+
+    @property
+    def question(self) -> Question:
+        if self.phase is not Phase.ORDERING:
+            return Question(Ask.NONE)
+        if self._focus is not None:
+            return self._focus
+        if self._stage is not None:
+            return Question(self._stage)
+        draft = self.asking_draft
+        if draft is not None:
+            kind = Ask.EXTRAS if draft.asking == EXTRAS else Ask.OPTION
+            group = "" if kind is Ask.EXTRAS else draft.asking
+            return Question(kind, draft=draft.id, item_id=draft.item.id, group=group)
+        if self.order.dining is None and self.order.is_empty:
+            return Question(Ask.DINING)
+        return Question(Ask.MENU)
+
+    @property
+    def asking_draft(self) -> Draft | None:
+        """The drink asked about. It stays asked while it needs something, even when the
+        customer answers about another drink in between; then the next one, in the order they
+        were ordered."""
+        asked = self.draft(self._asked)
+        if asked is not None and asked.asking:
+            return asked
+        return next((d for d in sorted(self.drafts, key=lambda d: d.id) if d.asking), None)
+
+    @property
+    def pending(self) -> Draft | None:
+        """The drink the screen shows (being chosen), if any."""
+        if self.view.draft:
+            return self.draft(self.view.draft)
+        return self.asking_draft
+
+    def draft(self, draft_id: int) -> Draft | None:
+        return next((d for d in self.drafts if d.id == draft_id), None)
 
     # --- display -----------------------------------------------------------------------------
 
@@ -187,154 +255,166 @@ class Kiosk:
             highlight=tuple(i for i in highlight if i in shown),
         )
         self._menu_view = view
-        self._set_view(view)
+        self._show(view)
         return MenuShown(item_ids=shown, removed=removed)
 
     def show_categories(self) -> None:
         """Show the kinds of menu (커피, 라떼, ...) so the customer can pick one."""
         self._require(Phase.ORDERING)
-        self._set_view(View(screen=Screen.CATEGORIES))
+        self._show(View(screen=Screen.CATEGORIES))
 
     def show_item(self, item_id: str) -> MenuItem:
-        """Show one item's details without ordering it."""
+        """Show one item's facts without ordering it."""
         self._require(Phase.ORDERING)
         item = self.menu.item(item_id)
-        self._set_view(View(screen=Screen.ITEM, item_id=item.id))
+        self._show(View(screen=Screen.ITEM, item_id=item.id))
         return item
 
     def show_info(self, topic_id: str) -> None:
         """Show a cafe-info card. Also allowed after payment ("화장실 어디예요?")."""
         self._require(Phase.ORDERING, Phase.DONE)
         topic = self.cafe.topic(topic_id)
-        self._set_view(View(screen=Screen.INFO, topic=topic.id))
+        view = View(screen=Screen.INFO, topic=topic.id)
+        if self.phase is Phase.DONE:
+            self._set_view(view)
+        else:
+            self._show(view)
 
-    def go_back(self) -> View:
-        """Show the previous view again ("이전 화면"). An item chosen since is shown as its
-        order line."""
+    def show_order(self) -> None:
+        """Show the order (display only; the review before payment is `request_payment`)."""
         self._require(Phase.ORDERING)
-        while self._history:
-            view = self._revive(self._history.pop())
-            if view is not None and view != self.view:
-                self._set_view(view, remember=False)
-                return view
+        self._show(View(screen=Screen.REVIEW))
+
+    def go_back(self, to: str = "") -> View:
+        """Show the previous view again ("뒤로"), or the latest one of item `to` ("아까 라떼 화면").
+        A drink added since comes back as its order line. Changes nothing in the order."""
+        self._require(Phase.ORDERING)
+        history = list(self._history)
+        while history:
+            view = self._revive(history.pop())
+            if view is None or view == self.view:
+                continue
+            if to and to not in (view.item_id, view.screen.value):
+                continue
+            self._history = history
+            self._focus = self._question_for(view)
+            self._set_view(view, remember=False)
+            return view
+        if to:
+            raise KioskError(f"{to} was not shown before")
         raise KioskError("there is no previous screen")
 
-    def edit_line(self, number: int, group_id: str = "") -> CartLine:
-        """Show an order line's options again: one group's choices, or all of them at a
-        glance (no `group_id`). Change them with `change_line`."""
-        self._require(Phase.ORDERING)
-        line = self.order.line(number)
-        if group_id and line.item.group(group_id) is None:
-            groups = ", ".join(g.id for g in line.item.option_groups) or "none"
-            raise KioskError(f"{line.item.id} has no {group_id} option (it has: {groups})")
-        self._show_line(line, group_id)
-        return line
+    # --- choosing drinks ---------------------------------------------------------------------
 
-    # --- choosing items ----------------------------------------------------------------------
-
-    @property
-    def pending(self) -> PendingItem | None:
-        """The item being chosen that the screen shows (the one touched last)."""
-        return self.pending_items[-1] if self.pending_items else None
-
-    def choose_item(
-        self, item_id: str, quantity: int | None = 1, selection: Selection | None = None
+    def order_item(
+        self, item_id: str, quantity: int | None = None, selection: Selection | None = None
     ) -> ItemResult:
-        """Start choosing an item; it waits (next to others still waiting) until its options
-        are known. The same item already waiting with options that fit is updated; given fewer
-        cups than it has and some options, those cups are split off as their own item
-        ("세 잔 중 하나는 차갑게"). Otherwise it is another cup of its own."""
+        """A new drink. If the same item is already being chosen with options that fit, it is
+        updated instead; with fewer cups than it has and some options, those cups are split off
+        as a drink of their own ("세 잔 중 하나는 차갑게")."""
         self._require(Phase.ORDERING)
         item = self.menu.item(item_id)
         if quantity is not None:
             check_quantity(quantity)
         chosen = self.menu.resolve(item, selection or {})
-        same = [p for p in self.pending_items if p.item.id == item.id]
-        target = _fitting(same, chosen)
+        target = _fitting([d for d in self.drafts if d.item.id == item.id], chosen)
         if target is not None and chosen and quantity is not None and quantity < target.quantity:
             target.quantity -= quantity
-            pending = PendingItem(item=item, quantity=quantity, chosen={**target.chosen, **chosen})
+            draft = self._new_draft(item, quantity, {**target.chosen, **chosen})
+            draft.ask_extras = target.ask_extras
         elif target is not None:
-            pending = target
-            pending.chosen.update(chosen)
+            draft = target
+            draft.chosen.update(chosen)
             if quantity is not None:
-                pending.quantity = quantity
-            self.pending_items.remove(pending)
+                draft.quantity = quantity
+            self._touch_draft(draft)
         else:
-            pending = PendingItem(item=item, quantity=quantity or 1, chosen=chosen)
-        self.pending_items.append(pending)
-        return self._try_add(pending)
+            draft = self._new_draft(item, quantity or 1, chosen)
+        return self._after_draft(draft)
 
     def set_options(
         self,
         selection: Selection | None = None,
         quantity: int | None = None,
         item_id: str | None = None,
+        draft_id: int | None = None,
     ) -> ItemResult:
-        """Add options (or change the quantity) of an item being chosen (the last one, unless
-        `item_id` says which)."""
+        """Options (required or extras) or the number of cups of a drink being chosen.
+        Quantity 0 cancels it."""
         self._require(Phase.ORDERING)
-        pending = self.pending_item(item_id, selection)
-        chosen = self.menu.resolve(pending.item, selection or {})
+        draft = self.find_draft(item_id, selection, draft_id)
+        chosen = self.menu.resolve(draft.item, selection or {})
+        if quantity == 0:
+            self.drafts.remove(draft)
+            self._focus = None
+            self._changed()
+            self._sync()
+            return ItemResult()
         if quantity is not None:
             check_quantity(quantity)
-            pending.quantity = quantity
-        pending.chosen.update(chosen)
-        # The item answered last is the one on screen.
-        self.pending_items.remove(pending)
-        self.pending_items.append(pending)
-        return self._try_add(pending)
+            draft.quantity = quantity
+        draft.chosen.update(chosen)
+        self._touch_draft(draft)
+        return self._after_draft(draft)
 
-    def cancel_item(self, item_id: str | None = None) -> None:
-        """Drop an item being chosen (the last one, unless `item_id` says which)."""
+    def no_more_extras(self, item_id: str | None = None, draft_id: int | None = None) -> ItemResult:
+        """ "추가하실 거 있으세요?" - "없어요": the drink goes into the order."""
         self._require(Phase.ORDERING)
-        self.pending_items.remove(self.pending_item(item_id))
-        self._show_after_choosing()
+        candidates = [
+            d
+            for d in self.drafts
+            if (not item_id or d.item.id == item_id) and (not draft_id or d.id == draft_id)
+        ]
+        ready = [d for d in candidates if d.asking == EXTRAS]
+        draft = ready[-1] if ready else self.find_draft(item_id, None, draft_id)
+        if draft.missing:
+            names = ", ".join(g.id for g in draft.missing)
+            raise KioskError(f"{draft.item.id}: {names} not chosen yet; ask for that first")
+        draft.extras_done = True
+        return self._after_draft(draft)
 
-    def finish_item(self, item_id: str | None = None) -> ItemResult:
-        """The customer wants no (more) extras: add the item (the last one, unless `item_id`)."""
-        self._require(Phase.ORDERING)
-        candidates = [p for p in self.pending_items if not item_id or p.item.id == item_id]
-        ready = [p for p in candidates if p.asking == EXTRAS]
-        pending = ready[-1] if ready else self.pending_item(item_id)
-        if pending.missing:
-            names = ", ".join(g.id for g in pending.missing)
-            raise KioskError(f"{pending.item.id}: ask for {names} first")
-        pending.extras_done = True
-        return self._try_add(pending)
-
-    def pending_item(
-        self, item_id: str | None = None, selection: Selection | None = None
-    ) -> PendingItem:
-        """The waiting item an answer is for: the one touched last, or of `item_id`. When the
-        same item waits more than once (split cups), the options in `selection` say which:
-        one they fit, preferably one still missing them."""
-        if not self.pending_items:
-            raise KioskError("no item is being chosen; use choose_item")
+    def find_draft(
+        self,
+        item_id: str | None = None,
+        selection: Selection | None = None,
+        draft_id: int | None = None,
+    ) -> Draft:
+        """The drink being chosen that an answer is for: by number, or by item (when the same
+        item is there more than once, the one the options fit), else the one asked about."""
+        if not self.drafts:
+            raise KioskError("no drink is being chosen; use order")
+        if draft_id:
+            draft = self.draft(draft_id)
+            if draft is None:
+                raise KioskError(f"there is no drink {draft_id} being chosen")
+            return draft
         if not item_id:
-            return self.pending_items[-1]
-        same = [p for p in self.pending_items if p.item.id == item_id]
+            return self.asking_draft or self.drafts[-1]
+        same = [d for d in self.drafts if d.item.id == item_id]
         if not same:
-            waiting = ", ".join(p.item.id for p in self.pending_items)
-            raise KioskError(f"{item_id} is not being chosen (waiting: {waiting})")
+            waiting = ", ".join(d.item.id for d in self.drafts)
+            raise KioskError(f"{item_id} is not being chosen (being chosen: {waiting})")
         if len(same) > 1 and selection:
             chosen = self.menu.resolve(same[0].item, selection)
             return _fitting(same, chosen) or same[-1]
-        return same[-1]
+        return next((d for d in reversed(same) if d.asking), same[-1])
 
     # --- changing the order ------------------------------------------------------------------
 
     def change_line(
         self, number: int, quantity: int | None = None, selection: Selection | None = None
     ) -> CartLine | None:
-        """Change a line's options and/or quantity. Quantity 0 removes it (returns None)."""
+        """Change a line's options and/or quantity. Quantity 0 removes it (returns None). The
+        option that changed is shown again, with the new choice marked."""
         self._require(Phase.ORDERING)
         line = self.order.line(number)
         if quantity == 0:
             self.order.remove(number)
+            self._focus = None
+            self._changed()
             if self.view.line:
                 self._set_view(self._menu_view or View(screen=Screen.WELCOME), remember=False)
-            self._touch()
+            self._sync()
             return None
         resolved = self.menu.resolve(line.item, selection or {})
         before = line.chosen()
@@ -344,19 +424,22 @@ class Kiosk:
             line = self.order.set_choices(number, line.item.complete(before | resolved))
         if quantity is not None:
             self.order.set_quantity(self.order.number_of(line), quantity)
-        if resolved:
-            # The changed option is on screen again, with the new choice marked.
-            self._show_line(line, changed[0] if len(changed) == 1 else "")
-        elif self.view.line:
-            self._show_line(line, self.view.group)  # its number may have changed
-        self._touch()
+        self._focus = None
+        self._changed()
+        group = changed[0] if len(changed) == 1 else ""
+        if resolved or self.view.line:
+            self._show_line(line, group if resolved else self.view.group)
+        self._sync()
         return line
 
     def set_dining(self, dining: Dining) -> None:
         self._require(Phase.ORDERING)
         self.order.set_dining(dining)
-        if self.view.screen is Screen.DINING:
-            self._set_view(View(screen=Screen.WELCOME), remember=False)
+        if self._focus is not None and self._focus.kind is Ask.DINING:
+            self._focus = None
+        if self._stage is not None:  # paying was waiting for it: go on from the start
+            self._stage = None
+        self._sync()
         self._touch()
 
     def add_note(self, text: str) -> None:
@@ -366,56 +449,55 @@ class Kiosk:
         self._touch()
 
     def cancel_order(self) -> None:
-        """Throw the whole order away (the assistant checks the customer's confirmation)."""
+        """Throw the whole order away (the session checks the customer's confirmation)."""
         self._require(Phase.ORDERING)
-        self.order.clear()
-        self.pending_items = []
-        self.reviewed_version = None
-        self.staff_asked = False
-        self._menu_view = None
-        self._history = []
-        self._set_view(View(screen=Screen.DINING), remember=False)
-
-    def show_order(self) -> None:
-        """Show the order (display only; a review before payment is `review`)."""
-        self._require(Phase.ORDERING)
-        self._set_view(View(screen=Screen.REVIEW))
+        self._reset(Phase.ORDERING)
+        self._sync()
 
     # --- review and payment ------------------------------------------------------------------
 
-    def ask_staff_question(self) -> bool:
-        """Before the first review: True once, when the assistant should ask whether there is
-        anything for the staff (the screen shows the order meanwhile)."""
+    def request_payment(self) -> Ask:
+        """The customer asked to pay (checked by the session). Returns what comes next: the
+        staff question (once), else the read-back (`read_back`). Raises if something is
+        missing; the question then asks for it (a drink's option, or here or to go)."""
         self._require(Phase.ORDERING)
-        self._check_ready_to_pay()
-        if self.staff_asked:
-            return False
-        self.staff_asked = True
-        self._set_view(View(screen=Screen.REVIEW))
-        return True
-
-    def review(self) -> str:
-        """Show the order for review and return the read-back the assistant must say."""
-        self._require(Phase.ORDERING)
-        self._check_ready_to_pay()
-        read_back = self.order.read_back(self.menu)
-        self.reviewed_version = self.order.version
-        self._set_view(View(screen=Screen.REVIEW))
-        return read_back
+        self._focus = None
+        if self.order.is_empty and not self.drafts:
+            raise KioskError("the order is empty")
+        if self.drafts:
+            self._sync()
+            waiting = ", ".join(d.item.id for d in self.drafts)
+            raise KioskError(f"still being chosen: {waiting}; finish them first")
+        if self.order.dining is None:
+            self._focus = Question(Ask.DINING)
+            self._sync()
+            raise KioskError("ask whether the customer eats here or takes out first")
+        if not self.staff_asked:
+            self.staff_asked = True
+            self._stage = Ask.STAFF
+        else:
+            self._stage = Ask.REVIEW
+            self.read_back = self.order.read_back(self.menu)
+            self.reviewed_version = self.order.version
+        self._sync()
+        self._touch()
+        return self._stage
 
     @property
     def review_is_current(self) -> bool:
-        """True if the order was reviewed and has not changed since."""
+        """True if the order was read back and has not changed since."""
         return self.reviewed_version == self.order.version
 
     def start_payment(self) -> None:
         self._require(Phase.ORDERING)
-        self._check_ready_to_pay()
+        if self.drafts or self.order.is_empty or self.order.dining is None:
+            raise KioskError("the order is not ready for payment")
         if not self.review_is_current:
-            raise KioskError("review the order (review_order) before payment")
+            raise KioskError("read the order back (request_payment) before payment")
+        self._stage = None
         self.phase = Phase.PAYING
         self.payment_step = PaymentStep.INSERT_CARD
-        self._set_view(View(screen=Screen.PAYMENT))
+        self._set_view(View(screen=Screen.PAYMENT), remember=False)
 
     def advance_payment(self) -> None:
         """The simulated terminal moves on: card inserted -> processing -> approved (done)."""
@@ -427,7 +509,7 @@ class Kiosk:
             self.payment_step = PaymentStep.APPROVED
             self.order_number = self._numbers.next()
             self.phase = Phase.DONE
-            self._set_view(View(screen=Screen.DONE))
+            self._set_view(View(screen=Screen.DONE), remember=False)
 
     def cancel_payment(self) -> None:
         """Back to ordering while the terminal still waits for the card."""
@@ -436,103 +518,136 @@ class Kiosk:
             raise KioskError("the payment is already being processed")
         self.phase = Phase.ORDERING
         self.payment_step = None
-        self._set_view(View(screen=Screen.REVIEW))
+        self._stage = None
+        self._set_view(View(screen=Screen.REVIEW), remember=False)
 
     # --- helpers -----------------------------------------------------------------------------
 
-    def _try_add(self, pending: PendingItem) -> ItemResult:
-        if pending.asking:
-            self._show_pending(pending)
-            return ItemResult(line=None, missing=pending.missing, pending=pending)
-        line = self.order.add(pending.item, pending.item.complete(pending.chosen), pending.quantity)
-        self.pending_items.remove(pending)
-        self._show_after_choosing()
-        return ItemResult(line=line)
+    def _new_draft(self, item: MenuItem, quantity: int, chosen: Chosen) -> Draft:
+        first = self.order.is_empty and not self.drafts and not self._added
+        draft = Draft(self._next_draft, item, quantity, dict(chosen), ask_extras=first)
+        self._next_draft += 1
+        self.drafts.append(draft)
+        return draft
 
-    def _show_pending(self, pending: PendingItem) -> None:
-        self._set_view(View(screen=Screen.ITEM, item_id=pending.item.id, group=pending.asking))
+    def _touch_draft(self, draft: Draft) -> None:
+        self.drafts.remove(draft)
+        self.drafts.append(draft)
+
+    def _after_draft(self, draft: Draft) -> ItemResult:
+        """A drink changed: into the order if nothing is left to ask; then the next question."""
+        self._focus = None
+        self._changed()
+        line = None
+        if not draft.asking and draft in self.drafts:
+            line = self.order.add(draft.item, draft.item.complete(draft.chosen), draft.quantity)
+            self.drafts.remove(draft)
+            self._added[draft.id] = line
+        self._sync()
+        return ItemResult(line=line, draft=None if line else draft)
+
+    def _changed(self) -> None:
+        """The order or a drink changed: paying must be asked for again."""
+        self._stage = None
+
+    def _question_for(self, view: View) -> Question | None:
+        """The question a view (gone back to) asks."""
+        if view.screen is not Screen.ITEM:
+            return None
+        if view.draft and self.draft(view.draft) is not None:
+            kind = Ask.EXTRAS if view.group == EXTRAS else Ask.OPTION
+            if kind is Ask.OPTION and not view.group:
+                return None
+            return Question(
+                kind, view.draft, view.item_id, "" if kind is Ask.EXTRAS else view.group
+            )
+        if view.line:
+            return Question(Ask.LINE, item_id=view.item_id, group=view.group, line=view.line)
+        return None
+
+    def _sync(self) -> None:
+        """Show what the current question needs (the assistant's own views stay otherwise)."""
+        q = self.question
+        self._asked = q.draft if q.kind in (Ask.OPTION, Ask.EXTRAS) else 0
+        if q.kind in (Ask.OPTION, Ask.EXTRAS):
+            group = EXTRAS if q.kind is Ask.EXTRAS else q.group
+            self._set_view(View(screen=Screen.ITEM, item_id=q.item_id, group=group, draft=q.draft))
+        elif q.kind is Ask.DINING:
+            self._set_view(View(screen=Screen.DINING))
+        elif q.kind in (Ask.STAFF, Ask.REVIEW):
+            self._set_view(View(screen=Screen.REVIEW))
+        elif q.kind is Ask.MENU and self.view.screen in (Screen.DINING, Screen.ITEM, Screen.REVIEW):
+            if self.view.screen is Screen.ITEM and (self.view.line or not self.view.draft):
+                return  # an order line or an item's facts the assistant showed
+            self._set_view(self._menu_view or View(screen=Screen.WELCOME))
+        elif q.kind is Ask.MENU and self.view.screen is Screen.ATTRACT:
+            self._set_view(View(screen=Screen.WELCOME))
+
+    def _show(self, view: View) -> None:
+        """A view the assistant chose."""
+        self._focus = None
+        self._set_view(view)
 
     def _show_line(self, line: CartLine, group_id: str = "") -> None:
         number = self.order.number_of(line)
         self._set_view(View(screen=Screen.ITEM, item_id=line.item.id, group=group_id, line=number))
 
-    def _show_after_choosing(self) -> None:
-        """The next item still waiting for options, or back to the menu."""
-        if self.pending_items:
-            self._show_pending(self.pending_items[-1])
-        else:
-            self._set_view(self._menu_view or View(screen=Screen.WELCOME))
-
     def _revive(self, view: View) -> View | None:
-        """A remembered view as it can be shown now. An item chosen since then is shown as its
-        order line (its options at a glance, or the same option group)."""
-        if view.screen is not Screen.ITEM:
+        """A remembered view as it can be shown now: a drink added since is shown as its order
+        line (its options at a glance, or the same option group)."""
+        if view.screen is not Screen.ITEM or not view.draft:
+            if view.line and view.line > len(self.order.lines):
+                return None
             return view
-        for pending in self.pending_items:
-            if pending.item.id == view.item_id:
-                return View(screen=Screen.ITEM, item_id=pending.item.id, group=pending.asking)
-        numbers = [n for n, ln in enumerate(self.order.lines, 1) if ln.item.id == view.item_id]
-        if view.line in numbers:
-            numbers = [view.line]
-        if numbers:
+        if self.draft(view.draft) is not None:
+            return view
+        line = self._added.get(view.draft)
+        if line is not None and line in self.order.lines:
             group = "" if view.group == EXTRAS else view.group
-            return View(screen=Screen.ITEM, item_id=view.item_id, group=group, line=numbers[-1])
-        return View(screen=Screen.ITEM, item_id=view.item_id)
-
-    def _check_ready_to_pay(self) -> None:
-        if self.order.is_empty:
-            raise KioskError("the order is empty")
-        if self.pending_items:
-            waiting = ", ".join(p.item.id for p in self.pending_items)
-            raise KioskError(
-                f"still being chosen: {waiting}; finish them (finish_item) or cancel_item first"
-            )
-        if self.order.dining is None:
-            self._set_view(View(screen=Screen.DINING))  # the screen asks along
-            raise KioskError("ask whether the customer eats here or takes out first")
+            return replace(view, group=group, line=self.order.number_of(line), draft=0)
+        return None
 
     def _require(self, *phases: Phase) -> None:
         if self.phase not in phases:
             raise KioskError(f"not possible while the kiosk is {self.phase.value}")
 
     def _set_view(self, view: View, remember: bool = True) -> None:
-        """Show `view`; the one shown before is remembered for go_back when the customer
-        moves to something else (not between the option steps of the same item)."""
+        """Show `view`; the one shown before is remembered for go_back."""
         old = self.view
-        if remember and old.screen in _REMEMBERED and not _same_place(old, view):
+        if remember and old.screen in _REMEMBERED and old != view:
             self._history = [*self._history, old][-HISTORY:]
-        self.view = view
+        if view != old:
+            self.view = view
         self._touch()
 
     def _touch(self) -> None:
         self.revision += 1
 
-    def _reset(self, phase: Phase, view: View) -> None:
+    def _reset(self, phase: Phase) -> None:
         self.phase = phase
         self.order = Order()
-        self.pending_items = []
+        self.drafts = []
         self.payment_step = None
         self.order_number = None
         self.reviewed_version = None
         self.staff_asked = False
+        self.read_back = ""
+        self._stage = None
+        self._focus = None
+        self._asked = 0
+        self._added = {}
         self._menu_view = None
         self._history = []
-        self._set_view(view, remember=False)
+        self._touch()
 
 
-def _fitting(entries: list[PendingItem], chosen: Chosen) -> PendingItem | None:
-    """The waiting entry whose options do not contradict `chosen`, preferably one still
-    missing some of them; the one touched last wins a tie (None if none fits)."""
+def _fitting(entries: list[Draft], chosen: Chosen) -> Draft | None:
+    """The drink whose options do not contradict `chosen`, preferably one still missing some
+    of them; the one touched last wins a tie (None if none fits)."""
     fits = [
-        p
-        for p in entries
-        if all(not p.chosen.get(g) or tuple(p.chosen[g]) == tuple(c) for g, c in chosen.items())
+        d
+        for d in entries
+        if all(not d.chosen.get(g) or tuple(d.chosen[g]) == tuple(c) for g, c in chosen.items())
     ]
-    filling = [p for p in fits if any(not p.chosen.get(g) for g in chosen)]
+    filling = [d for d in fits if any(not d.chosen.get(g) for g in chosen)]
     return (filling or fits or [None])[-1]
-
-
-def _same_place(a: View, b: View) -> bool:
-    """The same thing on screen, perhaps another of its option steps."""
-    where = (a.screen, a.item_id, a.line, a.topic, a.title, a.item_ids)
-    return where == (b.screen, b.item_id, b.line, b.topic, b.title, b.item_ids)

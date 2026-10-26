@@ -5,7 +5,11 @@ because prompt rules alone are not enough (see docs/live-check.md):
   필요하신 거 있으세요?"), with the items unchanged since; the read-back must be said before the
   card terminal starts (`said_amount`).
 - Throw the whole order away only right after the customer said yes to a cancel question.
-- A required option (temperature, size) may only be set if the customer said it.
+
+- A required option (temperature, size) the customer did not mention at all, while the screen
+  was not asking for it, is a guess: it is left out and the kiosk asks (`guessed_groups`).
+  Answers to the question on screen are always taken, whatever the words, so misheard answers
+  ("라디오" for 라지요) are not refused and nothing is asked twice.
 
 The customer's words are the input transcription (or typed text), which arrives before the
 function call. All of this is pure and tested without a network.
@@ -14,18 +18,17 @@ function call. All of this is pure and tested without a network.
 from __future__ import annotations
 
 import re
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from difflib import SequenceMatcher
 from typing import Literal
 
-from kiosk.domain.menu import MenuItem, OptionChoice, OptionGroup
+from kiosk.domain.menu import MenuItem, OptionGroup
 
 Speaker = Literal["customer", "assistant"]
 
 
 def normalize(text: str) -> str:
-    """Lowercase without spaces and punctuation, so "라지 로" matches "라지"."""
+    """Lowercase without spaces and punctuation, so "결제 할게요" matches "결제할게요"."""
     return re.sub(r"[^0-9a-z가-힣]", "", text.lower())
 
 
@@ -178,101 +181,26 @@ def confirmed_cancel(transcript: Transcript) -> bool:
     return before is not None and bool(_CANCEL_QUESTION.search(normalize(before.text)))
 
 
-# --- required options must be heard ------------------------------------------------------------
+# --- guessed options ---------------------------------------------------------------------------
 
 
-MENTION_LOOKBACK = 6  # customer utterances searched for the item's name
-
-
-def item_words(item: MenuItem) -> list[str]:
-    """How a customer may name an item: its full name, and longer words of it ("에이드")."""
-    words = [normalize(item.name)]
-    words += [normalize(w) for w in item.name.split() if len(normalize(w)) >= 3]
-    return list(dict.fromkeys(w for w in words if w))
-
-
-def mention_start(transcript: Transcript, item: MenuItem) -> int:
-    """Where the customer's words about `item` start: the latest recent utterance that names it
-    ("아메리카노는 아이스요"), else their latest utterance. Required options must be heard from
-    there on, so an earlier item's "라지" does not count for the next item."""
-    words = item_words(item)
-    customer = [i for i, u in enumerate(transcript.entries) if u.speaker == "customer"]
-    for index in reversed(customer[-MENTION_LOOKBACK:]):
-        text = normalize(transcript.entries[index].text)
-        if any(w in text for w in words):
-            return index
-    return transcript.mark
-
-
-# Words of three or more syllables also count when the transcription spelled them a little
-# differently ("레규러", "레글러" for 레귤러): compared letter by letter (jamo).
-FUZZY_MIN_SYLLABLES = 3
-FUZZY_RATIO = 0.8
-
-
-def heard(choice: OptionChoice, texts: Iterable[str]) -> bool:
-    words = [normalize(w) for w in choice.words]
-    normalized = [normalize(t) for t in texts]
-    if any(w and w in t for t in normalized for w in words):
-        return True
-    long_words = [w for w in words if len(w) >= FUZZY_MIN_SYLLABLES and _is_hangul(w)]
-    return any(_fuzzy_in(w, t) for t in normalized for w in long_words)
-
-
-def _fuzzy_in(word: str, text: str) -> bool:
-    """Some stretch of `text` (about as long as `word`) is spelled nearly like `word`."""
-    target = _jamo(word)
-    for size in (len(word) - 1, len(word), len(word) + 1):
-        for start in range(0, len(text) - size + 1):
-            if SequenceMatcher(None, target, _jamo(text[start : start + size])).ratio() >= (
-                FUZZY_RATIO
-            ):
-                return True
-    return False
-
-
-def _is_hangul(text: str) -> bool:
-    return all("가" <= ch <= "힣" for ch in text)
-
-
-def _jamo(text: str) -> str:
-    """Hangul syllables split into their letters (initial, vowel, final)."""
-    out = []
-    for ch in text:
-        code = ord(ch) - 0xAC00
-        if 0 <= code < 11172:
-            out += [chr(0x1100 + code // 588), chr(0x1161 + code % 588 // 28)]
-            if code % 28:
-                out.append(chr(0x11A7 + code % 28))
-        else:
-            out.append(ch)
-    return "".join(out)
-
-
-def unheard_required(
+def guessed_groups(
     item: MenuItem,
     selection: Mapping[str, str | Sequence[str]],
-    texts: Sequence[str],
-    already: Mapping[str, Sequence[str]] | None = None,
+    words: str,
+    asked: str = "",
 ) -> list[OptionGroup]:
-    """Required groups in `selection` whose new value the customer did not say in `texts`.
-
-    Values equal to what is `already` chosen are not new (models often repeat them). Groups the
-    item does not have and unknown choices are left to the domain's own validation.
-    """
-    already = already or {}
-    unheard: list[OptionGroup] = []
-    for group_id, value in selection.items():
+    """Required groups in `selection` that look guessed: not the group the screen asks (`asked`)
+    and not mentioned at all in the customer's `words` (none of the group's `words`)."""
+    text = normalize(words)
+    guessed = []
+    for group_id in selection:
         group = item.group(group_id)
-        if group is None or not group.required:
+        if group is None or not group.required or group_id == asked or not group.words:
             continue
-        ids = (value,) if isinstance(value, str) else tuple(value)
-        if tuple(already.get(group_id, ())) == ids:
-            continue
-        choices = [c for c in group.choices if c.id in ids]
-        if any(not heard(c, texts) for c in choices):
-            unheard.append(group)
-    return unheard
+        if not any(normalize(w) in text for w in group.words):
+            guessed.append(group)
+    return guessed
 
 
 # --- the read-back -----------------------------------------------------------------------------

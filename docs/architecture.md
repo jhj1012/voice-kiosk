@@ -40,8 +40,8 @@ the session's audio to the speaker.
    instructions (rules + menu + cafe info + current order) and the assistant greets the customer.
 2. **Ordering**: audio streams both ways. Transcripts become subtitles. Function calls change the
    order and choose what the display shows.
-3. **Payment**: the customer asks to pay → `request_payment` (checked in code) shows the review and
-   returns a read-back written by code → the assistant says it (only that, while the review is
+3. **Payment**: the customer asks to pay → `pay` (checked in code) asks the staff question once,
+   then shows the review and returns a read-back written by code → the assistant says it (only that, while the review is
    on screen) → **code** starts the simulated card terminal once the total was heard → with the
    card screen up, the kiosk cue `[카드 단말기 ...]` makes the assistant say "카드를 단말기에 꽂아
    주세요"; the card counts as inserted after that → done screen with the order number; the
@@ -99,38 +99,41 @@ built display (`frontend/dist`) at `/`, and the menu images at `/images`.
 
 ## Flow state (`kiosk.domain.flow`)
 
-`Kiosk` holds one customer's state: `phase`, `order`, the `pending` item (the one whose options
-are being asked), `view` (what the display shows) and the payment step. Every method either
-changes the state (and increases `revision`) or raises `KioskError` with a message for the model.
+`Kiosk` holds one customer's state: `phase`, `order`, the **drafts** (drinks still being chosen),
+the **current question**, `view` (what the display shows), the views seen so far, and the
+payment step. Every method either changes the state (and increases `revision`) or raises
+`KioskError` with a message for the model. The rules behind it are in
+[conversation-rules.md](conversation-rules.md), the design in
+[conversation-design.md](conversation-design.md).
 
+- **The current question** (`Kiosk.question`) is decided from the state, in this order: a view
+  gone back to; the staff question or the read-back while paying is prepared; the drink being
+  asked (its next missing required option, one at a time; the order's **first** drink also its
+  extras); here or to go (at the start); otherwise "what else" ("메뉴판에서 메뉴를 고르신 뒤
+  말씀해 주세요" / "더 필요하신 거 있으세요?"). After every change the screen is set to what the
+  question needs (`_sync`), so the screen and the assistant's question always match. Views the
+  assistant chose (a menu, an info card) stay until the next question needs the screen.
+- **Answers can be about any drink**, not only the one asked: one sentence may change several
+  ("아메리카노 아이스로, 카페라떼는 따뜻한 걸로"). The asked drink stays asked until it needs
+  nothing more; then the next one, in the order they were ordered. A drink goes into the order
+  as soon as it needs nothing more.
+- **The same item more than once**: ordering it again with fewer cups and some options splits
+  those cups off ("세 잔 중 하나는 차갑게"); an answer goes to the draft its options fit (or the one
+  named by its number). Ordering it again with options that fit updates it.
+- **Going back**: every view is remembered (each option question too). `go_back` shows the
+  previous one, `go_back(to)` the latest one of an item or a kind of screen. It is shown from the
+  current state: an option already chosen stays marked, a drink added since comes back as its
+  order line (then `change` changes it). Going back changes nothing in the order.
 - `phase`: `idle → ordering → paying (insert_card → processing) → done → idle`. Hanging up ends
-  the session from any phase. The order is locked while paying; `cancel_payment` is possible
+  the session from any phase. The order is locked while paying; the payment can be stopped
   until the card is "inserted".
-- The **review** is a screen, not a phase: `review()` stores the order's `version`, and
-  `start_payment()` is refused if the order changed since (`review_is_current`).
-- A session starts with the **take-out question** on screen (`Screen.DINING`); `set_dining`
-  clears it. If dining is still unknown at payment, the question comes back.
-- An item is chosen **one question at a time**: each missing required option in the item's own
-  order, then its **extras** (shots, syrups, tumbler, ...) all at once, then `finish_item` adds it
-  (`PendingItem.asking` says which; the view's `group` shows it). Items without extras are added as
-  soon as the required options are known. Several items can wait side by side ("청포도 에이드
-  하나랑 아메리카노 하나"); `item_id` says which one an answer is for, and the screen shows the one
-  touched last. The same item can wait more than once with different options ("세 잔 중 하나는
-  차갑게"): choosing it again with fewer cups and some options splits those cups off; an answer
-  goes to the part its options fit. Optional groups keep their default ("기본", "없음"). A temperature or size the
-  item has no option for is accepted only if it matches how the item is served (ICE for an
-  iced-only item, Regular for one size).
-- **Going back**: the views the customer saw (menus, kinds of menu, items, info, the order) are
-  remembered; `go_back` shows the previous one. The option steps of one item count as one view,
-  and an item that was added since comes back as its order line. `edit_line(line, group?)` shows
-  an order line's options again (one group's choices, or all at a glance), and `change_line`
-  shows the option it changed, with the new choice marked.
-- **Notes for the staff** (`add_note`) are kept with the order; `ask_staff_question` makes the
-  assistant ask once, before the first review, whether there is anything for the staff.
+- **Paying** (`request_payment`): needs items, no drafts and here or to go (otherwise the
+  question asks for what is missing); the first time the staff question, then the read-back
+  (`read_back`, the order's `version` is stored); `start_payment()` is refused if the order
+  changed since.
+- Notes for the staff (`add_note`) are kept with the order.
 - `show_menu(exclude_allergens=...)` removes items whose own allergens include one of them (in
-  code, from the data). An option that adds an allergen (whipped cream: milk) does not hide the
-  item; the assistant must not suggest that option.
-- After payment only `show_info` is allowed ("어디서 받아요?").
+  code, from the data). After payment only `show_info` is allowed ("어디서 받아요?").
 
 ## The assistant session (`kiosk.assistant.session`)
 
@@ -145,6 +148,8 @@ interface with our own event types, implemented with google-genai and faked in t
   function ran; the spoken reply after a function call comes 1–2 s later), `speaking` (until the
   received audio has been played), `idle`;
 - runs each function call through the safety checks (`safety.py`) and then on the kiosk;
+  `stay_quiet` (hesitation, or with the developer switch also speech not meant for the kiosk) is
+  answered silently and the rest of that turn is muted;
 - starts the card terminal after the read-back, steps it (insert card → processing → approved)
   and tells the assistant the order number; ends the session after `flow.done_return_s`;
 - reconnects: on `GoAway` or a dropped connection it resumes with the latest handle; if that
@@ -155,43 +160,40 @@ Text in [brackets] sent to the model is a kiosk cue, never the customer's words.
 
 ### Safety checks in code (`kiosk.assistant.safety`)
 
+Only what is hard to undo is blocked; everything else is taken as the model understood it and
+shown at once, and the read-back lets the customer correct it.
+
 | Rule | How |
 |---|---|
-| Pay only after the customer asked | `request_payment` is blocked unless one of the customer's utterances since the items last changed (always including the latest) asks to pay: pay phrases ("결제할게요", "계산", "이게 다예요", ...), "아니요/없어요" right after the assistant asked whether they want anything else, or a yes to a payment question. Dining changes do not count as item changes. |
-| Read back before paying | `request_payment` returns a read-back written by code. The terminal starts only after the assistant's next spoken turn contains the total (digits or Korean words, e.g. "만 삼천오백 원"); otherwise the assistant is reminded (twice, then it starts anyway since the total is on screen). If the customer talks over the read-back, their words decide: a yes ("네", "결제해 주세요") starts the terminal, a stop ("잠깐만요", "아니요", "취소") cancels it and tells the assistant, anything else waits for the assistant's next answer. An item change cancels it too. |
-| Discard only after a yes | `cancel_order` is blocked unless the latest customer words are a yes and the assistant's previous words asked about cancelling. |
-| Required options must be heard | For `choose_item`, `set_options` and `change_line`, a new temperature or size is set only if the customer said it (the choice's name, `say` text or `aliases` in `menu.yaml`) since they last named the item ("아메리카노는 아이스요"), or in their latest words if they never named it. Otherwise it is left out and the result says `not_heard`; a call with nothing else left is blocked. |
+| Pay only after the customer asked | `pay` is blocked unless one of the customer's utterances since the items last changed (always including the latest) asks to pay: pay phrases ("결제할게요", "계산", "이게 다예요", ...), "아니요/없어요" right after the assistant asked whether they want anything else (not after the extras question), or a yes to a payment question. Ignored words (`stay_quiet`) do not count. |
+| Read back before paying | `pay` returns a read-back written by code. The terminal starts only after the assistant's next spoken turn contains the total (digits or Korean words, e.g. "만 삼천오백 원"); otherwise the assistant is reminded (twice, then it starts anyway since the total is on screen). If the customer talks over the read-back, their words decide: a yes ("네", "결제해 주세요") starts the terminal, a stop ("잠깐만요", "아니요", "취소") cancels it and tells the assistant, anything else waits for the assistant's next answer. An item change cancels it too. |
+| No guessed options | For `order` and `set_options`, a temperature or size the customer did not mention at all (none of the group's `words` in `menu.yaml`) is left out unless the screen asks for that option; the result says `not_said` and the kiosk asks. Answers to the question on screen are always taken. |
+| Discard only after a yes | `cancel_order` (while ordering) is blocked unless the latest customer words are a yes and the assistant's previous words asked about cancelling. |
 
 ## Function declarations
 
-Options are flat enum fields (`temperature`, `size`, `shot`, `syrup`, `whipped_cream`, `tumbler`);
-code checks which apply to each item. Every call returns a short JSON result; mistakes return
-`{"error": ...}` and refused calls `{"blocked": ...}`.
+Eleven functions, named by **what they change**, not by the question asked: one sentence may
+need several, in the same turn. Options are flat enum fields (`temperature`, `size`, `shot`,
+`syrup`, `whipped_cream`, `tumbler`); code checks which apply to each item. Every result has
+`ask`: the kiosk's current question, in the words to say (the screen shows it); mistakes return
+`{"error": ...}` (with `ask`) and refused calls `{"blocked": ...}`.
 
-The **assistant decides what the screen shows**: the display tools take any set of items and a
-heading, so the screen can follow the conversation (e.g. "우유가 들어가지 않은 메뉴" for a customer
-with a milk allergy).
+The **assistant decides what the screen shows** with `show`: any set of items and a heading, so
+the screen can follow the conversation (e.g. "우유가 들어가지 않은 메뉴" for a milk allergy).
 
-| Tool | Effect / rules in code |
+| Function | Effect / rules in code |
 |---|---|
-| `show_menu(title?, category?, item_ids?, highlight_ids?, exclude_allergens?)` | Shows a chosen set of items (or a category, or everything) under a heading, with highlighted recommendations. `exclude_allergens` is filtered by code from the data, and the result lists what was removed. Display only. |
-| `show_categories()` | Shows the kinds of menu, when the customer wants to see other menus. |
-| `show_item(item_id)` | Shows one item (picture, ingredients, allergens) without ordering; the assistant tells the description. |
-| `show_info(topic)` | Shows a cafe-info card (Wi-Fi, restroom, hours, ...; topics come from `cafe.yaml`). |
-| `show_order()` | Shows the whole order (display only). |
-| `choose_item(item_id, quantity?, options…)` | The item becomes the pending item. The result says what to ask next: **one** required option (`ask`), then the item's `extras`; the screen shows exactly that. Required options nobody said are left out. Items without extras are added once the required options are known. |
-| `set_options(item_id?, options…, quantity?)` | Fills in a waiting item, required options or extras (the last one unless `item_id` says which; same rules). Results list the other items still waiting. |
-| `finish_item(item_id?)` | The customer wants no (more) extras: adds the item. |
-| `cancel_item(item_id?)` | Drops a waiting item. |
-| `change_line(line, quantity?, options…)` | Changes an order line; quantity 0 removes it. The screen shows the changed option again. |
-| `edit_line(line, option?)` | Shows an order line's options again: one option's choices, or all at a glance. Display only. |
-| `go_back()` | Shows the previous screen ("이전 화면", "뒤로"). |
-| `note_for_staff(text)` | A request the kiosk cannot do itself ("아메리카노는 포장, 카페모카는 매장에서", "얼음 적게"): kept with the order and shown in the review and on the order number; the assistant says it will pass it on instead of refusing. |
-| `set_dining(dining: here \| to_go)` | Dine-in or take-out. |
-| `request_payment()` | **Blocked unless the customer asked to pay** (see above); also needs items, dining and no pending item. The first time it returns `ask_first`: "직원에게 따로 전달할 말씀 있으세요?" (the order is on screen meanwhile). Then it shows the review and returns the read-back; code starts the terminal after it was said. |
-| `cancel_payment()` | Back to ordering while the terminal waits for the card. |
-| `cancel_order()` | **Blocked unless** the customer just said yes to the cancel question. Hanging up clears the order without asking. |
-| `stay_quiet()` | Only when the developer panel's "ignore speech not meant for the kiosk" is on (read when a customer lifts the handset). Non-blocking and answered silently; the session mutes whatever the model says in that turn, and the customer's words count for nothing in the safety checks. |
+| `show(what, …)` | `menu` (item_ids, a category or everything, highlight_ids, exclude_allergens filtered by code, a title only for a filter), `categories`, `item` (its facts; the result has the description to say), `info` (a topic from `cafe.yaml`), `order`. Display only. |
+| `order(item_id, quantity?, options…)` | A new drink (or the same item split into parts, or updated). It goes into the order once it needs nothing more. |
+| `set_options(item_id?, draft?, quantity?, options…)` | Options or the number of a drink being chosen, whichever was asked; quantity 0 cancels it. |
+| `no_more_extras(item_id?)` | "추가하실 거 있으세요?" - "없어요": the first drink goes into the order. |
+| `set_dining(dining)` | Here (`here`) or to go (`to_go`). |
+| `change(line, quantity?, options…)` | Changes an order line; quantity 0 removes it. The screen shows the changed option. |
+| `go_back(to?)` | The previous screen, or the latest one of an item / kind of screen. Changes nothing. |
+| `note_for_staff(text)` | A request the kiosk cannot do itself: kept with the order, shown in the review and with the order number; the assistant says it will pass it on instead of refusing. |
+| `pay()` | **Blocked unless the customer asked to pay** (see above). Asks for what is missing, then the staff question once (`ask_first`), then returns the read-back; code starts the terminal after it was said. |
+| `cancel_order()` | While ordering: **blocked unless** the customer just said yes to the cancel question. While the card terminal waits: stops the payment. Hanging up clears the order without asking. |
+| `stay_quiet()` | Always offered: hesitation ("음…", "잠깐만요") gets no answer. With the developer panel's switch also talk to someone else (read when a customer lifts the handset). Non-blocking and answered silently; the session mutes the rest of the turn and the words count for nothing. |
 
 Questions ("디카페인 돼요?", "많이 달아요?", "화장실 어디예요?") are answered from the menu and cafe
 data in the instructions; if the data does not say, the assistant says so.
@@ -222,7 +224,10 @@ One WebSocket at `/ws`. Backend → display:
 {"type": "setup", "api_key": "ok|missing|rejected"}  // unless ok, the display shows the key form
 ```
 
-`state` is always a full snapshot (simple to render, safe to reconnect). Display → backend
+`state` also has `question` (`kind`: dining, menu, option, extras, line, staff, review or none;
+the `draft`, `item_id`, `group` and `line` it is about) and `view.draft` / `pending.draft`, the
+number of the drink being chosen. `state` is always a full snapshot (simple to render, safe
+to reconnect). Display → backend
 (developer mode only):
 
 ```jsonc

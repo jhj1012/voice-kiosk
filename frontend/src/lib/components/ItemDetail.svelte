@@ -14,7 +14,7 @@
   const item = $derived(itemById(ui.menu, view.item_id));
   const line = $derived(view.line ? ui.state.order.lines[view.line - 1] : undefined);
   const pending = $derived(
-    !line && ui.state.pending?.item_id === view.item_id ? ui.state.pending : null,
+    !line && view.draft && ui.state.pending?.draft === view.draft ? ui.state.pending : null,
   );
   const chosen = $derived<Record<string, string[]>>(line?.chosen ?? pending?.chosen ?? {});
   const groups = $derived(

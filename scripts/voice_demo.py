@@ -9,6 +9,11 @@ step. Each step prints PASS/FAIL and how long the reply took.
     uv run python scripts/voice_demo.py --listen         # hear the assistant on the speakers
     uv run python scripts/voice_demo.py --shots docs/screenshots
     uv run python scripts/voice_demo.py --ignore-unrelated   # + chatter that must get no answer
+    uv run python scripts/voice_demo.py --scenario all       # the team test cases, one by one
+    uv run python scripts/voice_demo.py --scenario split,size
+
+Scenarios: `order` (default, the whole order) and the team test cases of
+docs/conversation-rules.md (section 15); `--scenario list` lists them.
 
 Needs Windows (the voice and Edge), GEMINI_API_KEY and the built display
 (`npm --prefix frontend run build`). Not a test: it talks to Google and its answers vary.
@@ -67,6 +72,8 @@ class Step:
     until: Callable[[State], bool] | None = None  # also wait for this (then photographed)
     timeout_s: float = 30.0
     quiet: bool = False  # not meant for the kiosk: passes if nothing is said
+    answers: bool = True  # the customer answers the screen's follow-up questions
+    said: Callable[[str], bool] | None = None  # check on what the assistant said in the step
 
 
 QUIET_WAIT_S = 7.0  # chatter passes if the assistant says nothing for this long
@@ -185,7 +192,7 @@ ANSWERS = {"temperature": "따뜻하게요", "size": "레귤러요", "extras": "
 MAX_ANSWERS = 6
 # The customer talks after this much silence (a reply after a function call can come 1-2 s
 # after a first short sentence).
-QUIET_S = 2.5
+QUIET_S = 3.0
 
 
 def follow_up(state: State) -> str | None:
@@ -196,6 +203,304 @@ def follow_up(state: State) -> str | None:
     if view.get("screen") == "item" and state.get("pending") and not view.get("line"):
         return ANSWERS.get(view.get("group", ""))
     return None
+
+
+def lines_of(state: State, item_id: str) -> list[tuple[int, str]]:
+    return sorted(
+        (ln["quantity"], ",".join(c for cs in ln["chosen"].values() for c in cs))
+        for ln in state["order"]["lines"]
+        if ln["item_id"] == item_id
+    )
+
+
+def waiting(state: State, item_id: str) -> dict[str, Any] | None:
+    pending = state.get("pending") or {}
+    return pending if pending.get("item_id") == item_id else None
+
+
+def no_choices_read(text: str) -> bool:
+    """An option question without its choices or prices ("사이즈는 어떤 걸로 해 드릴까요?")."""
+    return not ("레귤러" in text and "라지" in text) and not any(
+        w in text for w in ("500", "오백", "추가됩니다", "추가돼요")
+    )
+
+
+# Team feedback: temperature is 따뜻하게 / 차갑게 only.
+FORBIDDEN_WORDS = ("아이스", "핫", "HOT", "ICE")
+
+TO_GO = Step(
+    "to-go",
+    "포장이요",
+    "take-out set; '메뉴판에서 메뉴를 고르신 뒤 말씀해 주세요'",
+    lambda s: s["order"]["dining"] == "to_go",
+    said=lambda t: "메뉴판" in t,
+)
+HOT_AMERICANO = Step(
+    "americano",
+    "따뜻한 아메리카노 레귤러 하나 주세요",
+    "hot regular americano in the order",
+    lambda s: has_item(s, "americano", "HOT", "Regular"),
+)
+
+# name -> (what it checks, steps, "ignore speech not meant for the kiosk" switched on)
+SCENARIOS: dict[str, tuple[str, list[Step], bool]] = {
+    "order": ("the whole order, start to finish", STEPS, False),
+    "wording": (
+        "team feedback: 따뜻하게/차갑게, questions without choices or prices, the menu board",
+        [
+            TO_GO,
+            Step(
+                "menu",
+                "메뉴 뭐 있어요?",
+                "a few recommendations, pointing to the menu board",
+                lambda s: s["view"]["screen"] == "menu" and len(s["view"]["item_ids"]) <= 5,
+                said=lambda t: "메뉴판" in t,
+            ),
+            Step(
+                "latte",
+                "카페라떼 하나 주세요",
+                "'따뜻하게 드릴까요, 차갑게 드릴까요?' (no 아이스/핫)",
+                lambda s: s["view"]["group"] == "temperature",
+                answers=False,
+                said=lambda t: "차갑" in t and not any(w in t for w in FORBIDDEN_WORDS),
+            ),
+            Step(
+                "cold",
+                "차갑게요",
+                "'사이즈는 어떤 걸로 해 드릴까요?' (no choices or prices read)",
+                lambda s: s["view"]["group"] == "size",
+                answers=False,
+                said=no_choices_read,
+            ),
+        ],
+        False,
+    ),
+    "split": (
+        "3 americanos, 1 cold 2 hot: separate lines",
+        [
+            TO_GO,
+            Step(
+                "split",
+                "아메리카노 세 잔이요. 하나는 차갑게, 두 잔은 따뜻하게 주세요",
+                "1 cold + 2 hot americanos",
+                lambda s: (
+                    sorted(
+                        (ln["quantity"], ln["chosen"]["temperature"][0])
+                        for ln in s["order"]["lines"]
+                        if ln["item_id"] == "americano"
+                    )
+                    == [(1, "ice"), (2, "hot")]
+                ),
+            ),
+        ],
+        False,
+    ),
+    "size": (
+        '"라지요" (heard as "라디오") is taken; the size is not asked again',
+        [
+            TO_GO,
+            Step(
+                "americano",
+                "차가운 아메리카노 주세요",
+                "the size question",
+                lambda s: s["view"]["group"] == "size",
+                answers=False,
+            ),
+            Step(
+                "large",
+                "라지요",
+                "Large, no second size question",
+                lambda s: bool(
+                    (waiting(s, "americano") or {}).get("chosen", {}).get("size") == ["large"]
+                    or has_item(s, "americano", "Large")
+                ),
+                answers=False,
+                said=lambda t: "사이즈" not in t,
+            ),
+        ],
+        False,
+    ),
+    "pause-note": (
+        "a sentence with a pause is heard whole and becomes a staff note",
+        [
+            TO_GO,
+            Step(
+                "americano",
+                "차가운 아메리카노 레귤러 하나 주세요",
+                "the americano",
+                lambda s: has_item(s, "americano", "ICE", "Regular"),
+            ),
+            Step(
+                "note",
+                "아메리카노는 얼음 조금만 넣어 주세요",
+                "a staff note",
+                lambda s: len(s["order"]["notes"]) >= 1,
+                answers=False,
+            ),
+        ],
+        False,
+    ),
+    "mixed-dining": (
+        '"아메리카노는 포장, 라떼는 매장": a staff note, not a refusal',
+        [
+            Step(
+                "mixed",
+                "아메리카노는 포장하고, 라떼는 매장에서 먹고 갈게요",
+                "a staff note",
+                lambda s: len(s["order"]["notes"]) >= 1,
+                answers=False,
+                said=lambda t: not any(w in t for w in ("불가", "어렵", "안 됩", "안됩")),
+            )
+        ],
+        False,
+    ),
+    "chatter": (
+        "with the switch on: no answer to chatter, the order is still heard",
+        [
+            TO_GO,
+            *CHATTER,
+            Step(
+                "order",
+                "아메리카노 하나 주세요",
+                "the americano",
+                lambda s: bool(waiting(s, "americano")) or bool(lines_of(s, "americano")),
+                answers=False,
+            ),
+        ],
+        True,
+    ),
+    "hesitation": (
+        '"음...", "어..." get no answer; the order after them is heard',
+        [
+            TO_GO,
+            Step("hmm", "음...", "no answer", lambda s: True, quiet=True),
+            Step("uh", "어... 잠깐만요", "no answer", lambda s: True, quiet=True),
+            Step(
+                "order",
+                "따뜻한 아메리카노 하나 주세요",
+                "the americano",
+                lambda s: bool(waiting(s, "americano")) or bool(lines_of(s, "americano")),
+                answers=False,
+            ),
+        ],
+        False,
+    ),
+    "extras-no-pay": (
+        '"없어요" to "추가하실 거 있으세요?" does not start paying',
+        [
+            TO_GO,
+            Step(
+                "americano",
+                "따뜻한 아메리카노 레귤러 하나 주세요",
+                "added; no payment, no staff question",
+                lambda s: (
+                    has_item(s, "americano", "HOT", "Regular")
+                    and s["phase"] == "ordering"
+                    and s["view"]["screen"] != "review"
+                ),
+                said=lambda t: "직원" not in t and "주문 확인" not in t,
+            ),
+        ],
+        False,
+    ),
+    "second-item": (
+        "the extras question only for the first item",
+        [
+            TO_GO,
+            HOT_AMERICANO,
+            Step(
+                "latte",
+                "따뜻한 카페라떼 레귤러도 하나 주세요",
+                "added without the extras question",
+                lambda s: has_item(s, "cafe_latte", "HOT", "Regular"),
+                said=lambda t: "추가하실" not in t,
+            ),
+        ],
+        False,
+    ),
+    "back": (
+        '"뒤로" from the size question shows the temperature again, still chosen',
+        [
+            TO_GO,
+            Step(
+                "latte",
+                "카페라떼 하나 주세요",
+                "the temperature question",
+                lambda s: s["view"]["group"] == "temperature",
+                answers=False,
+            ),
+            Step(
+                "cold",
+                "차갑게요",
+                "the size question",
+                lambda s: s["view"]["group"] == "size",
+                answers=False,
+            ),
+            Step(
+                "back",
+                "뒤로 가 주세요",
+                "the temperature question, 차갑게 kept",
+                lambda s: (
+                    s["view"]["group"] == "temperature"
+                    and (waiting(s, "cafe_latte") or {}).get("chosen", {}).get("temperature")
+                    == ["ice"]
+                ),
+                answers=False,
+            ),
+        ],
+        False,
+    ),
+    "edit-back": (
+        "back to an added latte, then change its size there",
+        [
+            TO_GO,
+            Step(
+                "latte",
+                "따뜻한 카페라떼 레귤러 하나 주세요",
+                "the latte",
+                lambda s: has_item(s, "cafe_latte", "HOT", "Regular"),
+            ),
+            Step(
+                "show",
+                "아까 라떼 화면 다시 보여 주세요",
+                "the latte's options",
+                lambda s: s["view"]["screen"] == "item" and s["view"]["item_id"] == "cafe_latte",
+                answers=False,
+            ),
+            Step(
+                "large",
+                "라지로 바꿔 주세요",
+                "the latte is Large",
+                lambda s: has_item(s, "cafe_latte", "HOT", "Large"),
+                answers=False,
+            ),
+        ],
+        False,
+    ),
+    "cancel": (
+        '"전부 취소" needs a yes',
+        [
+            TO_GO,
+            Step(
+                "cookie",
+                "초코 쿠키 하나 주세요",
+                "the cookie",
+                lambda s: has_item(s, "chocolate_cookie"),
+            ),
+            Step(
+                "cancel",
+                "주문 전부 취소해 주세요",
+                "asked first, nothing cancelled yet",
+                lambda s: has_item(s, "chocolate_cookie"),
+                answers=False,
+            ),
+            Step(
+                "yes", "네", "the order is empty", lambda s: not s["order"]["lines"], answers=False
+            ),
+        ],
+        False,
+    ),
+}
 
 
 class SilentEarpiece:
@@ -235,10 +540,10 @@ class Demo:
         self.kiosk = Kiosk(load_menu(data / "menu.yaml"), load_cafe(data / "cafe.yaml"))
         self.hub = Hub()
         self.events = self.hub.connect()
-        self.steps = [*STEPS]
-        if args.ignore_unrelated:  # chatter after the menu and after the change
-            self.steps[2:2] = CHATTER[:1]
-            self.steps[6:6] = CHATTER[1:]
+        self.ignore_unrelated = args.ignore_unrelated
+        self.scenarios = args.scenarios
+        self.said: list[tuple[float, str]] = []  # what the assistant said, with the time
+        self.delays: list[float] = []  # reply delays over all scenarios
         self.controller = KioskController(
             self.kiosk,
             GeminiConnector(self.config.live, key),
@@ -247,10 +552,7 @@ class Demo:
             SimulatedHook(),
             data / "images",
         )
-        if args.ignore_unrelated:
-            settings = DisplaySettings(Path(tempfile.mkdtemp()) / "display.local.json")
-            settings.update({"ignoreUnrelated": True})
-            self.controller.settings = settings
+        self.controller.settings = DisplaySettings(Path(tempfile.mkdtemp()) / "display.local.json")
         self.listen = args.listen
         self.fake_sd = None if args.listen else SilentEarpiece()
         self.speaker = Speaker(self.config.audio, self.fake_sd)
@@ -306,6 +608,8 @@ class Demo:
             elif event["type"] == "subtitle" and event["final"] and event["text"]:
                 who = "손님" if event["speaker"] == "customer" else "키오스크"
                 print(f"      {who}: {event['text']}")
+                if event["speaker"] == "assistant":
+                    self.said.append((time.monotonic(), event["text"]))
             elif event["type"] == "notice" and event["text"]:
                 print(f"      (notice: {event['text']})")
 
@@ -388,7 +692,7 @@ class Demo:
                 await self.call("Page.navigate", url=f"http://127.0.0.1:{port}/?cursor")
                 await asyncio.sleep(2.5)
                 await self.shot("00-start")
-                return await self.conversation()
+                return await self.run_scenarios()
         finally:
             for task in tasks:
                 task.cancel()
@@ -398,19 +702,54 @@ class Demo:
             await serving
             self.speaker.close()
 
-    async def conversation(self) -> bool:
+    async def run_scenarios(self) -> bool:
+        summary = []
+        for name in self.scenarios:
+            title, steps, ignore = SCENARIOS[name]
+            if name == "order" and self.ignore_unrelated:  # chatter in the whole order
+                steps, ignore = [*steps[:2], CHATTER[0], *steps[2:5], CHATTER[1], *steps[5:]], True
+            self.controller.settings.update({"ignoreUnrelated": ignore})
+            print(f"\n=== {name}: {title}")
+            ok = await self.conversation(steps, name)
+            summary.append((name, ok, title))
+            await self.controller.hang_up()
+            await asyncio.sleep(1.5)
+        self.report_speech()
+        if len(summary) > 1:
+            print("\n=== scenarios")
+            for name, ok, title in summary:
+                print(f"  {'PASS' if ok else 'FAIL'}  {name:14} {title}")
+            print(f"  {sum(ok for _, ok, _ in summary)}/{len(summary)} scenarios passed")
+        return all(ok for _, ok, _ in summary)
+
+    def report_speech(self) -> None:
+        """Team feedback checks over everything the assistant said."""
+        lines = [t for _, t in self.said]
+        if not lines:
+            return
+        bad = [t for t in lines if any(w in t for w in FORBIDDEN_WORDS)]
+        sentences = [len(t) for t in lines]
+        print("\n=== how the assistant spoke")
+        print(f"  {len(lines)} turns, {sum(sentences) / len(sentences):.0f} characters on average")
+        print(f"  아이스/핫/HOT/ICE said: {len(bad)}" + "".join(f"\n    {t}" for t in bad))
+        if self.delays:
+            delays = sorted(self.delays)
+            print(f"  reply after the customer stopped: median {seconds(delays[len(delays) // 2])}")
+
+    async def conversation(self, steps: list[Step], prefix: str = "") -> bool:
         print("  handset lifted")
         lifted = time.monotonic()
         await self.controller.handset(True)
         greeting = Step("greeting", "", "", lambda s: True)
         delay = await self.wait_reply(lifted, greeting)
         print(f"      greeting after {seconds(delay)}")
-        await self.shot("01-greeting")
+        await self.shot(f"{prefix}-01-greeting")
         results = []
-        for n, step in enumerate(self.steps, start=2):
+        for n, step in enumerate(steps, start=2):
             print(f"\n  > {step.say}")
+            began = time.monotonic()
             stopped = await self.say(step.say)
-            name = f"{n:02d}-{step.name}"
+            name = f"{prefix}-{n:02d}-{step.name}"
             if step.quiet:
                 await asyncio.sleep(QUIET_WAIT_S)
                 ok = self.heard_at <= stopped
@@ -419,15 +758,18 @@ class Demo:
                 continue
             self.snapshot = {}
             delay = await self.wait_reply(stopped, step, name)
-            for _ in range(MAX_ANSWERS if step.until is None else 0):
+            for _ in range(MAX_ANSWERS if step.until is None and step.answers else 0):
                 answer = follow_up(self.state)
                 if answer is None:
                     break
                 print(f"    > (answering the screen's question) {answer}")
                 await self.wait_reply(await self.say(answer), step)
             state = self.snapshot or self.state
-            ok = bool(state) and step.check(state)
+            said = " ".join(t for at, t in self.said if at > began)
+            ok = bool(state) and step.check(state) and (step.said is None or step.said(said))
             results.append((step, ok, delay))
+            if delay is not None:
+                self.delays.append(delay)
             print(f"    {'PASS' if ok else 'FAIL'}  {step.expect}  (reply after {seconds(delay)})")
             if not self.snapshot:
                 await self.shot(name)
@@ -491,6 +833,11 @@ def main() -> int:
     parser.add_argument("--listen", action="store_true", help="play the assistant on the speakers")
     parser.add_argument("--shots", default=str(REPO_ROOT / "recordings" / "voice_demo"))
     parser.add_argument(
+        "--scenario",
+        default="order",
+        help="'order' (default), names separated by commas, 'all' or 'list'",
+    )
+    parser.add_argument(
         "--ignore-unrelated",
         action="store_true",
         help="switch on 'ignore speech not meant for the kiosk' and add chatter to ignore",
@@ -498,6 +845,14 @@ def main() -> int:
     args = parser.parse_args()
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
+    if args.scenario == "list":
+        for name, (title, steps, _) in SCENARIOS.items():
+            print(f"  {name:14} {title} ({len(steps)} steps)")
+        return 0
+    args.scenarios = list(SCENARIOS) if args.scenario == "all" else args.scenario.split(",")
+    unknown = [s for s in args.scenarios if s not in SCENARIOS]
+    if unknown:
+        raise SystemExit(f"unknown scenario(s): {', '.join(unknown)} (--scenario list)")
     log_file = REPO_ROOT / "logs" / "voice_demo.log"  # every function call, for failed steps
     log_file.parent.mkdir(exist_ok=True)
     logging.basicConfig(

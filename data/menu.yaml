@@ -30,44 +30,41 @@ categories:
 # choice (or nothing, for multi groups) unless the customer asks.
 # say: how the assistant reads a choice aloud (defaults to its name).
 # label: how the screen shows it (defaults to `say`).
-# aliases: other words customers use for a choice. The assistant may set a REQUIRED choice only
-#   if the customer said its name, its `say` text or one of these (checked in code), so add
-#   the words people really use. Spaces are ignored when matching.
+# words (required groups): parts of words that show the customer talked about this option at
+#   all. A temperature or size the assistant passes without the customer mentioning it (and
+#   without the screen asking for it) is treated as a guess: left out, and the kiosk asks.
+#   Answers to the question on screen are always taken, whatever the words.
 option_groups:
   - id: temperature
     name: 온도
     required: true
     multi: false
+    words: [따뜻, 따듯, 다뜻, 뜻한, 뜨거, 뜨겁, 뜨뜻, 뜨아, 차가, 차갑, 시원, 아이스, 아아, 핫, 온도, hot, ice]
     choices:
       - id: hot
         name: HOT
         say: 따뜻한
         label: 따뜻하게
         price: 0
-        aliases: [따뜻, 따듯, 뜨거, 뜨겁, 뜨뜻, 핫, 뜨아, hot]
       - id: ice
         name: ICE
         say: 차가운
         label: 차갑게
         price: 0
-        # 아이세/아이셀/i see: how the transcription often writes "아이스요"
-        aliases: [아이스, 차가, 차갑, 시원, 아아, ice, 아이세, 아이셀, i see]
   - id: size
     name: 사이즈
     required: true
     multi: false
+    words: [사이즈, 레귤, 레규, 라지, 라디, 큰, 크게, 작은, 작게, 보통, 기본, 스몰, regular, large]
     choices:
       - id: regular
         name: Regular
         say: 레귤러
         price: 0
-        aliases: [작은, 작게, 보통, 기본, 스몰, 아무거나, 상관없, regular, 레귤, 레규]
       - id: large
         name: Large
         say: 라지
         price: 500
-        # 라디오/라디/나지/라쥐: how the transcription has written "라지요"
-        aliases: [큰거, 큰걸, 큰사이즈, 크게, 큰것, 라아지, large, 라디오, 라디, 나지, 라쥐, 라찌]
   - id: tumbler
     name: 텀블러
     required: false
