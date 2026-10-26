@@ -130,6 +130,17 @@
     {/key}
   </main>
 
+  {#if view.screen === 'welcome'}
+    <!-- After here / to go: customers pick from the printed menu board. -->
+    <p
+      class="prompt box small"
+      in:fade={{ duration: 500, delay: 300 }}
+      out:fade={{ duration: 200 }}
+    >
+      메뉴판에서 메뉴를 고른 뒤 말씀해 주세요
+    </p>
+  {/if}
+
   {#if idle}
     <p class="prompt box" in:fade={{ duration: 600, delay: 400 }} out:fade={{ duration: 200 }}>
       수화기를 들고 말씀해 주세요
@@ -234,6 +245,10 @@
     padding: 1.8rem 3.6rem;
     border-radius: 999px;
     background: var(--panel-soft);
+  }
+  .prompt.small {
+    font-size: 2.6rem;
+    bottom: 40%;
   }
   .backdrop-blur .prompt {
     backdrop-filter: blur(2rem);
