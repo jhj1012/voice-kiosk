@@ -182,6 +182,9 @@ class AssistantSession:
         self._turn_audio_at = 0.0  # when the current turn's audio began
         self._spoken_turn_at = 0.0  # when the last completed turn with audio began
         self._lines_mark = 0  # transcript mark when the items last changed (payment intent)
+        # Where the transcript was when the kiosk's question last changed: only customer words
+        # after it answer that question (not an answer the model made up right after asking).
+        self._question_mark = 0
         self._read_back: _ReadBack | None = None
         self._terminal_id = 0
         self._quiet_turn = False  # stay_quiet was called: this turn is not heard
@@ -388,6 +391,7 @@ class AssistantSession:
     def _run(self, call: FunctionCall) -> Result:
         """Check one call against the safety rules, run it, and note what changed."""
         before = self.kiosk.order.lines_signature
+        question = self.kiosk.question
         args = dict(call.args)
         if call.name == "pay":
             result = self._pay()
@@ -401,6 +405,8 @@ class AssistantSession:
             result = self._without_guesses(call.name, args)
         else:
             result = self.actions.call(call.name, args)
+        if self.kiosk.question != question:
+            self._question_mark = len(self.transcript.entries)
         if self.kiosk.order.lines_signature != before:
             self._lines_mark = self.transcript.mark
             if self._read_back is not None:
@@ -412,7 +418,8 @@ class AssistantSession:
 
     def _without_guesses(self, name: str, args: dict[str, Any]) -> Result:
         """Run order / set_options without required options the customer never mentioned
-        (unless the screen asks for that option: then any answer is taken)."""
+        (unless the screen asks for that option and the customer spoke since: then any answer
+        is taken)."""
         try:
             if name == "order":
                 item = self.kiosk.menu.item(str(args.get("item_id", "")))
@@ -426,7 +433,8 @@ class AssistantSession:
         except (KioskError, TypeError, ValueError):
             return self.actions.call(name, args)  # the domain explains the mistake
         question = self.kiosk.question
-        asked = question.group if question.item_id == item.id else ""
+        answered = bool(self.transcript.customer_since(self._question_mark))
+        asked = question.group if question.item_id == item.id and answered else ""
         latest = self.transcript.last_customer()
         selection = selection_from_args(self.kiosk.menu, args)
         guessed = guessed_groups(item, selection, latest.text if latest else "", asked)

@@ -30,6 +30,7 @@ export interface DisplayState {
   notice: NoticeEvent | null;
   apiKey: ApiKeyStatus;
   lastAdded: { itemId: string; at: number } | null; // for the "fly into the order" animation
+  phone: boolean; // the phone of the phone mode: a tap starts and ends the conversation
 }
 
 export const MAX_SUBTITLES = 2;
@@ -70,13 +71,20 @@ export function initialDisplay(): DisplayState {
     notice: null,
     apiKey: 'ok',
     lastAdded: null,
+    phone: false,
   };
 }
 
 export function apply(display: DisplayState, event: ServerEvent, now = 0): DisplayState {
   switch (event.type) {
     case 'init':
-      return { ...display, menu: event.menu, cafe: event.cafe, avatar: event.avatar ?? null };
+      return {
+        ...display,
+        menu: event.menu,
+        cafe: event.cafe,
+        avatar: event.avatar ?? null,
+        phone: event.phone ?? false,
+      };
     case 'settings':
       return { ...display, settings: event.values };
     case 'state':

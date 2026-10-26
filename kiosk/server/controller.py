@@ -110,8 +110,9 @@ class KioskController(SessionListener):
 
     # --- for the displays --------------------------------------------------------------------
 
-    def init_events(self) -> list[Event]:
-        """What a newly connected display needs: the menu (with current images) and the state."""
+    def init_events(self, *, phone: bool = False) -> list[Event]:
+        """What a newly connected display needs: the menu (with current images) and the state.
+        `phone`: the display is the phone of the phone mode."""
         menu, cafe = self.kiosk.menu, self.kiosk.cafe
         return [
             init_event(
@@ -119,6 +120,7 @@ class KioskController(SessionListener):
                 cafe,
                 image_urls(menu, self.images_dir),
                 avatar_urls(self.avatar_dir) if self.avatar_dir else None,
+                phone=phone,
             ),
             settings_event(self.settings.values if self.settings else {}),
             setup_event(self.key_status),

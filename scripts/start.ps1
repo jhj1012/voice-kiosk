@@ -1,7 +1,9 @@
 ﻿# The kiosk for teammates who never use a terminal: started by "Start Kiosk.bat".
 # Installs uv (which brings Python) the first time, builds the display if it is missing and
 # Node.js is there, then runs the kiosk and opens the display. Closing this window stops it.
-param([switch]$FullScreen)
+# -Phone ("Start Kiosk (phone).bat"): an Android phone is the screen, microphone and speaker;
+# this window shows the address to open on the phone.
+param([switch]$FullScreen, [switch]$Phone)
 
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [Text.Encoding]::UTF8
@@ -51,6 +53,12 @@ if (-not (Test-Path 'frontend\dist\index.html')) {
 Write-Host '키오스크를 시작해요. 처음에는 필요한 파일을 받느라 1~2분 걸릴 수 있어요.'
 Write-Host '끄려면 이 창을 닫으세요.'
 Write-Host ''
-$open = if ($FullScreen) { '--kiosk' } else { '--open' }
-& $uv run --no-dev python -m kiosk $open
+if ($Phone) {
+    Write-Host '휴대폰 모드: 노트북과 화면 기기를 같은 Wi-Fi(핫스팟)에 연결해 두세요. 화면 기기에서 열 주소가 아래에 나와요.'
+    Write-Host ''
+    & $uv run --no-dev python -m kiosk --phone
+} else {
+    $open = if ($FullScreen) { '--kiosk' } else { '--open' }
+    & $uv run --no-dev python -m kiosk $open
+}
 if ($LASTEXITCODE -ne 0) { Stop-WithMessage '키오스크가 오류로 멈췄어요. 위의 메시지를 확인해 주세요.' }

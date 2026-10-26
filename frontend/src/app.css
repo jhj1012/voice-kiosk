@@ -29,6 +29,7 @@
   /* A portrait kiosk (designed for 1080x1920). 1rem = 1/120 of the height, or less if the
      window is narrower than 9:16; on a landscape monitor the page is a centered portrait frame. */
   font-size: min(calc(100vh / 120), calc(100vw / 67.5));
+  font-size: min(calc(100dvh / 120), calc(100vw / 67.5));
   color: var(--text);
   background: #eaf1fb;
   -webkit-font-smoothing: antialiased;
@@ -50,7 +51,8 @@ body {
 #app {
   position: relative;
   height: 100vh;
-  width: min(100vw, calc(100vh * 9 / 16));
+  height: 100dvh; /* a phone's browser bar is not part of the page */
+  width: min(100vw, calc(100dvh * 9 / 16));
   margin: 0 auto;
   overflow: hidden;
   background: var(--bg);

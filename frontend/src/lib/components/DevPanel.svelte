@@ -21,6 +21,14 @@
   let text = $state('');
   let audio = $state(true);
   const offHook = $derived(ui.state.phase !== 'idle');
+  // The microphone's loudness as 16-bit RMS (level 1 = 6000, as kiosk/voice/pcm.py), the unit of
+  // audio.noise_gate_rms in the settings.
+  const micRms = $derived(Math.round(ui.level.mic * 6000));
+  let micPeak = $state(0);
+  $effect(() => {
+    if (micRms > micPeak) micPeak = micRms;
+  });
+  const rmsText = (value: number) => (value >= 6000 ? '6000+' : String(value)); // level is capped
 
   function submit(event: SubmitEvent) {
     event.preventDefault();
@@ -74,6 +82,14 @@
     {/if}
     <span class="hint">Space: 수화기 · F2: 닫기</span>
   </div>
+  {#if mode === 'live'}
+    <div class="row">
+      <span>마이크 크기 <b class="meter">{offHook ? rmsText(micRms) : '–'}</b></span>
+      <span class="sub">최고 {rmsText(micPeak)}</span>
+      <button type="button" onclick={() => (micPeak = 0)}>초기화</button>
+      <span class="hint">대화 중에만 · 소음 차단: noise_gate_rms</span>
+    </div>
+  {/if}
   <DisplaySettings {send} />
   <ol>
     {#each log.slice(-8) as entry (entry.at)}
@@ -145,6 +161,14 @@
     font: inherit;
     font-size: 1rem;
     cursor: pointer;
+  }
+  .meter {
+    display: inline-block;
+    min-width: 3.5em;
+    font-variant-numeric: tabular-nums;
+  }
+  .sub {
+    color: #b9aca1;
   }
   .hint {
     margin-left: auto;

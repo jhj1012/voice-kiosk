@@ -1,5 +1,9 @@
 """The web server: the display's WebSocket, the built display, the menu images and the API key
-form (`POST /api/key`, accepted only from this computer)."""
+form (`POST /api/key`, accepted only from this computer).
+
+In phone mode the same app is also served over HTTPS to the phone; a display connected that way
+is told it is the phone, and its microphone and speaker use `/ws/audio`.
+"""
 
 from __future__ import annotations
 
@@ -16,6 +20,7 @@ from fastapi.staticfiles import StaticFiles
 
 from kiosk.server.controller import KioskController
 from kiosk.server.events import Event
+from kiosk.voice.phone import PhoneHandset, PhoneLink
 
 log = logging.getLogger(__name__)
 
@@ -32,7 +37,11 @@ NOT_BUILT = """<!doctype html><meta charset="utf-8"><title>Voice Kiosk</title>
 
 
 def create_app(
-    controller: KioskController, dist_dir: Path, images_dir: Path, avatar_dir: Path | None = None
+    controller: KioskController,
+    dist_dir: Path,
+    images_dir: Path,
+    avatar_dir: Path | None = None,
+    phone: PhoneHandset | None = None,
 ) -> FastAPI:
     @contextlib.asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -49,8 +58,9 @@ def create_app(
         queue = controller.hub.connect()
         log.info("display connected (%d)", controller.hub.displays)
         sender = asyncio.create_task(_send_all(socket, queue))
+        is_phone = phone is not None and socket.url.scheme == "wss"
         try:
-            for event in controller.init_events():
+            for event in controller.init_events(phone=is_phone):
                 await queue.put(event)
             while True:
                 await controller.handle_client(await socket.receive_json())
@@ -61,11 +71,34 @@ def create_app(
             controller.hub.disconnect(queue)
             log.info("display disconnected")
 
+    @app.websocket("/ws/audio")
+    async def phone_audio(socket: WebSocket) -> None:
+        """The phone's microphone and speaker (phone mode, over HTTPS only)."""
+        if phone is None or socket.url.scheme != "wss":
+            await socket.close(code=1008)
+            return
+        await socket.accept()
+        link = phone.connect()
+        sender = asyncio.create_task(_send_audio(socket, link))
+        try:
+            while True:
+                message = await socket.receive()
+                if message["type"] == "websocket.disconnect":
+                    break
+                data = message.get("bytes")
+                phone.receive(link, data if data is not None else message.get("text") or "")
+        except (WebSocketDisconnect, RuntimeError):
+            pass
+        finally:
+            phone.disconnect(link)
+            sender.cancel()
+
     @app.post("/api/key")
     async def api_key(request: Request) -> JSONResponse:
-        """The API key typed on the display. Only this computer may set it; the answer never
-        contains the key."""
-        if request.client is None or request.client.host not in LOCAL_CLIENTS:
+        """The API key typed on the display. Only this computer's own display may set it (not
+        the phone, not over the phone's HTTPS); the answer never contains the key."""
+        local = request.client is not None and request.client.host in LOCAL_CLIENTS
+        if not local or request.url.scheme == "https":
             return JSONResponse({"result": "forbidden"}, status_code=403)
         try:
             body = await request.json()
@@ -96,6 +129,16 @@ def _ignore_connection_resets(loop: asyncio.AbstractEventLoop, context: dict) ->
     if isinstance(context.get("exception"), ConnectionResetError):
         return
     loop.default_exception_handler(context)
+
+
+async def _send_audio(socket: WebSocket, link: PhoneLink) -> None:
+    with contextlib.suppress(Exception):  # the phone went away
+        while (message := await link.next()) is not None:
+            if isinstance(message, bytes):
+                await socket.send_bytes(message)
+            else:
+                await socket.send_text(message)
+        await socket.close()  # replaced by a newer phone
 
 
 async def _send_all(socket: WebSocket, queue: asyncio.Queue[Event]) -> None:

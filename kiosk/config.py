@@ -54,12 +54,16 @@ class AudioConfig:
     # While the earpiece plays, quieter microphone frames than this RMS are sent as silence, so
     # sound leaking from the earpiece cannot interrupt the assistant. None = off.
     echo_gate_rms: float | None = None
+    # Quieter microphone audio than this RMS is sent as silence (background noise; the handset
+    # holds the voice close). The developer panel (F2) shows the microphone's RMS. None = off.
+    noise_gate_rms: float | None = None
 
 
 @dataclass(frozen=True)
 class ServerConfig:
     host: str = "127.0.0.1"
     port: int = 8765
+    phone_port: int = 8766  # phone mode: https://<this laptop's address>:<phone_port> on the phone
 
 
 @dataclass(frozen=True)

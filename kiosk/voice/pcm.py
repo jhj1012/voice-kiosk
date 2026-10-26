@@ -1,10 +1,35 @@
-"""16-bit mono PCM helpers: loudness and sample-rate conversion (numpy)."""
+"""16-bit mono PCM helpers: loudness, a noise gate and sample-rate conversion (numpy)."""
 
 from __future__ import annotations
 
 import numpy as np
 
 FULL_SCALE_RMS = 6000.0  # speech this loud (16-bit RMS) counts as level 1
+
+
+class NoiseGate:
+    """Sends quiet microphone audio as silence, so background noise does not count as speech.
+
+    A frame quieter than `threshold` (16-bit RMS) becomes silence, unless a louder one came less
+    than `hold_s` ago: the ends of words and soft sounds between loud ones stay. None = off.
+    """
+
+    def __init__(self, threshold: float | None, hold_s: float = 0.5) -> None:
+        self.threshold = threshold
+        self.hold_s = hold_s
+        self._open_for = 0.0  # seconds the gate stays open
+
+    def __call__(self, pcm: bytes, rate: int) -> bytes:
+        if not self.threshold or not pcm:
+            return pcm
+        seconds = len(pcm) / 2 / rate
+        if rms(pcm) >= self.threshold:
+            self._open_for = self.hold_s
+            return pcm
+        if self._open_for > 1e-9:
+            self._open_for -= seconds
+            return pcm
+        return bytes(len(pcm))
 
 
 def rms(pcm: bytes) -> float:

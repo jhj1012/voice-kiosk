@@ -68,8 +68,47 @@ in code, not in the model's memory.
 - Barge-in itself is the Live API's voice detection (~0.4 s, milestone 3). If the earpiece leaks
   into the microphone, `audio.echo_gate_rms` sends quieter microphone audio as silence while the
   earpiece plays.
+- `audio.noise_gate_rms` (`NoiseGate` in `pcm.py`, off by default) sends background noise as
+  silence: frames under the RMS, unless a louder one came within 0.5 s (word endings stay). For
+  the laptop's handset and the phone alike; the developer panel shows the microphone's RMS to
+  pick the value. On the phone, Chrome's automatic gain is off (it turned up the background).
 - Rates the device refuses are resampled (`pcm.py`, numpy).
 - `hook.py`: the hook switch interface; today the display's Space key (`SimulatedHook`).
+- `PhoneHandset` (`phone.py`): the phone of the phone mode as the handset (below).
+
+## Phone mode
+
+`python -m kiosk --phone` (`Start Kiosk (phone).bat`): an Android phone on the laptop's hotspot
+is the screen, and the handset plugged into it is the microphone and the speaker.
+
+```
+ phone (Chrome) ──https://<laptop>:8766──► same FastAPI app, second listener (HTTPS)
+   /ws        display events, the tap (`hook`)            laptop: http://127.0.0.1:8765
+   /ws/audio  ► 20 ms 16 kHz PCM frames, {"out": level}   (settings, API key)
+              ◄ 24 kHz PCM, "clear"
+```
+
+- Chrome allows the microphone only on HTTPS pages (or localhost). `certificate.py` makes a
+  self-signed certificate for the laptop's addresses on the first start and again when the
+  hotspot gives it a new address; the phone warns once per certificate.
+- Both listeners run on one event loop (`serve_both`); only the laptop's runs the app's
+  lifespan. The laptop's display keeps working at http://127.0.0.1:8765, and `POST /api/key` is
+  refused over the phone's HTTPS.
+- A display connected over HTTPS gets `init.phone = true`. It opens `/ws/audio` on the first tap
+  (which also allows the microphone and sound, turns on full screen and keeps the screen awake),
+  sends the microphone while a conversation is on and plays what comes back (two audio contexts
+  at 16 and 24 kHz let the browser resample; `frontend/src/lib/phone.ts`).
+- `PhoneHandset` stands in for `Handset`: `write` / `clear` / `levels` for the controller, one
+  phone at a time (a newer connection replaces the older one), the speaker's loudness as the
+  phone reports it.
+- A tap anywhere while idle is the `hook` lift; the end button puts it down; after payment the
+  session ends by itself as with the handset.
+- The phone's case covers its screen's edges: `phoneInsets` in the display settings (% of the
+  screen, set in the developer panel) become `--safe-*` on the page. The avatar stays full
+  screen; the choices, prompts, notices and subtitles keep out of the covered edges, and the
+  order moves above the avatar's head next to the end button (the bottom is the most covered).
+  In every mode the choices shrink when they are taller than their place (`fit` in `Stage`). No echo cancellation: the handset's earpiece does
+  not reach its microphone.
 
 ## The server (`kiosk.server`)
 
@@ -93,6 +132,7 @@ built display (`frontend/dist`) at `/`, and the menu images at `/images`.
   (also after Google refused the saved key). The display posts the typed key to `POST /api/key`
   (only from this computer); `set_api_key` checks it with Google (`check_api_key`), saves it to
   `.env` and uses it for the next customer. The key is never sent to a display or logged.
+- `python -m kiosk --phone`: the phone mode (above), a second HTTPS listener for the phone.
 - `python -m kiosk --open` opens the display in an Edge app window once the server is ready,
   `--kiosk` full screen (kiosk mode, separate Edge profile). `Start Kiosk.bat` runs
   `scripts/start.ps1`, which installs uv the first time and starts the kiosk with `--open`.

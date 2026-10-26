@@ -112,6 +112,25 @@ def test_answers_to_the_question_asked_are_always_taken(new_kiosk):
     run(scenario, new_kiosk)
 
 
+def test_an_answer_the_customer_did_not_give_is_not_taken(new_kiosk):
+    # Team log 04:01: the model asked the size, then made up the customer's answer ("The
+    # customer said ...레귤러요") and set it, before the customer said anything.
+    async def scenario(h: Harness):
+        await lifted(h)
+        await h.say("아이스아메리카노")
+        await h.call("order", item_id="americano", temperature="ice")
+        assert view(h) == ("americano", "size")
+        await h.reply("아메리카노 사이즈는 어떤 걸로 해 드릴까요?")
+        result = await h.call("set_options", item_id="americano", size="regular")
+        assert "not_said" in result and "size" not in h.kiosk.pending.chosen
+        await h.say("레귤러요")  # the real answer is taken
+        result = await h.call("set_options", item_id="americano", size="regular")
+        assert "not_said" not in result
+        assert [c.id for c in h.kiosk.pending.chosen["size"]] == ["regular"]
+
+    run(scenario, new_kiosk)
+
+
 def test_extras_are_asked_only_for_the_first_item(new_kiosk):
     async def scenario(h: Harness):
         await lifted(h)

@@ -2,10 +2,13 @@
   // One continuous page. The avatar stands behind everything; what the assistant is asking
   // about appears over his chest, on a see-through background (blur, a gradient from the bottom,
   // or boxes: the developer panel's choice). The order stays at the bottom.
+  // On the phone of the phone mode its case covers the screen's edges (`--safe-*`, set in the
+  // developer panel): the avatar stays as it is, everything else keeps out of them, and the order
+  // moves above the avatar's head (the bottom is covered), next to the end button.
   import { tick } from 'svelte';
   import { fade } from 'svelte/transition';
   import { ui } from '../store.svelte';
-  import { cssVariables } from '../settings';
+  import { cssVariables, insetVariables } from '../settings';
   import { appear, disappear } from '../transitions';
   import ApiKeyForm from './ApiKeyForm.svelte';
   import Avatar from './Avatar.svelte';
@@ -17,6 +20,7 @@
   import MenuList from './MenuList.svelte';
   import Notice from './Notice.svelte';
   import OrderBar from './OrderBar.svelte';
+  import PhoneEnd from './PhoneEnd.svelte';
   import Payment from './Payment.svelte';
   import Review from './Review.svelte';
   import Subtitles from './Subtitles.svelte';
@@ -24,8 +28,13 @@
   const CONTENT = ['dining', 'menu', 'categories', 'item', 'info', 'review', 'payment', 'done'];
 
   const settings = $derived(ui.settings);
+  let { onend }: { onend?: () => void } = $props(); // the phone's end button
+
   const style = $derived(
-    Object.entries(cssVariables(settings))
+    Object.entries({
+      ...cssVariables(settings),
+      ...(ui.phone ? insetVariables(settings.phoneInsets) : {}),
+    })
       .map(([name, value]) => `${name}: ${value}`)
       .join('; '),
   );
@@ -49,6 +58,22 @@
     const added = ui.lastAdded;
     if (added) void flyToOrder(added.itemId);
   });
+
+  /** Shrinks the choices when they are taller than their place (a long menu, the phone's covered
+   * bottom), so nothing reaches under the order or off the screen. */
+  function fit(surface: HTMLElement) {
+    const place = surface.closest<HTMLElement>('.content');
+    if (!place) return;
+    const update = () => {
+      const height = surface.scrollHeight; // the layout height: the scale does not change it
+      const space = place.clientHeight;
+      surface.style.scale = height > space && space > 0 ? String(space / height) : '';
+    };
+    const observer = new ResizeObserver(update);
+    observer.observe(surface);
+    observer.observe(place);
+    return { destroy: () => observer.disconnect() };
+  }
 
   async function flyToOrder(itemId: string) {
     const sources = document.querySelectorAll<HTMLElement>(`[data-fly-source="${itemId}"]`);
@@ -88,7 +113,7 @@
   }
 </script>
 
-<div class="page backdrop-{settings.backdrop}" {style}>
+<div class="page backdrop-{settings.backdrop}" class:phone={ui.phone} {style}>
   <div class="glow"></div>
   <Avatar />
 
@@ -106,7 +131,7 @@
     {#key block}
       <div class="block" in:appear out:disappear>
         {#if hasContent}
-          <div class="surface">
+          <div class="surface" use:fit>
             {#if view.screen === 'dining'}
               <DiningChoice />
             {:else if view.screen === 'menu'}
@@ -143,7 +168,7 @@
 
   {#if idle}
     <p class="prompt box" in:fade={{ duration: 600, delay: 400 }} out:fade={{ duration: 200 }}>
-      수화기를 들고 말씀해 주세요
+      {ui.phone ? '수화기를 들고 화면을 눌러 주세요' : '수화기를 들고 말씀해 주세요'}
     </p>
   {/if}
 
@@ -153,11 +178,20 @@
     </div>
   {/if}
 
+  {#if ui.phone && ui.state.phase !== 'idle' && onend}
+    <PhoneEnd {onend} />
+  {/if}
+
   {#if ui.notice}
     <Notice level={ui.notice.level} text={ui.notice.text} />
   {/if}
 
-  {#if ui.keyForm}
+  {#if ui.keyForm && ui.phone}
+    <!-- The key is entered on the laptop only (POST /api/key is refused from the phone). -->
+    <p class="prompt box">
+      API 키가 필요해요. 노트북에서 http://localhost:8765 를 열고 넣어 주세요.
+    </p>
+  {:else if ui.keyForm}
     <ApiKeyForm />
   {/if}
 </div>
@@ -217,7 +251,7 @@
   .surface {
     position: relative;
     isolation: isolate; /* keeps the blurred patch behind the choices, above the avatar */
-    max-height: 100%;
+    transform-origin: top center; /* `fit` shrinks it from the top */
   }
   /* "Blur": a soft, blurred patch behind the choices, fading out at its edges. */
   .backdrop-blur .surface::before {
@@ -259,5 +293,31 @@
     left: 4.5rem;
     right: 4.5rem;
     bottom: 4rem;
+  }
+
+  /* The phone mode: out of the covered edges; the order above the avatar's head. */
+  .phone .subtitles {
+    top: calc(var(--safe-top) + 13rem);
+    left: calc(5rem + var(--safe-left));
+    right: calc(5rem + var(--safe-right));
+  }
+  .phone .content {
+    top: 48rem; /* a little higher: the covered bottom leaves less room (the face stays clear) */
+    bottom: calc(var(--safe-bottom) + 3rem);
+    left: calc(4.5rem + var(--safe-left));
+    right: calc(4.5rem + var(--safe-right));
+  }
+  .phone .prompt {
+    bottom: calc(var(--safe-bottom) + 6rem);
+    max-width: calc(100% - 4rem - var(--safe-left) - var(--safe-right));
+  }
+  .phone .prompt.small {
+    bottom: max(40%, calc(var(--safe-bottom) + 6rem));
+  }
+  .phone .order {
+    top: calc(var(--safe-top) + 2.4rem);
+    bottom: auto;
+    left: calc(3rem + var(--safe-left));
+    right: calc(var(--safe-right) + 23rem); /* the end button's place */
   }
 </style>
