@@ -22,6 +22,13 @@ def report(data_dir: Path) -> list[str]:
     lines = [
         f"OK: {len(menu.items)} items in {len(menu.categories)} categories, "
         f"{len(cafe.topics)} cafe info topics ({cafe.name})",
+    ]
+    lines += [
+        f"WARNING: category {c.id} ({c.name}) has no items: the screen would show it empty"
+        for c in menu.categories
+        if not any(i.category == c.id for i in menu.items)
+    ]
+    lines += [
         "",
         "Not verified yet (invented for the demo; please check):",
     ]

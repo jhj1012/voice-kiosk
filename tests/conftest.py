@@ -1,20 +1,25 @@
+from pathlib import Path
+
 import pytest
 
-from kiosk.config import DATA_DIR
 from kiosk.domain.cafe import Cafe
 from kiosk.domain.flow import Kiosk
 from kiosk.domain.loader import load_cafe, load_menu
 from kiosk.domain.menu import Menu
 
+# A fixed copy of the menu and the cafe facts, so the team can edit data/ without breaking
+# the tests. tests/domain/test_data.py checks the real files.
+TEST_DATA = Path(__file__).parent / "data"
+
 
 @pytest.fixture(scope="session")
 def menu() -> Menu:
-    return load_menu(DATA_DIR / "menu.yaml")
+    return load_menu(TEST_DATA / "menu.yaml")
 
 
 @pytest.fixture(scope="session")
 def cafe() -> Cafe:
-    return load_cafe(DATA_DIR / "cafe.yaml")
+    return load_cafe(TEST_DATA / "cafe.yaml")
 
 
 @pytest.fixture

@@ -482,16 +482,16 @@ SCENARIOS: dict[str, tuple[str, list[Step], bool]] = {
         [
             TO_GO,
             Step(
-                "cookie",
-                "초코 쿠키 하나 주세요",
-                "the cookie",
-                lambda s: has_item(s, "chocolate_cookie"),
+                "bread",
+                "감자빵 하나 주세요",
+                "the potato bread",
+                lambda s: has_item(s, "potato_bread"),
             ),
             Step(
                 "cancel",
                 "주문 전부 취소해 주세요",
                 "asked first, nothing cancelled yet",
-                lambda s: has_item(s, "chocolate_cookie"),
+                lambda s: has_item(s, "potato_bread"),
                 answers=False,
             ),
             Step(
