@@ -44,9 +44,9 @@ def test_image_urls(menu, tmp_path):
 
 def test_state_event_snapshot(kiosk: Kiosk):
     kiosk.show_menu(title="추천", item_ids=["americano", "cafe_latte"], highlight_ids=["americano"])
-    kiosk.choose_item("americano", 2, {"temperature": "ice", "size": "large", "shot": "decaf"})
-    kiosk.finish_item()
-    kiosk.choose_item("cafe_latte", selection={"temperature": "hot"})
+    kiosk.order_item("americano", 2, {"temperature": "ice", "size": "large", "shot": "decaf"})
+    kiosk.no_more_extras()
+    kiosk.order_item("cafe_latte", selection={"temperature": "hot"})
     kiosk.set_dining(Dining.TO_GO)
     kiosk.add_note("얼음 적게")
     event = state_event(kiosk, "speaking", 7)
@@ -60,9 +60,18 @@ def test_state_event_snapshot(kiosk: Kiosk):
         "item_id": "cafe_latte",
         "group": "size",  # the option asked now
         "line": 0,
+        "draft": 2,
         "topic": "",
     }
+    assert event["question"] == {
+        "kind": "option",
+        "draft": 2,
+        "item_id": "cafe_latte",
+        "group": "size",
+        "line": 0,
+    }
     assert event["pending"] == {
+        "draft": 2,
         "item_id": "cafe_latte",
         "quantity": 1,
         "chosen": {"temperature": ["hot"]},
@@ -95,9 +104,10 @@ def test_state_event_snapshot(kiosk: Kiosk):
 
 
 def test_state_event_payment(kiosk: Kiosk):
-    kiosk.choose_item("chocolate_cookie")
+    kiosk.order_item("chocolate_cookie")
     kiosk.set_dining(Dining.HERE)
-    kiosk.review()
+    kiosk.request_payment()  # the staff question
+    kiosk.request_payment()  # the read-back
     kiosk.start_payment()
     assert state_event(kiosk, "listening", 1)["payment"] == {
         "step": "insert_card",

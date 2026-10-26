@@ -448,8 +448,8 @@ Expect = Callable[[Turn, Kiosk], bool]
 
 
 def paid(turn: Turn) -> bool:
-    """request_payment ran and returned the read-back (the session would start the terminal)."""
-    return any("read_back" in c["result"] for c in calls_named(turn, "request_payment"))
+    """pay returned the read-back (the session would start the terminal)."""
+    return any("read_back" in c["result"] for c in calls_named(turn, "pay"))
 
 
 def no_calls(*names: str) -> Expect:
@@ -462,26 +462,23 @@ SCENARIOS: dict[str, list[tuple[str, dict[str, Expect]]]] = {
         (
             "아이스 아메리카노 라지로 두 잔 주세요",
             {
-                "choose_item americano x2 ice large": lambda t, k: has_call(
+                "order americano x2 ice large": lambda t, k: has_call(
                     t,
-                    "choose_item",
+                    "order",
                     item_id="americano",
                     quantity=2,
                     temperature="ice",
                     size="large",
                 ),
-                "order has 2 americanos": lambda t, k: (
-                    k.order.lines[0].quantity == 2 if k.order.lines else False
+                "2 americanos being chosen or ordered": lambda t, k: (
+                    [d.quantity for d in k.drafts] == [2]
+                    or (k.order.lines[0].quantity == 2 if k.order.lines else False)
                 ),
             },
         ),
         (
             "초코 쿠키도 하나 주세요",
-            {
-                "choose_item cookie": lambda t, k: has_call(
-                    t, "choose_item", item_id="chocolate_cookie"
-                )
-            },
+            {"order cookie": lambda t, k: has_call(t, "order", item_id="chocolate_cookie")},
         ),
         (
             "이제 결제할게요",
@@ -495,7 +492,7 @@ SCENARIOS: dict[str, list[tuple[str, dict[str, Expect]]]] = {
             "포장이요",
             {
                 "set_dining to_go": lambda t, k: has_call(t, "set_dining", dining="to_go"),
-                "request_payment": lambda t, k: paid(t),
+                "pay": lambda t, k: paid(t),
                 "says the read-back total": lambda t, k: said_amount(t.said, k.order.total),
             },
         ),
@@ -504,8 +501,8 @@ SCENARIOS: dict[str, list[tuple[str, dict[str, Expect]]]] = {
         (
             "카페라떼 하나 주세요",
             {
-                "choose_item latte without guessing": lambda t, k: (
-                    has_call(t, "choose_item", item_id="cafe_latte")
+                "order latte without guessing": lambda t, k: (
+                    has_call(t, "order", item_id="cafe_latte")
                     and not any("temperature" in c["args"] or "size" in c["args"] for c in t.calls)
                 ),
                 "nothing added yet": lambda t, k: k.order.is_empty,
@@ -519,7 +516,7 @@ SCENARIOS: dict[str, list[tuple[str, dict[str, Expect]]]] = {
             "레귤러요",
             {
                 "set_options regular": lambda t, k: has_call(t, "set_options", size="regular"),
-                "latte added": lambda t, k: len(k.order.lines) == 1,
+                "latte asks its extras next": lambda t, k: k.question.kind.value == "extras",
             },
         ),
     ],
@@ -527,21 +524,22 @@ SCENARIOS: dict[str, list[tuple[str, dict[str, Expect]]]] = {
         (
             "메뉴 뭐 있어요?",
             {
-                "show_menu": lambda t, k: bool(calls_named(t, "show_menu")),
-                "nothing ordered": no_calls("choose_item"),
+                "show menu": lambda t, k: has_call(t, "show", what="menu"),
+                "nothing ordered": no_calls("order"),
             },
         ),
         (
             "우유 알레르기가 있는데 마실 만한 거 있어요?",
             {
-                "show_menu excluding milk": lambda t, k: any(
+                "show menu excluding milk": lambda t, k: any(
                     "milk" in (c["args"].get("exclude_allergens") or [])
                     or (
                         c["args"].get("item_ids")
                         and not {"cafe_latte", "cafe_mocha", "flat_white"}
                         & set(c["args"]["item_ids"])
                     )
-                    for c in calls_named(t, "show_menu")
+                    for c in calls_named(t, "show")
+                    if c["args"].get("what") == "menu"
                 ),
             },
         ),
@@ -549,12 +547,12 @@ SCENARIOS: dict[str, list[tuple[str, dict[str, Expect]]]] = {
             "아메리카노 디카페인 돼요?",
             {
                 "answers yes (decaf option)": lambda t, k: "돼" in t.said or "가능" in t.said,
-                "nothing ordered": no_calls("choose_item", "set_options"),
+                "nothing ordered": no_calls("order", "set_options"),
             },
         ),
         (
             "화장실 어디예요?",
-            {"show_info restroom": lambda t, k: has_call(t, "show_info", topic="restroom")},
+            {"show info restroom": lambda t, k: has_call(t, "show", what="info", topic="restroom")},
         ),
         (
             "카페라떼 칼로리는 얼마나 돼요?",
@@ -570,7 +568,7 @@ SCENARIOS: dict[str, list[tuple[str, dict[str, Expect]]]] = {
             "따뜻한 아메리카노 레귤러 하나랑 청포도 에이드 라지 하나 주세요",
             {"two lines": lambda t, k: len(k.order.lines) == 2},
         ),
-        ("아메리카노에 샷 추가해 주세요", {"shot added": lambda t, k: has_call(t, "change_line")}),
+        ("아메리카노에 샷 추가해 주세요", {"shot added": lambda t, k: has_call(t, "change")}),
         (
             "아메리카노는 빼 주세요",
             {

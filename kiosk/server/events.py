@@ -5,7 +5,8 @@ Backend -> display:
   image file exists in data/images/), and the avatar's animation files in data/avatar/.
 - `settings`: the display settings from the developer panel (colours, ...), on connect and
   whenever someone changes them.
-- `state`: a full snapshot of what to show: phase, assistant state, view, pending item, order,
+- `state`: a full snapshot of what to show: phase, assistant state, view, the current
+  question, the drink being chosen (`pending`), order,
   payment. Always complete, so the display can (re)connect at any time.
 - `subtitle`: what the customer said / the assistant says. `id` changes with each new utterance;
   the same id with more text updates it, `final` ends it.
@@ -126,6 +127,7 @@ def state_event(kiosk: Kiosk, assistant: str, seq: int) -> Event:
     view = kiosk.view
     order = kiosk.order
     pending = kiosk.pending
+    question = kiosk.question
     return {
         "type": "state",
         "seq": seq,
@@ -139,11 +141,20 @@ def state_event(kiosk: Kiosk, assistant: str, seq: int) -> Event:
             "item_id": view.item_id,
             "group": view.group,
             "line": view.line,
+            "draft": view.draft,
             "topic": view.topic,
+        },
+        "question": {
+            "kind": question.kind.value,
+            "draft": question.draft,
+            "item_id": question.item_id,
+            "group": question.group,
+            "line": question.line,
         },
         "pending": None
         if pending is None
         else {
+            "draft": pending.id,
             "item_id": pending.item.id,
             "quantity": pending.quantity,
             "chosen": {g: [c.id for c in cs] for g, cs in pending.chosen.items()},
