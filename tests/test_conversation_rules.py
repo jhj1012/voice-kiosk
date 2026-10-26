@@ -88,14 +88,26 @@ def test_an_option_said_turns_earlier_is_taken(new_kiosk):
     run(scenario, new_kiosk)
 
 
-def test_no_required_option_is_refused_by_a_text_check(new_kiosk):
+def test_an_option_nobody_mentioned_is_left_out_and_asked(new_kiosk):
+    # Team scenario run: "아메리카노 세 잔이요, 하나는 차갑게…" came with size=regular, a guess.
     async def scenario(h: Harness):
         await lifted(h)
         await h.say("카페라떼 하나요")
         result = await h.call("order", item_id="cafe_latte", temperature="hot", size="large")
-        # The model is trusted; the screen and the read-back let the customer correct it.
-        assert "not_heard" not in result
-        assert h.kiosk.pending is not None and len(h.kiosk.pending.chosen) == 2
+        assert "not_said" in result and h.kiosk.pending.chosen == {}
+        assert result["ask"] == "카페라떼는 따뜻하게 드릴까요, 차갑게 드릴까요?"
+
+    run(scenario, new_kiosk)
+
+
+def test_answers_to_the_question_asked_are_always_taken(new_kiosk):
+    async def scenario(h: Harness):
+        await lifted(h)
+        await h.say("카페라떼 하나요")
+        await h.call("order", item_id="cafe_latte")
+        await h.say("음 그걸로요")  # unclear, but an answer to the temperature question
+        result = await h.call("set_options", temperature="hot")
+        assert "not_said" not in result and "temperature" in h.kiosk.pending.chosen
 
     run(scenario, new_kiosk)
 

@@ -6,6 +6,7 @@ from kiosk.assistant.safety import (
     asks_to_pay,
     confirmed_cancel,
     customer_asked_to_pay,
+    guessed_groups,
     is_no,
     is_yes,
     mostly_foreign,
@@ -13,6 +14,7 @@ from kiosk.assistant.safety import (
     said_amount,
     wants_to_stop,
 )
+from kiosk.domain.menu import Menu
 
 # --- transcript --------------------------------------------------------------------------------
 
@@ -192,3 +194,25 @@ def test_no_to_the_extras_question_is_not_asking_to_pay(assistant):
 
 def test_no_to_more_menu_items_still_is():
     assert asks_to_pay("없어", "더 추가하실 메뉴가 있으신가요, 아니면 결제를 진행할까요?")
+
+
+@pytest.mark.parametrize(
+    ("words", "selection", "asked", "guessed"),
+    [
+        (
+            "아메리카노 세 잔, 하나는 차갑게",
+            {"temperature": "ice", "size": "regular"},
+            "",
+            ["size"],
+        ),
+        ("카페라떼 하나 주세요", {"temperature": "ice"}, "", ["temperature"]),
+        ("카페라떼 하나 주세요", {"temperature": "ice"}, "temperature", []),  # asked: taken
+        ("라디오", {"size": "large"}, "size", []),
+        ("아이스 아메리카노 큰 거요", {"temperature": "ice", "size": "large"}, "", []),
+        ("다뜻한 카페라떼 레귤러요", {"temperature": "hot", "size": "regular"}, "", []),
+        ("샷 추가요", {"shot": "extra_shot"}, "", []),  # extras are never guesses
+    ],
+)
+def test_guessed_groups(menu: Menu, words, selection, asked, guessed):
+    item = menu.item("americano")
+    assert [g.id for g in guessed_groups(item, selection, words, asked)] == guessed

@@ -68,6 +68,7 @@ class OptionGroup:
     required: bool
     multi: bool
     choices: tuple[OptionChoice, ...]
+    words: tuple[str, ...] = ()  # parts of words that show the customer talked about it
 
     @property
     def default(self) -> tuple[OptionChoice, ...]:

@@ -192,7 +192,7 @@ ANSWERS = {"temperature": "따뜻하게요", "size": "레귤러요", "extras": "
 MAX_ANSWERS = 6
 # The customer talks after this much silence (a reply after a function call can come 1-2 s
 # after a first short sentence).
-QUIET_S = 2.5
+QUIET_S = 3.0
 
 
 def follow_up(state: State) -> str | None:
@@ -284,9 +284,12 @@ SCENARIOS: dict[str, tuple[str, list[Step], bool]] = {
                 "아메리카노 세 잔이요. 하나는 차갑게, 두 잔은 따뜻하게 주세요",
                 "1 cold + 2 hot americanos",
                 lambda s: (
-                    [t for q, t in lines_of(s, "americano") for _ in range(q)].count("ice,regular")
-                    == 1
-                    and len(lines_of(s, "americano")) == 2
+                    sorted(
+                        (ln["quantity"], ln["chosen"]["temperature"][0])
+                        for ln in s["order"]["lines"]
+                        if ln["item_id"] == "americano"
+                    )
+                    == [(1, "ice"), (2, "hot")]
                 ),
             ),
         ],
@@ -321,6 +324,12 @@ SCENARIOS: dict[str, tuple[str, list[Step], bool]] = {
         "a sentence with a pause is heard whole and becomes a staff note",
         [
             TO_GO,
+            Step(
+                "americano",
+                "차가운 아메리카노 레귤러 하나 주세요",
+                "the americano",
+                lambda s: has_item(s, "americano", "ICE", "Regular"),
+            ),
             Step(
                 "note",
                 "아메리카노는 얼음 조금만 넣어 주세요",

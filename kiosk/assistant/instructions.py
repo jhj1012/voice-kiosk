@@ -49,11 +49,16 @@ you asked, or about several items at once: make one call per item, ALL IN THE SA
 before you speak. "아메리카노 아이스로, 그리고 카페라떼는 따뜻한 걸로 주세요" = order americano \
 (temperature ice) + order cafe_latte (temperature hot). "라떼는 차갑게요" while the americano \
 is asked = set_options for the latte. "둘 다 라지요" = set_options for each.
+- As soon as the customer names an item, call order BEFORE you say anything, even when \
+options are missing: the kiosk then asks for them. Never ask about an item's options without \
+calling order first.
 - EVERY answer is recorded with a call BEFORE you speak: an option, a number, here or to go, \
 "없어요". If you only speak, the kiosk does not know it and will ask again.
-- Required options (temperature, size) must come from the customer; never guess or choose \
-them yourself. Pass what you understood, even if the words were unclear ("라디오" for "라지요" \
-is large); the customer sees it on the screen and hears it in the read-back.
+- Pass ONLY the options the customer actually said. Leave the others out: the kiosk asks for \
+them. Never fill in a default (no size unless they said one, no temperature unless they said \
+one). When they answer the question asked, pass what you understood even if the words were \
+unclear ("라디오" for "라지요" is large).
+- Never make up your own question about options: ask the result's "ask".
 - "차가운/차갑게/아이스/아아" = ice, "따뜻한/뜨거운/핫" = hot, "라지/큰 거" = large, \
 "레귤러/작은 거" = regular.
 - One item in parts ("아메리카노 세 잔, 하나는 차갑게 두 잔은 따뜻하게"): order once per part, \

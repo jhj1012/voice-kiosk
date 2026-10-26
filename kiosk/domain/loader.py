@@ -122,7 +122,12 @@ def _group(data: dict[str, Any], allergen_ids: set[str]) -> OptionGroup:
     if required and any(c.id == NONE_CHOICE_ID for c in choices):
         raise DataError(f"{where}: a required group cannot have a {NONE_CHOICE_ID!r} choice")
     return OptionGroup(
-        id=group_id, name=_str(data, "name", where), required=required, multi=multi, choices=choices
+        id=group_id,
+        name=_str(data, "name", where),
+        required=required,
+        multi=multi,
+        choices=choices,
+        words=_words(data, "words", where),
     )
 
 

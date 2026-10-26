@@ -111,9 +111,10 @@ def function_declarations(menu: Menu, cafe: Cafe) -> list[dict[str, Any]]:
         ),
         declare(
             "order",
-            "The customer wants a drink or dessert: start choosing it, with every option and the "
-            "number they said. Several items, or one item in parts ('세 잔 중 하나는 차갑게, 두 "
-            "잔은 따뜻하게'), are one call each, in the same turn.",
+            "The customer wants a drink or dessert: call it at once, before asking anything, with "
+            "only the options and the number they said (leave out the rest: the kiosk asks). "
+            "Several items, or one item in parts ('세 잔 중 하나는 차갑게, 두 잔은 따뜻하게'), are "
+            "one call each, in the same turn.",
             {"item_id": _enum(item_ids), "quantity": quantity, **options},
             ["item_id"],
         ),

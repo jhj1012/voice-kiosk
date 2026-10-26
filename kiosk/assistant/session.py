@@ -44,6 +44,7 @@ from kiosk.assistant.safety import (
     asks_to_pay,
     confirmed_cancel,
     customer_asked_to_pay,
+    guessed_groups,
     is_yes,
     mostly_foreign,
     said_amount,
@@ -52,6 +53,7 @@ from kiosk.assistant.safety import (
 from kiosk.assistant.tools import (
     STAY_QUIET,
     function_declarations,
+    selection_from_args,
 )
 from kiosk.config import FlowConfig
 from kiosk.domain.flow import Kiosk, Phase
@@ -86,6 +88,10 @@ CONNECTION_LOST = "연결이 끊어졌어요. 수화기를 내려놓았다가 �
 NOT_ASKED_TO_PAY = (
     "BLOCKED: the customer has not asked to pay (or changed the order since). Do not start the "
     "payment. Ask whether they want anything else or would like to pay."
+)
+NOT_SAID = (
+    "The customer did not mention {groups}, so it was not set: never fill in an option. Ask the "
+    "result's question."
 )
 CANCEL_NOT_CONFIRMED = (
     "BLOCKED: cancel the whole order only right after the customer said yes to your question "
@@ -391,6 +397,8 @@ class AssistantSession:
             and not confirmed_cancel(self.transcript)
         ):
             result = {"blocked": CANCEL_NOT_CONFIRMED}
+        elif call.name in ("order", "set_options"):
+            result = self._without_guesses(call.name, args)
         else:
             result = self.actions.call(call.name, args)
         if self.kiosk.order.lines_signature != before:
@@ -400,6 +408,35 @@ class AssistantSession:
                 self._read_back = None
                 result = {**result, "payment": ORDER_CHANGED_NOTE}
         log.info("call %s(%s) -> %s", call.name, args, result)
+        return result
+
+    def _without_guesses(self, name: str, args: dict[str, Any]) -> Result:
+        """Run order / set_options without required options the customer never mentioned
+        (unless the screen asks for that option: then any answer is taken)."""
+        try:
+            if name == "order":
+                item = self.kiosk.menu.item(str(args.get("item_id", "")))
+            else:
+                draft = args.get("draft")
+                item = self.kiosk.find_draft(
+                    args.get("item_id") or None,
+                    selection_from_args(self.kiosk.menu, args),
+                    int(float(draft)) if draft else None,
+                ).item
+        except (KioskError, TypeError, ValueError):
+            return self.actions.call(name, args)  # the domain explains the mistake
+        question = self.kiosk.question
+        asked = question.group if question.item_id == item.id else ""
+        latest = self.transcript.last_customer()
+        selection = selection_from_args(self.kiosk.menu, args)
+        guessed = guessed_groups(item, selection, latest.text if latest else "", asked)
+        for group in guessed:
+            args.pop(group.id, None)
+        result = self.actions.call(name, args)
+        if guessed and "error" not in result:
+            names = ", ".join(g.name for g in guessed)
+            log.info("guessed %s left out for %s", names, item.id)
+            result["not_said"] = NOT_SAID.format(groups=names)
         return result
 
     # --- payment -----------------------------------------------------------------------------

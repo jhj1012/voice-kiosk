@@ -6,10 +6,10 @@ because prompt rules alone are not enough (see docs/live-check.md):
   card terminal starts (`said_amount`).
 - Throw the whole order away only right after the customer said yes to a cancel question.
 
-Options are not checked against the customer's words any more: the model is trusted, the screen
-shows every choice at once and the read-back lets the customer correct it (a text check refused
-misheard words like "라디오" for 라지요 and made the assistant ask again; see
-docs/conversation-rules.md).
+- A required option (temperature, size) the customer did not mention at all, while the screen
+  was not asking for it, is a guess: it is left out and the kiosk asks (`guessed_groups`).
+  Answers to the question on screen are always taken, whatever the words, so misheard answers
+  ("라디오" for 라지요) are not refused and nothing is asked twice.
 
 The customer's words are the input transcription (or typed text), which arrives before the
 function call. All of this is pure and tested without a network.
@@ -18,8 +18,11 @@ function call. All of this is pure and tested without a network.
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Literal
+
+from kiosk.domain.menu import MenuItem, OptionGroup
 
 Speaker = Literal["customer", "assistant"]
 
@@ -176,6 +179,28 @@ def confirmed_cancel(transcript: Transcript) -> bool:
         return False
     before = transcript.assistant_before(latest)
     return before is not None and bool(_CANCEL_QUESTION.search(normalize(before.text)))
+
+
+# --- guessed options ---------------------------------------------------------------------------
+
+
+def guessed_groups(
+    item: MenuItem,
+    selection: Mapping[str, str | Sequence[str]],
+    words: str,
+    asked: str = "",
+) -> list[OptionGroup]:
+    """Required groups in `selection` that look guessed: not the group the screen asks (`asked`)
+    and not mentioned at all in the customer's `words` (none of the group's `words`)."""
+    text = normalize(words)
+    guessed = []
+    for group_id in selection:
+        group = item.group(group_id)
+        if group is None or not group.required or group_id == asked or not group.words:
+            continue
+        if not any(normalize(w) in text for w in group.words):
+            guessed.append(group)
+    return guessed
 
 
 # --- the read-back -----------------------------------------------------------------------------

@@ -30,11 +30,16 @@ categories:
 # choice (or nothing, for multi groups) unless the customer asks.
 # say: how the assistant reads a choice aloud (defaults to its name).
 # label: how the screen shows it (defaults to `say`).
+# words (required groups): parts of words that show the customer talked about this option at
+#   all. A temperature or size the assistant passes without the customer mentioning it (and
+#   without the screen asking for it) is treated as a guess: left out, and the kiosk asks.
+#   Answers to the question on screen are always taken, whatever the words.
 option_groups:
   - id: temperature
     name: 온도
     required: true
     multi: false
+    words: [따뜻, 따듯, 다뜻, 뜨거, 뜨겁, 뜨뜻, 뜨아, 차가, 차갑, 시원, 아이스, 아아, 핫, 온도, hot, ice]
     choices:
       - id: hot
         name: HOT
@@ -50,6 +55,7 @@ option_groups:
     name: 사이즈
     required: true
     multi: false
+    words: [사이즈, 레귤, 레규, 라지, 라디, 큰, 크게, 작은, 작게, 보통, 기본, 스몰, regular, large]
     choices:
       - id: regular
         name: Regular
