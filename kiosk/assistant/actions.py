@@ -2,8 +2,9 @@
 
 Every call is validated by the domain (`KioskError`); mistakes come back as {"error": ...} so the
 model can correct itself or tell the customer. Results use Korean names (what the model says),
-not ids. The safety rules that need the conversation are applied before this, by the session
-(`session.py`, with the checks in `safety.py`).
+not ids. Every result also has `next`: the kiosk's current question, in the words to say, which
+the screen shows at the same time. The safety rules that need the conversation (paying,
+cancelling everything) are applied before this, by the session.
 """
 
 from __future__ import annotations
@@ -13,53 +14,46 @@ from collections.abc import Callable
 from typing import Any
 
 from kiosk.assistant.tools import selection_from_args
-from kiosk.domain.flow import EXTRAS, ItemResult, Kiosk, PendingItem, Screen, View
-from kiosk.domain.menu import KioskError, OptionGroup
+from kiosk.domain.flow import EXTRAS, Ask, Draft, ItemResult, Kiosk, Phase, Screen, View
+from kiosk.domain.menu import TEMPERATURE, KioskError, OptionGroup
 from kiosk.domain.order import CartLine, Dining, won
 
 log = logging.getLogger(__name__)
 
 Result = dict[str, Any]
 
-# The screen shows one question at a time and marks each answer as soon as it is set.
-ASK_ONE = (
-    "Ask only this, short and without reading the choices or prices (the screen shows them), "
-    "e.g. '사이즈는 어떤 걸로 해 드릴까요?'. When the customer answers, call set_options at once "
-    "(with anything else they said too); the result says what to ask next."
-)
-ASK_EXTRAS = (
-    "Ask briefly '추가하실 거 있으세요?' without reading the extras out (the screen lists "
-    "them). For what they want, call set_options and ask '더 추가하실 거 있으세요?'. When they "
-    "want nothing (more), call finish_item: only then is the item in the order."
-)
+DINING_QUESTION = "매장에서 드시고 가세요, 포장하세요?"
+MENU_BOARD = "메뉴판에서 메뉴를 고르신 뒤 말씀해 주세요."
+ANYTHING_ELSE = "더 필요하신 거 있으세요?"
+EXTRAS_QUESTION = "추가하실 거 있으세요?"
 STAFF_QUESTION = "직원에게 따로 전달할 말씀 있으세요?"
-ASK_STAFF = (
-    "Before the read-back, ask exactly this. If they have something, call note_for_staff. Then "
-    "call request_payment again (they already asked to pay)."
-)
 NOTED = "네, 알겠습니다. 해당 사항은 직원에게 전달하겠습니다."
+
+ASK_EXTRAS = (
+    "Do not read the extras out: the screen lists them. For what they want call set_options and "
+    "ask '더 추가하실 거 있으세요?'; when they want nothing (more), call no_more_extras."
+)
+ASK_STAFF = (
+    "Ask exactly this. If they have something, call note_for_staff. Then call pay again (they "
+    "already asked to pay)."
+)
+SAY_READ_BACK = "Say the read_back now, word for word; nothing about the card yet."
+LINE_SHOWN = "Shown again. If they want to change it, call change with line {line}."
 
 
 class Actions:
     def __init__(self, kiosk: Kiosk) -> None:
         self.kiosk = kiosk
         self._handlers: dict[str, Callable[[dict[str, Any]], Result]] = {
-            "show_menu": self._show_menu,
-            "show_categories": self._show_categories,
-            "show_item": self._show_item,
-            "show_info": self._show_info,
-            "choose_item": self._choose_item,
+            "show": self._show,
+            "order": self._order_item,
             "set_options": self._set_options,
-            "finish_item": self._finish_item,
-            "cancel_item": self._cancel_item,
-            "edit_line": self._edit_line,
+            "no_more_extras": self._no_more_extras,
+            "set_dining": self._set_dining,
+            "change": self._change,
             "go_back": self._go_back,
             "note_for_staff": self._note_for_staff,
-            "change_line": self._change_line,
-            "set_dining": self._set_dining,
-            "show_order": self._show_order,
-            "request_payment": self._request_payment,
-            "cancel_payment": self._cancel_payment,
+            "pay": self._pay,
             "cancel_order": self._cancel_order,
         }
 
@@ -74,140 +68,206 @@ class Actions:
         try:
             return handler(dict(args or {}))
         except KioskError as e:
-            return {"error": str(e)}
+            return {"error": str(e), **self._next()}
         except (TypeError, ValueError) as e:
             log.warning("bad arguments for %s: %s (%s)", name, args, e)
             return {"error": f"invalid arguments: {e}"}
 
     # --- display -----------------------------------------------------------------------------
 
-    def _show_menu(self, args: dict[str, Any]) -> Result:
-        shown = self.kiosk.show_menu(
-            title=str(args.get("title") or ""),
-            category=args.get("category") or None,
-            item_ids=list(args.get("item_ids") or []),
-            highlight_ids=list(args.get("highlight_ids") or []),
-            exclude_allergens=list(args.get("exclude_allergens") or []),
-        )
-        result: Result = {"shown": self._names(shown.item_ids)}
-        if shown.removed:
-            result["left_out_for_allergens"] = self._names(shown.removed)
-        return result
+    def _show(self, args: dict[str, Any]) -> Result:
+        what = str(args.get("what", ""))
+        kiosk = self.kiosk
+        result: Result
+        if what == "menu":
+            shown = kiosk.show_menu(
+                title=str(args.get("title") or ""),
+                category=args.get("category") or None,
+                item_ids=list(args.get("item_ids") or []),
+                highlight_ids=list(args.get("highlight_ids") or []),
+                exclude_allergens=list(args.get("exclude_allergens") or []),
+            )
+            result = {"shown": self._names(shown.item_ids)}
+            if shown.removed:
+                result["left_out_for_allergens"] = self._names(shown.removed)
+        elif what == "categories":
+            kiosk.show_categories()
+            result = {"shown": [c.name for c in kiosk.menu.categories]}
+        elif what == "item":
+            item = kiosk.show_item(str(args.get("item_id", "")))
+            result = {"shown": item.name, "description": item.description}
+        elif what == "info":
+            topic_id = str(args.get("topic", ""))
+            kiosk.show_info(topic_id)
+            topic = kiosk.cafe.topic(topic_id)
+            result = {"shown": topic.title, "text": topic.text}
+        elif what == "order":
+            kiosk.show_order()
+            result = {"shown": "주문 내역", **self._order()}
+        else:
+            raise KioskError("what must be one of: menu, categories, item, info, order")
+        return {**result, **self._next()}
 
-    def _show_categories(self, args: dict[str, Any]) -> Result:
-        self.kiosk.show_categories()
-        return {"shown": [c.name for c in self.kiosk.menu.categories]}
-
-    def _show_item(self, args: dict[str, Any]) -> Result:
-        item = self.kiosk.show_item(str(args.get("item_id", "")))
-        return {"shown": item.name}
-
-    def _show_info(self, args: dict[str, Any]) -> Result:
-        topic_id = str(args.get("topic", ""))
-        self.kiosk.show_info(topic_id)
-        topic = self.kiosk.cafe.topic(topic_id)
-        return {"shown": topic.title, "text": topic.text}
+    def _go_back(self, args: dict[str, Any]) -> Result:
+        view = self.kiosk.go_back(str(args.get("to") or ""))
+        return {"shown": self._describe(view), **self._next()}
 
     # --- ordering ----------------------------------------------------------------------------
 
-    def _choose_item(self, args: dict[str, Any]) -> Result:
-        menu = self.kiosk.menu
+    def _order_item(self, args: dict[str, Any]) -> Result:
         quantity = args.get("quantity")
-        result = self.kiosk.choose_item(
+        result = self.kiosk.order_item(
             str(args.get("item_id", "")),
             quantity=None if quantity is None else _int(quantity),
-            selection=selection_from_args(menu, args),
+            selection=selection_from_args(self.kiosk.menu, args),
         )
         return self._item_result(result)
 
     def _set_options(self, args: dict[str, Any]) -> Result:
         quantity = args.get("quantity")
+        draft = args.get("draft")
+        name = self._target_name(args)
         result = self.kiosk.set_options(
             selection_from_args(self.kiosk.menu, args),
             quantity=None if quantity is None else _int(quantity),
             item_id=args.get("item_id") or None,
+            draft_id=None if draft in (None, 0) else _int(draft),
         )
+        if result.line is None and result.draft is None:
+            return {"cancelled": name, **self._order(), **self._next()}
         return self._item_result(result)
 
-    def _finish_item(self, args: dict[str, Any]) -> Result:
-        return self._item_result(self.kiosk.finish_item(args.get("item_id") or None))
+    def _no_more_extras(self, args: dict[str, Any]) -> Result:
+        return self._item_result(self.kiosk.no_more_extras(args.get("item_id") or None))
 
-    def _cancel_item(self, args: dict[str, Any]) -> Result:
-        self.kiosk.cancel_item(args.get("item_id") or None)
-        return {"ok": True, **self._order(), **self._waiting()}
+    def _set_dining(self, args: dict[str, Any]) -> Result:
+        dining = Dining(str(args.get("dining", "")))
+        self.kiosk.set_dining(dining)
+        return {"dining": dining.label, **self._next()}
 
-    def _edit_line(self, args: dict[str, Any]) -> Result:
-        line = self.kiosk.edit_line(_int(args.get("line", 0)), str(args.get("option") or ""))
-        return {"shown": self._spoken(line), "options": self._options(line)}
-
-    def _go_back(self, args: dict[str, Any]) -> Result:
-        return {"shown": self._describe(self.kiosk.go_back())}
-
-    def _note_for_staff(self, args: dict[str, Any]) -> Result:
-        self.kiosk.add_note(str(args.get("text", "")))
-        return {"noted": self.kiosk.order.notes[-1], "say": NOTED}
-
-    def _change_line(self, args: dict[str, Any]) -> Result:
+    def _change(self, args: dict[str, Any]) -> Result:
         quantity = args.get("quantity")
         number = _int(args.get("line", 0))
-        before = self.kiosk.order.line(number).spoken(self._unit(self.kiosk.order.line(number)))
+        before = self._spoken(self.kiosk.order.line(number))
         line = self.kiosk.change_line(
             number,
             quantity=None if quantity is None else _int(quantity),
             selection=selection_from_args(self.kiosk.menu, args),
         )
         if line is None:
-            return {"removed": before, **self._order()}
-        return {"changed": self._spoken(line), **self._order()}
+            return {"removed": before, **self._order(), **self._next()}
+        return {"changed": self._spoken(line), **self._order(), **self._next()}
 
-    def _set_dining(self, args: dict[str, Any]) -> Result:
-        dining = Dining(str(args.get("dining", "")))
-        self.kiosk.set_dining(dining)
-        return {"dining": dining.label}
+    def _note_for_staff(self, args: dict[str, Any]) -> Result:
+        self.kiosk.add_note(str(args.get("text", "")))
+        return {"noted": self.kiosk.order.notes[-1], "say": NOTED, **self._next()}
 
-    # --- review and payment ------------------------------------------------------------------
+    # --- paying ------------------------------------------------------------------------------
 
-    def _show_order(self, args: dict[str, Any]) -> Result:
-        self.kiosk.show_order()
-        return {"shown": True, **self._order()}
-
-    def _request_payment(self, args: dict[str, Any]) -> Result:
-        """The review before payment. The session checks that the customer asked to pay, and
-        starts the terminal (`Kiosk.start_payment`) once the read-back has been said."""
-        if self.kiosk.ask_staff_question():
+    def _pay(self, args: dict[str, Any]) -> Result:
+        """The session checked that the customer asked to pay; it starts the card terminal once
+        the read-back has been said."""
+        try:
+            step = self.kiosk.request_payment()
+        except KioskError as e:
+            return {"not_yet": str(e), **self._next()}
+        if step is Ask.STAFF:
             return {"ask_first": STAFF_QUESTION, "next": ASK_STAFF}
-        return {"read_back": self.kiosk.review()}
-
-    def _cancel_payment(self, args: dict[str, Any]) -> Result:
-        self.kiosk.cancel_payment()
-        return {"ok": True}
+        return {"read_back": self.kiosk.read_back, "next": SAY_READ_BACK}
 
     def _cancel_order(self, args: dict[str, Any]) -> Result:
+        if self.kiosk.phase is Phase.PAYING:
+            self.kiosk.cancel_payment()
+            return {"payment_stopped": True, **self._next()}
         self.kiosk.cancel_order()
-        return {"ok": True, "order": []}
+        return {"cancelled": "주문 전체", **self._next()}
 
-    # --- helpers -----------------------------------------------------------------------------
+    # --- results -----------------------------------------------------------------------------
 
     def _item_result(self, result: ItemResult) -> Result:
+        out: Result = {}
         if result.line is not None:
-            return {"added": self._spoken(result.line), **self._order(), **self._waiting()}
-        pending = result.pending
-        assert pending is not None
-        if pending.asking == EXTRAS:
-            chosen = _chosen(pending)
-            question: Result = {
-                "extras": [_question(g, extra=True) for g in pending.extras],
-                **({"chosen": chosen} if chosen else {}),
-                "next": ASK_EXTRAS,
+            out["added"] = self._spoken(result.line)
+            out.update(self._order())
+        elif result.draft is not None:
+            out["being_chosen"] = self._draft_text(result.draft)
+        return {**out, **self._next()}
+
+    def _next(self) -> Result:
+        """The current question: what to ask now (the screen shows it too)."""
+        kiosk = self.kiosk
+        q = kiosk.question
+        out: Result = {}
+        if len(kiosk.drafts) > 1 or (kiosk.drafts and q.kind not in (Ask.OPTION, Ask.EXTRAS)):
+            drafts = sorted(kiosk.drafts, key=lambda d: d.id)
+            out["being_chosen"] = [self._draft_entry(d) for d in drafts]
+        if q.kind is Ask.OPTION:
+            draft = kiosk.draft(q.draft)
+            group = draft.item.group(q.group) if draft else None
+            if draft is not None and group is not None:
+                return {**out, "ask": self._option_question(draft, group)}
+        if q.kind is Ask.EXTRAS:
+            draft = kiosk.draft(q.draft)
+            name = draft.item.name if draft else ""
+            ask = f"{name}에 {EXTRAS_QUESTION}" if name else EXTRAS_QUESTION
+            return {**out, "ask": ask, "extras_note": ASK_EXTRAS}
+        if q.kind is Ask.DINING:
+            return {**out, "ask": DINING_QUESTION}
+        if q.kind is Ask.MENU:
+            empty = kiosk.order.is_empty and not kiosk.drafts
+            return {**out, "ask": MENU_BOARD if empty else ANYTHING_ELSE}
+        if q.kind is Ask.LINE:
+            line = kiosk.order.line(q.line)
+            return {
+                **out,
+                "line_shown": f"{q.line}. {self._spoken(line)}",
+                "options": self._options(line),
+                "note": LINE_SHOWN.format(line=q.line),
             }
-        else:
-            group = pending.item.group(pending.asking)
-            assert group is not None
-            question = {"ask": _question(group, prices=False), "next": ASK_ONE}
-        return {"not_added_yet": pending.item.name, **question, **self._waiting(besides=pending)}
+        if q.kind is Ask.STAFF:
+            return {**out, "ask": STAFF_QUESTION}
+        if q.kind is Ask.REVIEW:
+            return {**out, "read_back": kiosk.read_back}
+        return out
+
+    def _option_question(self, draft: Draft, group: OptionGroup) -> str:
+        """e.g. "카페라떼 사이즈는 어떤 걸로 해 드릴까요?", "아메리카노는 따뜻하게 드릴까요, 차갑게
+        드릴까요?" (with "차가운" in front when the same item is chosen more than once)."""
+        name = draft.item.name
+        same = [d for d in self.kiosk.drafts if d.item.id == draft.item.id]
+        if len(same) > 1:
+            said = [c.spoken for cs in draft.chosen.values() for c in cs if not c.is_none]
+            name = " ".join([*said, name])
+        if group.id == TEMPERATURE:
+            return f"{name}{_topic(name)} 따뜻하게 드릴까요, 차갑게 드릴까요?"
+        return f"{name} {group.name}{_topic(group.name)} 어떤 걸로 해 드릴까요?"
+
+    def _draft_text(self, draft: Draft) -> str:
+        said = [c.spoken for cs in draft.chosen.values() for c in cs if not c.is_none]
+        unit = self.kiosk.menu.unit(draft.item)
+        return " ".join([*said, draft.item.name, f"{draft.quantity}{unit}"])
+
+    def _draft_entry(self, draft: Draft) -> Result:
+        return {
+            "draft": draft.id,
+            "item_id": draft.item.id,
+            "what": self._draft_text(draft),
+            "missing": [g.name for g in draft.missing]
+            or (["extras"] if draft.asking == EXTRAS else []),
+        }
+
+    def _target_name(self, args: dict[str, Any]) -> str:
+        try:
+            draft = args.get("draft")
+            found = self.kiosk.find_draft(
+                args.get("item_id") or None, None, None if not draft else _int(draft)
+            )
+        except (KioskError, TypeError, ValueError):
+            return ""
+        return found.item.name
 
     def _options(self, line: CartLine) -> dict[str, str]:
-        """An order line's options by name, e.g. {"온도": "아이스", "시럽": "없음"}."""
+        """An order line's options by name, e.g. {"온도": "차가운", "시럽": "없음"}."""
         return {
             group.name: ", ".join(c.spoken for c in line.chosen()[group.id]) or "없음"
             for group in line.item.option_groups
@@ -227,24 +287,6 @@ class Actions:
             view.screen, view.screen.value
         )
 
-    def _waiting(self, besides: PendingItem | None = None) -> Result:
-        """Other items still waiting for options, so the model does not forget them."""
-        waiting = [p for p in self.kiosk.pending_items if p is not besides]
-        if not waiting:
-            return {}
-        return {
-            "still_waiting_for_options": [
-                {
-                    "item_id": p.item.id,
-                    "name": p.item.name,
-                    "quantity": p.quantity,
-                    **({"chosen": _chosen(p)} if _chosen(p) else {}),
-                    "missing": [g.name for g in p.missing] or ["extras (then finish_item)"],
-                }
-                for p in waiting
-            ]
-        }
-
     def _order(self) -> Result:
         order = self.kiosk.order
         return {
@@ -256,27 +298,18 @@ class Actions:
         }
 
     def _spoken(self, line: CartLine) -> str:
-        return line.spoken(self._unit(line))
-
-    def _unit(self, line: CartLine) -> str:
-        return self.kiosk.menu.unit(line.item)
+        return line.spoken(self.kiosk.menu.unit(line.item))
 
     def _names(self, item_ids: tuple[str, ...]) -> list[str]:
         return [self.kiosk.menu.item(i).name for i in item_ids]
 
 
-def _question(group: OptionGroup, extra: bool = False, prices: bool = True) -> Result:
-    choices = [c for c in group.choices if not (extra and c.is_none)]
-    return {
-        "option": group.name,
-        "choices": [
-            f"{c.spoken} (+{won(c.price)})" if c.price and prices else c.spoken for c in choices
-        ],
-    }
-
-
-def _chosen(pending: PendingItem) -> list[str]:
-    return [c.spoken for cs in pending.chosen.values() for c in cs if not c.is_none]
+def _topic(word: str) -> str:
+    """은 after a final consonant, 는 otherwise ("사이즈는", "카페라떼는", "온도는")."""
+    last = word[-1] if word else ""
+    if "가" <= last <= "힣" and (ord(last) - 0xAC00) % 28:
+        return "은"
+    return "는"
 
 
 def _int(value: Any) -> int:

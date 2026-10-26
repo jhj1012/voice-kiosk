@@ -10,18 +10,25 @@ def by_name(menu: Menu, cafe: Cafe) -> dict[str, dict]:
 
 
 def test_declarations_are_valid_for_the_sdk(menu: Menu, cafe: Cafe):
-    for declaration in function_declarations(menu, cafe, ignore_unrelated=True):
+    declarations = function_declarations(menu, cafe)
+    for declaration in declarations:
         types.FunctionDeclaration.model_validate(declaration)
+    assert len(declarations) == 11
 
 
 def test_enums_come_from_the_data(menu: Menu, cafe: Cafe):
     declarations = by_name(menu, cafe)
-    item_enum = declarations["choose_item"]["parameters"]["properties"]["item_id"]["enum"]
+    item_enum = declarations["order"]["parameters"]["properties"]["item_id"]["enum"]
     assert item_enum == [i.id for i in menu.items]
-    topic_enum = declarations["show_info"]["parameters"]["properties"]["topic"]["enum"]
-    assert topic_enum == [t.id for t in cafe.topics]
-    menu_props = declarations["show_menu"]["parameters"]["properties"]
-    assert menu_props["exclude_allergens"]["items"]["enum"] == ["milk", "soy", "wheat", "egg"]
+    show = declarations["show"]["parameters"]["properties"]
+    assert show["topic"]["enum"] == [t.id for t in cafe.topics]
+    assert show["exclude_allergens"]["items"]["enum"] == ["milk", "soy", "wheat", "egg"]
+    back = declarations["go_back"]["parameters"]["properties"]["to"]["enum"]
+    assert "cafe_latte" in back and "categories" in back
+
+
+def test_stay_quiet_is_always_there_and_answered_silently(menu: Menu, cafe: Cafe):
+    assert by_name(menu, cafe)["stay_quiet"]["behavior"] == "NON_BLOCKING"
 
 
 def test_option_parameters_are_flat(menu: Menu):

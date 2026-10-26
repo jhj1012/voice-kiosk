@@ -8,15 +8,11 @@ from kiosk.assistant.safety import (
     customer_asked_to_pay,
     is_no,
     is_yes,
-    item_words,
-    mention_start,
     mostly_foreign,
     parse_korean_number,
     said_amount,
-    unheard_required,
     wants_to_stop,
 )
-from kiosk.domain.menu import Menu
 
 # --- transcript --------------------------------------------------------------------------------
 
@@ -133,50 +129,6 @@ def test_cancel_needs_a_yes_to_a_cancel_question():
     assert not confirmed_cancel(conversation(("assistant", "포장하세요?"), ("customer", "네")))
 
 
-# --- required options must be heard ------------------------------------------------------------
-
-
-def test_unheard_required(menu: Menu):
-    latte = menu.item("cafe_latte")
-    selection = {"temperature": "ice", "size": "large", "shot": "extra_shot"}
-    groups = unheard_required(latte, selection, ["카페라떼 아이스로 주세요"])
-    assert [g.id for g in groups] == ["size"]  # shots are extras: not checked
-
-
-@pytest.mark.parametrize(
-    ("said", "selection"),
-    [
-        ("아아 하나요", {"temperature": "ice"}),
-        ("뜨거운 걸로", {"temperature": "hot"}),
-        ("제일 큰 거요", {"size": "large"}),
-        ("작은 사이즈요", {"size": "regular"}),
-        ("사이즈는 아무거나 괜찮아요", {"size": "regular"}),
-        ("ICE 라지", {"temperature": "ice", "size": "large"}),
-        # "아이스요, 크게요" as the transcription wrote it (docs/live-check.md)
-        ("I see. 크게요.", {"temperature": "ice", "size": "large"}),
-        ("아이세요. 크게요.", {"temperature": "ice", "size": "large"}),
-        ("아이셀", {"temperature": "ice"}),
-    ],
-)
-def test_aliases_count_as_heard(menu: Menu, said, selection):
-    assert unheard_required(menu.item("americano"), selection, [said]) == []
-
-
-def test_values_already_chosen_are_not_new(menu: Menu):
-    americano = menu.item("americano")
-    already = {"temperature": ("ice",), "size": ("large",)}
-    selection = {"temperature": "ice", "size": "large"}
-    assert unheard_required(americano, selection, ["샷 추가해 주세요"], already) == []
-    selection = {"temperature": "hot", "size": "large"}
-    assert [g.id for g in unheard_required(americano, selection, ["샷"], already)] == [
-        "temperature"
-    ]
-
-
-def test_options_the_item_does_not_have_are_left_to_the_domain(menu: Menu):
-    assert unheard_required(menu.item("cold_brew"), {"temperature": "ice"}, []) == []
-
-
 # --- read-back amounts -------------------------------------------------------------------------
 
 
@@ -213,24 +165,6 @@ def test_mostly_foreign():
     assert not mostly_foreign("13,500원")
 
 
-def test_mention_start_finds_where_an_item_was_named(menu: Menu):
-    t = conversation(
-        ("customer", "청포도 에이드 하나랑 아메리카노 하나 주세요"),
-        ("assistant", "사이즈는요?"),
-        ("customer", "아메리카노는 아이스요"),
-        ("assistant", "네"),
-        ("customer", "둘 다 라지로요"),
-    )
-    assert mention_start(t, menu.item("americano")) == 2
-    assert mention_start(t, menu.item("green_grape_ade")) == 0
-    assert mention_start(t, menu.item("cafe_latte")) == 4  # never named: the latest words
-
-
-def test_item_words(menu: Menu):
-    assert item_words(menu.item("green_grape_ade")) == ["청포도에이드", "청포도", "에이드"]
-    assert item_words(menu.item("chocolate_cookie")) == ["초코쿠키"]
-
-
 @pytest.mark.parametrize(
     ("text", "stop"),
     [
@@ -258,22 +192,3 @@ def test_no_to_the_extras_question_is_not_asking_to_pay(assistant):
 
 def test_no_to_more_menu_items_still_is():
     assert asks_to_pay("없어", "더 추가하실 메뉴가 있으신가요, 아니면 결제를 진행할까요?")
-
-
-@pytest.mark.parametrize(
-    ("said", "size"),
-    [
-        ("라디오", "large"),  # "라지요" as the transcription wrote it
-        ("큰 거예요", "large"),
-        ("레규러로 주세요", "regular"),  # spelled a little differently
-        ("레글러요", "regular"),
-    ],
-)
-def test_misheard_sizes_still_count(menu: Menu, said, size):
-    assert unheard_required(menu.item("americano"), {"size": size}, [said]) == []
-
-
-@pytest.mark.parametrize("said", ["마지막으로 하나요", "가지고 갈게요", "레몬으로요"])
-def test_short_words_need_the_real_word(menu: Menu, said):
-    assert unheard_required(menu.item("americano"), {"size": "large"}, [said]) != []
-    assert unheard_required(menu.item("americano"), {"size": "regular"}, [said]) != []
