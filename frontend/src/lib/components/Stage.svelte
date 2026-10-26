@@ -143,7 +143,7 @@
 
   {#if idle}
     <p class="prompt box" in:fade={{ duration: 600, delay: 400 }} out:fade={{ duration: 200 }}>
-      수화기를 들고 말씀해 주세요
+      {ui.phone ? '수화기를 들고 화면을 눌러 주세요' : '수화기를 들고 말씀해 주세요'}
     </p>
   {/if}
 
@@ -157,7 +157,12 @@
     <Notice level={ui.notice.level} text={ui.notice.text} />
   {/if}
 
-  {#if ui.keyForm}
+  {#if ui.keyForm && ui.phone}
+    <!-- The key is entered on the laptop only (POST /api/key is refused from the phone). -->
+    <p class="prompt box">
+      API 키가 필요해요. 노트북에서 http://localhost:8765 를 열고 넣어 주세요.
+    </p>
+  {:else if ui.keyForm}
     <ApiKeyForm />
   {/if}
 </div>

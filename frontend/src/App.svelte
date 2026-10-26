@@ -1,13 +1,18 @@
 <script lang="ts">
   // Picks the event source: the backend's WebSocket, or a recorded demo timeline
   // (?demo=order, ?demo=allergy; &at=<ms> starts later, &pause stops there; &dev opens the
-  // developer panel; &backdrop=blur|gradient|boxes picks the choices' background).
+  // developer panel; &backdrop=blur|gradient|boxes picks the choices' background; &phone shows
+  // the phone mode's screen).
+  // On the phone of the phone mode a tap anywhere starts the conversation (and turns on the
+  // phone's microphone and speaker the first time); the end button ends it.
   import { onMount } from 'svelte';
   import type { ClientEvent, ServerEvent } from './lib/events';
   import { connect, type Connection } from './lib/connection';
+  import { startPhoneAudio, type PhoneAudio } from './lib/phone';
   import { play, type Timeline } from './lib/player';
   import { dispatch, previewSettings, ui } from './lib/store.svelte';
   import DevPanel from './lib/components/DevPanel.svelte';
+  import PhoneEnd from './lib/components/PhoneEnd.svelte';
   import Stage from './lib/components/Stage.svelte';
 
   const params = new URLSearchParams(location.search);
@@ -18,6 +23,12 @@
   let connected = $state(false);
   let log = $state.raw<{ at: number; event: ServerEvent }[]>([]);
   let connection: Connection | null = null;
+  let phoneAudio = $state.raw<PhoneAudio | null>(null);
+  let phoneStarting = false;
+  let wakeLock: WakeLockSentinel | null = null;
+
+  // The phone sends its microphone only while a conversation is on.
+  $effect(() => phoneAudio?.setActive(ui.state.phase !== 'idle'));
 
   function receive(event: ServerEvent) {
     dispatch(event);
@@ -42,11 +53,48 @@
     }
   }
 
+  /** The phone: a tap anywhere while idle starts the conversation. */
+  async function onTap() {
+    if (!ui.phone || ui.keyForm || ui.state.phase !== 'idle' || phoneStarting) return;
+    // Full screen and the wake lock need the tap itself, before anything is awaited.
+    if (!document.fullscreenElement)
+      void document.documentElement.requestFullscreen?.().catch(() => {});
+    void keepAwake();
+    if (!phoneAudio) {
+      phoneStarting = true;
+      try {
+        phoneAudio = await startPhoneAudio();
+      } catch (error) {
+        console.warn('no microphone', error);
+        receive({
+          type: 'notice',
+          level: 'error',
+          text: '마이크를 쓸 수 없어요. Chrome에서 마이크를 허용한 뒤 다시 눌러 주세요.',
+        });
+        return;
+      } finally {
+        phoneStarting = false;
+      }
+      receive({ type: 'notice', level: 'info', text: '' });
+    }
+    send({ type: 'hook', off_hook: true });
+  }
+
+  /** Keeps the phone's screen on (Chrome lets it go when the page is hidden). */
+  async function keepAwake() {
+    if (wakeLock && !wakeLock.released) return;
+    try {
+      wakeLock = (await navigator.wakeLock?.request('screen')) ?? null;
+    } catch {
+      wakeLock = null; // e.g. battery saver: the screen may turn off, nothing else changes
+    }
+  }
+
   async function startDemo(): Promise<() => void> {
     // Loaded only in demo mode, so the kiosk's own bundle stays small.
     const demo = (await import('./dev/demo.json')).default;
     const scenarios = demo.scenarios as unknown as Record<string, Timeline>;
-    dispatch(demo.init as ServerEvent);
+    dispatch({ ...(demo.init as ServerEvent & { type: 'init' }), phone: params.has('phone') });
     if (params.get('backdrop')) previewSettings({ backdrop: params.get('backdrop') });
     connected = true;
     return play(scenarios[demoName!] ?? Object.values(scenarios)[0], receive, {
@@ -70,9 +118,12 @@
   });
 </script>
 
-<svelte:window onkeydown={onKey} />
+<svelte:window onkeydown={onKey} onpointerup={onTap} />
 
 <Stage />
+{#if ui.phone && ui.state.phase !== 'idle'}
+  <PhoneEnd onend={() => send({ type: 'hook', off_hook: false })} />
+{/if}
 {#if devOpen}
   <DevPanel {send} {mode} {connected} {log} />
 {/if}

@@ -124,6 +124,7 @@ export interface InitEvent {
   menu: Menu;
   cafe: Cafe;
   avatar?: AvatarFiles;
+  phone?: boolean; // this display is the phone of the phone mode (its mic and speaker)
 }
 
 // The developer panel's display settings, as saved by the backend (see settings.ts).

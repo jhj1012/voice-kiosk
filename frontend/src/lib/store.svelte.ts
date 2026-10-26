@@ -17,6 +17,7 @@ let notice = $state.raw(start.notice);
 let apiKey = $state.raw(start.apiKey);
 let keyFormOpen = $state(false); // the developer panel's "API 키 바꾸기"
 let lastAdded = $state.raw(start.lastAdded);
+let phone = $state(start.phone);
 const settings = $derived(normalize(savedSettings));
 
 export const ui = {
@@ -54,6 +55,10 @@ export const ui = {
   get apiKey() {
     return apiKey;
   },
+  /** The phone of the phone mode: its microphone and speaker are the handset. */
+  get phone() {
+    return phone;
+  },
   /** The API key form: when the key does not work, or when someone wants to change it. */
   get keyForm() {
     return apiKey !== 'ok' || keyFormOpen;
@@ -81,6 +86,7 @@ export function dispatch(event: ServerEvent): void {
     notice,
     apiKey,
     lastAdded,
+    phone,
   };
   const after = apply(before, event, performance.now());
   if (after.menu !== menu) menu = after.menu;
@@ -93,4 +99,5 @@ export function dispatch(event: ServerEvent): void {
   if (after.notice !== notice) notice = after.notice;
   if (after.apiKey !== apiKey) apiKey = after.apiKey;
   if (after.lastAdded !== lastAdded) lastAdded = after.lastAdded;
+  if (after.phone !== phone) phone = after.phone;
 }

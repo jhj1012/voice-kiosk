@@ -25,6 +25,8 @@ describe('apply', () => {
     expect(display.menu?.items.length).toBe(init.menu.items.length);
     expect(display.menu?.items.length).toBeGreaterThan(0);
     expect(display.cafe?.name).toBe(init.cafe.name);
+    expect(display.phone).toBe(false);
+    expect(apply(display, { ...init, phone: true }).phone).toBe(true); // the phone mode's phone
   });
 
   it('replaces the snapshot and ignores older ones', () => {
