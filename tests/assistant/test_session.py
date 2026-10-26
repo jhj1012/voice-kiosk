@@ -255,7 +255,7 @@ def test_function_calls_change_the_kiosk(new_kiosk):
         )
         assert "extras" in result  # "추가하실 거 있으세요?"
         result = await h.call("finish_item")
-        assert result["added"] == "아이스 아메리카노 라지 2잔"
+        assert result["added"] == "차가운 아메리카노 라지 2잔"
         assert h.kiosk.order.total == 9000
         assert h.session.state is AssistantState.THINKING
         result = await h.call("show_menu", category="dessert")
@@ -280,7 +280,7 @@ def test_required_options_nobody_said_are_not_set(new_kiosk):
         await h.say("큰 걸로요")
         result = await h.call("set_options", size="large")
         assert "extras" in result
-        assert (await h.call("finish_item"))["added"] == "아이스 카페라떼 라지 1잔"
+        assert (await h.call("finish_item"))["added"] == "차가운 카페라떼 라지 1잔"
 
     run(scenario, new_kiosk)
 
@@ -314,7 +314,7 @@ def test_change_line_repeating_current_options_is_fine(new_kiosk):
         result = await h.call(
             "change_line", line=1, temperature="ice", size="regular", shot="extra_shot"
         )
-        assert result["changed"] == "아이스 아메리카노 레귤러(샷 추가) 1잔"
+        assert result["changed"] == "차가운 아메리카노 레귤러(샷 추가) 1잔"
         result = await h.call("change_line", line=1, size="large")
         assert "blocked" in result  # nobody said 라지
 
@@ -476,7 +476,7 @@ def test_failed_resume_starts_fresh_with_the_order(new_kiosk, monkeypatch):
         setup = connector.setups[-1]
         assert setup.resume_handle is None
         # The fresh session knows the order, what is still waiting and what was just said.
-        assert "1. 아이스 아메리카노 레귤러 1잔 4,000원" in setup.instructions
+        assert "1. 차가운 아메리카노 레귤러 1잔 4,000원" in setup.instructions
         assert "- cafe_latte 카페라떼: missing 온도, 사이즈" in setup.instructions
         assert "- assistant: 따뜻하게 드릴까요, 아이스로 드릴까요?" in setup.instructions
         assert h.conn.texts == [RECONNECTED_CUE]
@@ -696,5 +696,21 @@ def test_no_more_extras_is_not_asking_to_pay(new_kiosk):
         await h.call("finish_item")
         await h.call("set_dining", dining="to_go")
         assert "blocked" in await h.call("request_payment")
+
+    run(scenario, new_kiosk)
+
+
+def test_three_cups_one_cold_two_hot(new_kiosk):
+    # Team test: only the two hot ones were left.
+    async def scenario(h: Harness):
+        await h.say("아메리카노 세 잔이요")
+        await h.call("choose_item", item_id="americano", quantity=3)
+        await h.reply("따뜻하게 드릴까요, 차갑게 드릴까요?")
+        await h.say("하나는 차갑게, 두 잔은 따뜻하게요")
+        await h.call("choose_item", item_id="americano", quantity=1, temperature="ice")
+        result = await h.call("choose_item", item_id="americano", quantity=2, temperature="hot")
+        waiting = result["still_waiting_for_options"]
+        assert waiting[0]["quantity"] == 1 and waiting[0]["chosen"] == ["차가운"]
+        assert sorted(p.quantity for p in h.kiosk.pending_items) == [1, 2]
 
     run(scenario, new_kiosk)

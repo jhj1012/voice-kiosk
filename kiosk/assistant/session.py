@@ -437,7 +437,9 @@ class AssistantSession:
                 item = self.kiosk.menu.item(str(args.get("item_id", "")))
                 return item, {}, mention_start(self.transcript, item)
             if name == "set_options":
-                pending = self.kiosk.pending_item(args.get("item_id") or None)
+                pending = self.kiosk.pending_item(
+                    args.get("item_id") or None, selection_from_args(self.kiosk.menu, args)
+                )
                 chosen = {g: tuple(c.id for c in cs) for g, cs in pending.chosen.items()}
                 return pending.item, chosen, mention_start(self.transcript, pending.item)
             line = self.kiosk.order.line(int(float(args.get("line", 0))))

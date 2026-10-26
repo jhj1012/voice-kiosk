@@ -87,7 +87,7 @@ def test_read_back(menu: Menu):
     order.add(*choices(menu, "cold_brew", size="regular"))
     order.set_dining(Dining.TO_GO)
     assert order.read_back(menu) == (
-        "주문 확인해 드릴게요. 아이스 아메리카노 라지(샷 추가) 2잔, 초코 쿠키 1개, "
+        "주문 확인해 드릴게요. 차가운 아메리카노 라지(샷 추가) 2잔, 초코 쿠키 1개, "
         "콜드브루 레귤러 1잔, 포장으로 총 17,200원입니다."
     )
     order.set_dining(Dining.HERE)

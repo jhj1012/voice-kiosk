@@ -16,6 +16,7 @@ from __future__ import annotations
 import re
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
+from difflib import SequenceMatcher
 from typing import Literal
 
 from kiosk.domain.menu import MenuItem, OptionChoice, OptionGroup
@@ -115,8 +116,10 @@ _PAY = re.compile(
 )
 _NOT_PAY = re.compile(r"결제(안|말고|하지|는나중|전에)|계산(안|말고|하지)|아직")
 _ANYTHING_ELSE = re.compile(r"더(필요|주문|드실|하실|원하|추가)|추가로|다른(메뉴|거|것|건)")
-# "추가하실 거 있으세요?" asks about an item's extras: "없어요" there is not "that's all".
+# "추가하실 거 있으세요?" asks about an item's extras: "없어요" there is not "that's all". (A
+# question about more menu items, "더 추가하실 메뉴 있으세요?", still is.)
 _EXTRAS_QUESTION = re.compile(r"추가하실|추가할|옵션|샷|시럽|텀블러|토핑|휘핑")
+_ITEMS_QUESTION = re.compile(r"메뉴|주문|결제|계산")
 _PAY_QUESTION = re.compile(r"결제|계산")
 _CANCEL_QUESTION = re.compile(r"취소")
 _YES = re.compile(r"^(네|넵|예|응|어|그래|좋아|맞아|부탁|그렇게|오케이|ok|yes|당연|물론|취소해)")
@@ -147,7 +150,8 @@ def asks_to_pay(customer: str, assistant_before: str = "") -> bool:
     a = normalize(assistant_before)
     if _PAY.search(c) and not _NOT_PAY.search(c):
         return True
-    if _ANYTHING_ELSE.search(a) and not _EXTRAS_QUESTION.search(a) and is_no(customer):
+    extras_only = _EXTRAS_QUESTION.search(a) and not _ITEMS_QUESTION.search(a)
+    if _ANYTHING_ELSE.search(a) and not extras_only and is_no(customer):
         return True  # "더 필요하신 거 있으세요?" - "아니요, 없어요"
     return bool(_PAY_QUESTION.search(a) and is_yes(customer))  # "결제 도와드릴까요?" - "네"
 
@@ -200,9 +204,49 @@ def mention_start(transcript: Transcript, item: MenuItem) -> int:
     return transcript.mark
 
 
+# Words of three or more syllables also count when the transcription spelled them a little
+# differently ("레규러", "레글러" for 레귤러): compared letter by letter (jamo).
+FUZZY_MIN_SYLLABLES = 3
+FUZZY_RATIO = 0.8
+
+
 def heard(choice: OptionChoice, texts: Iterable[str]) -> bool:
     words = [normalize(w) for w in choice.words]
-    return any(w and w in normalize(t) for t in texts for w in words)
+    normalized = [normalize(t) for t in texts]
+    if any(w and w in t for t in normalized for w in words):
+        return True
+    long_words = [w for w in words if len(w) >= FUZZY_MIN_SYLLABLES and _is_hangul(w)]
+    return any(_fuzzy_in(w, t) for t in normalized for w in long_words)
+
+
+def _fuzzy_in(word: str, text: str) -> bool:
+    """Some stretch of `text` (about as long as `word`) is spelled nearly like `word`."""
+    target = _jamo(word)
+    for size in (len(word) - 1, len(word), len(word) + 1):
+        for start in range(0, len(text) - size + 1):
+            if SequenceMatcher(None, target, _jamo(text[start : start + size])).ratio() >= (
+                FUZZY_RATIO
+            ):
+                return True
+    return False
+
+
+def _is_hangul(text: str) -> bool:
+    return all("가" <= ch <= "힣" for ch in text)
+
+
+def _jamo(text: str) -> str:
+    """Hangul syllables split into their letters (initial, vowel, final)."""
+    out = []
+    for ch in text:
+        code = ord(ch) - 0xAC00
+        if 0 <= code < 11172:
+            out += [chr(0x1100 + code // 588), chr(0x1161 + code % 588 // 28)]
+            if code % 28:
+                out.append(chr(0x11A7 + code % 28))
+        else:
+            out.append(ch)
+    return "".join(out)
 
 
 def unheard_required(

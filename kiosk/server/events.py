@@ -87,7 +87,13 @@ def init_event(
                     "required": g.required,
                     "multi": g.multi,
                     "choices": [
-                        {"id": c.id, "name": c.name, "say": c.spoken, "price": c.price}
+                        {
+                            "id": c.id,
+                            "name": c.name,
+                            "say": c.spoken,
+                            "label": c.label or c.spoken,
+                            "price": c.price,
+                        }
                         for c in g.choices
                     ],
                 }

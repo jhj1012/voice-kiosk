@@ -23,7 +23,8 @@ Result = dict[str, Any]
 
 # The screen shows one question at a time and marks each answer as soon as it is set.
 ASK_ONE = (
-    "Ask only this, naming the choices. When the customer answers, call set_options at once "
+    "Ask only this, short and without reading the choices or prices (the screen shows them), "
+    "e.g. '사이즈는 어떤 걸로 해 드릴까요?'. When the customer answers, call set_options at once "
     "(with anything else they said too); the result says what to ask next."
 )
 ASK_EXTRAS = (
@@ -111,9 +112,10 @@ class Actions:
 
     def _choose_item(self, args: dict[str, Any]) -> Result:
         menu = self.kiosk.menu
+        quantity = args.get("quantity")
         result = self.kiosk.choose_item(
             str(args.get("item_id", "")),
-            quantity=_int(args.get("quantity", 1)),
+            quantity=None if quantity is None else _int(quantity),
             selection=selection_from_args(menu, args),
         )
         return self._item_result(result)
@@ -192,7 +194,7 @@ class Actions:
         pending = result.pending
         assert pending is not None
         if pending.asking == EXTRAS:
-            chosen = [c.spoken for cs in pending.chosen.values() for c in cs if not c.is_none]
+            chosen = _chosen(pending)
             question: Result = {
                 "extras": [_question(g, extra=True) for g in pending.extras],
                 **({"chosen": chosen} if chosen else {}),
@@ -201,7 +203,7 @@ class Actions:
         else:
             group = pending.item.group(pending.asking)
             assert group is not None
-            question = {"ask": _question(group), "next": ASK_ONE}
+            question = {"ask": _question(group, prices=False), "next": ASK_ONE}
         return {"not_added_yet": pending.item.name, **question, **self._waiting(besides=pending)}
 
     def _options(self, line: CartLine) -> dict[str, str]:
@@ -232,7 +234,13 @@ class Actions:
             return {}
         return {
             "still_waiting_for_options": [
-                {"item_id": p.item.id, "name": p.item.name, "missing": [g.name for g in p.missing]}
+                {
+                    "item_id": p.item.id,
+                    "name": p.item.name,
+                    "quantity": p.quantity,
+                    **({"chosen": _chosen(p)} if _chosen(p) else {}),
+                    "missing": [g.name for g in p.missing] or ["extras (then finish_item)"],
+                }
                 for p in waiting
             ]
         }
@@ -257,12 +265,18 @@ class Actions:
         return [self.kiosk.menu.item(i).name for i in item_ids]
 
 
-def _question(group: OptionGroup, extra: bool = False) -> Result:
+def _question(group: OptionGroup, extra: bool = False, prices: bool = True) -> Result:
     choices = [c for c in group.choices if not (extra and c.is_none)]
     return {
         "option": group.name,
-        "choices": [f"{c.spoken} (+{won(c.price)})" if c.price else c.spoken for c in choices],
+        "choices": [
+            f"{c.spoken} (+{won(c.price)})" if c.price and prices else c.spoken for c in choices
+        ],
     }
+
+
+def _chosen(pending: PendingItem) -> list[str]:
+    return [c.spoken for cs in pending.chosen.values() for c in cs if not c.is_none]
 
 
 def _int(value: Any) -> int:
