@@ -5,6 +5,7 @@ The phone sends 20 ms frames of 16 kHz 16-bit mono PCM (the Live API's input) as
 WebSocket messages and plays the 24 kHz PCM this sends back. "clear" (a text message) makes it
 stop playing at once (barge-in, hang-up). The phone reports what it really plays
 (`{"out": 0.4}`), so the assistant animation follows the speaker as with the laptop's handset.
+Quiet background noise is sent to the assistant as silence (`audio.noise_gate_rms`).
 
 One phone at a time: a newer connection replaces the older one. Everything here runs on the
 server's event loop.
@@ -19,7 +20,7 @@ from collections import deque
 from collections.abc import Callable
 
 from kiosk.config import AudioConfig
-from kiosk.voice.pcm import level
+from kiosk.voice.pcm import NoiseGate, level
 
 log = logging.getLogger(__name__)
 
@@ -76,6 +77,7 @@ class PhoneHandset:
         self._link: PhoneLink | None = None
         self._mic = 0.0
         self._out = 0.0
+        self._noise_gate = NoiseGate(config.noise_gate_rms)
 
     @property
     def connected(self) -> bool:
@@ -104,8 +106,8 @@ class PhoneHandset:
         if isinstance(message, bytes):
             if not message or len(message) % 2 or len(message) > MAX_FRAME_BYTES:
                 return
-            self._mic = level(message)
-            self._on_frame(message)
+            self._mic = level(message)  # before the gate: the panel shows what the mic hears
+            self._on_frame(self._noise_gate(message, self.config.input_rate))
             return
         try:
             out = json.loads(message).get("out")

@@ -75,3 +75,15 @@ def test_queued_audio_is_capped():
     for _ in range(5):
         phone.write(b"x" * 400)
     assert sum(len(m) for m in drain(link)) <= 1200
+
+
+def test_quiet_background_noise_is_sent_as_silence():
+    heard: list[bytes] = []
+    phone = PhoneHandset(AudioConfig(noise_gate_rms=500), heard.append)
+    link = phone.connect()
+    noise = (100).to_bytes(2, "little", signed=True) * 320
+    phone.receive(link, noise)
+    assert heard[-1] == bytes(640)
+    assert phone.levels()[0] > 0  # the panel still shows what the microphone hears
+    phone.receive(link, FRAME)
+    assert heard[-1] == FRAME

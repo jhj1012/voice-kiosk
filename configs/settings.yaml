@@ -24,6 +24,7 @@ audio:
   output_rate: 24000
   frame_ms: 20
   echo_gate_rms: null     # e.g. 800: while the earpiece plays, quieter mic audio is sent as silence
+  noise_gate_rms: null    # e.g. 400: quieter mic audio (background noise) is sent as silence; F2 shows the mic's RMS
 
 server:
   host: 127.0.0.1

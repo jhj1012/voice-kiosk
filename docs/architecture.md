@@ -68,6 +68,10 @@ in code, not in the model's memory.
 - Barge-in itself is the Live API's voice detection (~0.4 s, milestone 3). If the earpiece leaks
   into the microphone, `audio.echo_gate_rms` sends quieter microphone audio as silence while the
   earpiece plays.
+- `audio.noise_gate_rms` (`NoiseGate` in `pcm.py`, off by default) sends background noise as
+  silence: frames under the RMS, unless a louder one came within 0.5 s (word endings stay). For
+  the laptop's handset and the phone alike; the developer panel shows the microphone's RMS to
+  pick the value. On the phone, Chrome's automatic gain is off (it turned up the background).
 - Rates the device refuses are resampled (`pcm.py`, numpy).
 - `hook.py`: the hook switch interface; today the display's Space key (`SimulatedHook`).
 - `PhoneHandset` (`phone.py`): the phone of the phone mode as the handset (below).

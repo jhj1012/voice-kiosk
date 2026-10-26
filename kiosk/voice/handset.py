@@ -5,7 +5,8 @@
 - `Speaker` plays 24 kHz 16-bit mono PCM (the Live API's output) from a buffer that `clear()`
   empties at once (barge-in, hang-up).
 - `Handset` combines both and can gate the microphone while the earpiece plays
-  (`audio.echo_gate_rms`), in case the earpiece leaks into the microphone.
+  (`audio.echo_gate_rms`), in case the earpiece leaks into the microphone, and send quiet
+  background noise as silence (`audio.noise_gate_rms`).
 
 If a device refuses the Live API's rate, its own rate is used and the audio is resampled. The
 `sounddevice` module can be passed in, so tests run without audio devices.
@@ -20,7 +21,7 @@ from typing import Any
 
 from kiosk.config import AudioConfig
 from kiosk.voice.devices import AudioDeviceError, find_device
-from kiosk.voice.pcm import level, resample, rms
+from kiosk.voice.pcm import NoiseGate, level, resample, rms
 
 log = logging.getLogger(__name__)
 
@@ -175,6 +176,7 @@ class Handset:
         self.speaker = Speaker(config, sd)
         self.microphone = Microphone(config, self._from_microphone, sd)
         self._silence = b"\0" * (config.input_rate * config.frame_ms // 1000 * 2)
+        self._noise_gate = NoiseGate(config.noise_gate_rms)
 
     def open(self) -> None:
         self.speaker.open()
@@ -196,4 +198,4 @@ class Handset:
         gate = self.config.echo_gate_rms
         if gate and self.speaker.playing and rms(pcm) < gate:
             pcm = self._silence[: len(pcm)]  # earpiece leaking into the mic: send silence
-        self._on_frame(pcm)
+        self._on_frame(self._noise_gate(pcm, self.config.input_rate))

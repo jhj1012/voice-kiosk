@@ -127,12 +127,14 @@ export async function startPhoneAudio(
   const micContext = new AudioContext({ sampleRate: MIC_RATE });
   const speakerContext = new AudioContext({ sampleRate: SPEAKER_RATE });
   const stream = await navigator.mediaDevices.getUserMedia({
-    // A handset: its earpiece does not reach its microphone, so no echo cancellation.
+    // A handset: its earpiece does not reach its microphone, so no echo cancellation; the voice
+    // is close to it, so no automatic gain either (it would turn up the background noise
+    // whenever nobody speaks).
     audio: {
       channelCount: 1,
       echoCancellation: false,
       noiseSuppression: true,
-      autoGainControl: true,
+      autoGainControl: false,
     },
   });
   const module = URL.createObjectURL(new Blob([WORKLETS], { type: 'text/javascript' }));
