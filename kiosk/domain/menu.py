@@ -44,7 +44,6 @@ class OptionChoice:
     say: str = ""  # how it is read aloud; defaults to the name
     label: str = ""  # how the screen shows it; defaults to `say`
     allergens: tuple[str, ...] = ()
-    aliases: tuple[str, ...] = ()  # other words customers use for it
 
     @property
     def is_none(self) -> bool:
@@ -54,11 +53,6 @@ class OptionChoice:
     @property
     def spoken(self) -> str:
         return self.say or self.name
-
-    @property
-    def words(self) -> tuple[str, ...]:
-        """Every way a customer may say this choice: name, spoken text and aliases."""
-        return tuple(dict.fromkeys(w for w in (self.name, self.say, *self.aliases) if w))
 
 
 @dataclass(frozen=True)

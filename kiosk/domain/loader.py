@@ -111,7 +111,6 @@ def _group(data: dict[str, Any], allergen_ids: set[str]) -> OptionGroup:
             say=str(c.get("say", "")),
             label=str(c.get("label", "")),
             allergens=_ids(c, "allergens", allergen_ids, where),
-            aliases=_words(c, "aliases", where),
         )
         for c in _list(data, "choices", where)
     )
