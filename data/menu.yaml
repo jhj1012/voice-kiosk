@@ -1,19 +1,3 @@
-# The menu. Edit this file to change items, prices, descriptions or options; run
-#   uv run python -m kiosk.domain.check
-# afterwards to check it. Images: put data/images/<item id>.png (or .jpg/.webp).
-#
-# Items, prices, option groups and option prices are the same as in the earlier prototype.
-# Descriptions, ingredients, allergens, caffeine, sweetness, "recommended" and the serving
-# temperature of items without a temperature option were INVENTED for the demo:
-# `verified: false` marks them until someone on the team has checked them.
-#
-# Fields of an item:
-#   options: option groups the item offers (see option_groups below)
-#   temperature: for items WITHOUT the temperature option: how it is served (hot or ice)
-#   caffeine: none | low | medium | high
-#   sweetness: 0 (not sweet) .. 3 (very sweet)
-#   allergens: ids from the allergens list below
-
 allergens:
   - {id: milk, name: 우유}
   - {id: soy, name: 대두}
@@ -23,17 +7,12 @@ allergens:
 categories:
   - {id: coffee, name: 커피, unit: 잔}
   - {id: latte, name: 라떼, unit: 잔}
-  - {id: tea_ade, name: 티·에이드, unit: 잔}
-  - {id: dessert, name: 디저트, unit: 개}
+  - {id: tea, name: 티, unit: 잔}
+  - {id: ade_juice, name: 에이드·주스, unit: 잔}
+  - {id: smoothie_frappe, name: 스무디·프라페, unit: 잔}
+  - {id: beverage, name: 음료, unit: 잔}
+  - {id: dessert, name: 디저트·베이커리, unit: 개}
 
-# required: the customer must choose (the assistant asks). Optional groups keep their first
-# choice (or nothing, for multi groups) unless the customer asks.
-# say: how the assistant reads a choice aloud (defaults to its name).
-# label: how the screen shows it (defaults to `say`).
-# words (required groups): parts of words that show the customer talked about this option at
-#   all. A temperature or size the assistant passes without the customer mentioning it (and
-#   without the screen asking for it) is treated as a guess: left out, and the kiosk asks.
-#   Answers to the question on screen are always taken, whatever the words.
 option_groups:
   - id: temperature
     name: 온도
@@ -41,30 +20,16 @@ option_groups:
     multi: false
     words: [따뜻, 따듯, 다뜻, 뜻한, 뜨거, 뜨겁, 뜨뜻, 뜨아, 차가, 차갑, 시원, 아이스, 아아, 핫, 온도, hot, ice]
     choices:
-      - id: hot
-        name: HOT
-        say: 따뜻한
-        label: 따뜻하게
-        price: 0
-      - id: ice
-        name: ICE
-        say: 차가운
-        label: 차갑게
-        price: 0
+      - {id: hot, name: HOT, say: 따뜻한, label: 따뜻하게, price: 0}
+      - {id: ice, name: ICE, say: 차가운, label: 차갑게, price: 0}
   - id: size
     name: 사이즈
     required: true
     multi: false
     words: [사이즈, 레귤, 레규, 라지, 라디, 큰, 크게, 작은, 작게, 보통, 기본, 스몰, regular, large]
     choices:
-      - id: regular
-        name: Regular
-        say: 레귤러
-        price: 0
-      - id: large
-        name: Large
-        say: 라지
-        price: 500
+      - {id: regular, name: Regular, say: 레귤러, price: 0}
+      - {id: large, name: Large, say: 라지, price: 500}
   - id: tumbler
     name: 텀블러
     required: false
@@ -98,15 +63,16 @@ option_groups:
       - {id: whipped_cream, name: 휘핑 추가, price: 500, allergens: [milk]}
 
 items:
-  - id: espresso
-    name: 에스프레소
+  # ==================== 커피 ====================
+  - id: cold_brew
+    name: 콜드브루
     category: coffee
-    price: 3300
-    emoji: ☕
-    options: [shot]
-    temperature: hot
-    description: 곱게 간 원두에 뜨거운 물을 짧게 통과시켜 뽑은 진한 커피 한 잔이에요. 따뜻하게만 나와요.
-    ingredients: [에스프레소(원두)]
+    price: 4500
+    emoji: 🧊
+    options: [size, tumbler, syrup]
+    temperature: ice
+    description: 찬물로 오랜 시간 천천히 우려 쓴맛이 적고 부드러운 커피예요. 아이스로만 나와요.
+    ingredients: [콜드브루 원액(원두), 물, 얼음]
     allergens: []
     caffeine: high
     sweetness: 0
@@ -127,39 +93,37 @@ items:
     recommended: true
     verified: false
 
-  - id: cold_brew
-    name: 콜드브루
+  - id: hutgae_americano
+    name: 헛개리카노
     category: coffee
-    price: 4500
-    emoji: 🧊
-    options: [size, tumbler, syrup]
-    temperature: ice
-    description: 찬물로 오랜 시간 천천히 우려 쓴맛이 적고 부드러운 커피예요. 아이스로만 나와요.
-    ingredients: [콜드브루 원액(원두), 물, 얼음]
+    price: 4300
+    emoji: ☕
+    options: [temperature, size, tumbler, shot]
+    description: 헛개나무 추출액이 들어가 개운하고 구수한 풍미의 아메리카노예요.
+    ingredients: [에스프레소(원두), 헛개나무 추출액, 물]
     allergens: []
     caffeine: high
     sweetness: 0
     recommended: false
     verified: false
 
-  - id: halmega_coffee
-    name: 할메가커피
+  - id: hazelnut_americano
+    name: 헤이즐넛아메리카노
     category: coffee
-    price: 2500
-    emoji: 🧊
-    options: [size, tumbler, shot]
-    temperature: ice
-    description: 연유와 우유를 넣어 옛날 다방 커피처럼 달콤한 아이스 커피예요. 아이스로만 나와요.
-    ingredients: [에스프레소(원두), 우유, 연유, 얼음]
-    allergens: [milk]
-    caffeine: medium
-    sweetness: 3
+    price: 4500
+    emoji: ☕
+    options: [temperature, size, tumbler, shot]
+    description: 고소한 헤이즐넛 향이 가득한 달콤한 아메리카노예요.
+    ingredients: [에스프레소(원두), 헤이즐넛 시럽, 물]
+    allergens: []
+    caffeine: high
+    sweetness: 2
     recommended: false
     verified: false
 
   - id: cafe_latte
     name: 카페라떼
-    category: latte
+    category: coffee
     price: 4500
     emoji: 🥛
     options: [temperature, size, tumbler, shot, syrup, topping]
@@ -171,9 +135,65 @@ items:
     recommended: true
     verified: false
 
+  - id: hazelnut_latte
+    name: 헤이즐넛라떼
+    category: coffee
+    price: 5000
+    emoji: 🥛
+    options: [temperature, size, tumbler, shot, topping]
+    description: 은은한 헤이즐넛 향과 부드러운 우유, 에스프레소가 조화로운 라떼예요.
+    ingredients: [에스프레소(원두), 우유, 헤이즐넛 시럽]
+    allergens: [milk]
+    caffeine: medium
+    sweetness: 2
+    recommended: false
+    verified: false
+
+  - id: cappuccino
+    name: 카푸치노
+    category: coffee
+    price: 4500
+    emoji: ☕
+    options: [temperature, size, tumbler, shot, syrup]
+    description: 풍성한 우유 거품 위에 시나몬 가루를 올린 에스프레소 음료예요.
+    ingredients: [에스프레소(원두), 우유, 시나몬 파우더]
+    allergens: [milk]
+    caffeine: medium
+    sweetness: 1
+    recommended: false
+    verified: false
+
+  - id: vanilla_latte
+    name: 바닐라라떼
+    category: coffee
+    price: 4800
+    emoji: 🍦
+    options: [temperature, size, tumbler, shot, topping]
+    description: 바닐라 향이 은은하게 퍼지는 달콤하고 부드러운 라떼예요.
+    ingredients: [에스프레소(원두), 우유, 바닐라 시럽]
+    allergens: [milk]
+    caffeine: medium
+    sweetness: 2
+    recommended: true
+    verified: false
+
+  - id: caramel_macchiato
+    name: 카라멜마끼아또
+    category: coffee
+    price: 5000
+    emoji: 🍯
+    options: [temperature, size, tumbler, shot, topping]
+    description: 부드러운 우유 위에 진한 에스프레소와 달콤한 카라멜 드리즐을 얹은 음료예요.
+    ingredients: [에스프레소(원두), 우유, 카라멜 소스]
+    allergens: [milk]
+    caffeine: medium
+    sweetness: 3
+    recommended: false
+    verified: false
+
   - id: cafe_mocha
     name: 카페모카
-    category: latte
+    category: coffee
     price: 5000
     emoji: 🍫
     options: [temperature, size, tumbler, shot, topping]
@@ -185,53 +205,109 @@ items:
     recommended: false
     verified: false
 
-  - id: flat_white
-    name: 플랫화이트
-    category: latte
-    price: 4800
+  - id: condensed_milk_latte
+    name: 연유라떼
+    category: coffee
+    price: 5000
     emoji: 🥛
-    options: [temperature, tumbler, shot]
-    description: 진하게 뽑은 리스트레토 샷에 얇은 우유 거품을 올려 커피 맛이 진한 라떼예요. 한 가지 크기로만 나와요.
-    ingredients: [리스트레토 샷(원두), 우유]
+    options: [temperature, size, tumbler, shot, topping]
+    description: 달콤한 연유와 부드러운 우유, 진한 에스프레소가 어우러진 라떼예요.
+    ingredients: [에스프레소(원두), 우유, 연유]
     allergens: [milk]
-    caffeine: high
-    sweetness: 1
+    caffeine: medium
+    sweetness: 3
     recommended: false
     verified: false
 
-  - id: einspanner
-    name: 아인슈페너
-    category: latte
-    price: 5200
-    emoji: 🍮
-    options: [tumbler, shot]
+  # ==================== 티 ====================
+  - id: peach_iced_tea
+    name: 복숭아아이스티
+    category: tea
+    price: 3800
+    emoji: 🍑
+    options: [size, tumbler, shot]
     temperature: ice
-    description: 진한 커피 위에 달콤한 크림을 두툼하게 올린 비엔나 커피예요. 아이스로만, 한 가지 크기로만 나와요.
-    ingredients: [에스프레소(원두), 물, 생크림, 설탕, 얼음]
-    allergens: [milk]
-    caffeine: high
-    sweetness: 2
-    recommended: true
-    verified: false
-
-  - id: green_grape_ade
-    name: 청포도 에이드
-    category: tea_ade
-    price: 3500
-    emoji: 🍇
-    options: [size, tumbler]
-    temperature: ice
-    description: 청포도 청에 탄산수를 더해 상큼하고 달콤한 에이드예요. 카페인이 없고 아이스로만 나와요.
-    ingredients: [청포도 청, 탄산수, 얼음]
+    description: 달콤한 복숭아 향과 시원한 차의 맛을 느낄 수 있는 대표 아이스티예요.
+    ingredients: [복숭아 베이스, 홍차 추출액, 물, 얼음]
     allergens: []
-    caffeine: none
+    caffeine: low
     sweetness: 3
     recommended: true
     verified: false
 
+  - id: apple_citron_tea
+    name: 사과유자차
+    category: tea
+    price: 4200
+    emoji: 🍎
+    options: [temperature, size, tumbler]
+    description: 상큼한 사과 향과 달콤 쌉싸름한 유자가 결합된 과일차예요.
+    ingredients: [사과 베이스, 유자청, 물]
+    allergens: []
+    caffeine: none
+    sweetness: 3
+    recommended: false
+    verified: false
+
+  - id: citron_tea
+    name: 유자차
+    category: tea
+    price: 3800
+    emoji: 🍋
+    options: [temperature, size, tumbler]
+    description: 향긋한 유자청을 과육째 넣어 달콤하고 상큼하게 즐기는 차예요.
+    ingredients: [유자청, 물]
+    allergens: []
+    caffeine: none
+    sweetness: 3
+    recommended: false
+    verified: false
+
+  - id: grapefruit_tea
+    name: 자몽차
+    category: tea
+    price: 3800
+    emoji: 🍊
+    options: [temperature, size, tumbler]
+    description: 톡 쏘는 쌉싸름함과 달콤함이 살아있는 붉은 자몽차예요.
+    ingredients: [자몽청, 물]
+    allergens: []
+    caffeine: none
+    sweetness: 2
+    recommended: false
+    verified: false
+
+  - id: lemon_tea
+    name: 레몬차
+    category: tea
+    price: 3800
+    emoji: 🍋
+    options: [temperature, size, tumbler]
+    description: 상큼하고 새콤한 레몬의 풍미가 가득한 따뜻하고 시원한 과일차예요.
+    ingredients: [레몬청, 물]
+    allergens: []
+    caffeine: none
+    sweetness: 2
+    recommended: false
+    verified: false
+
+  - id: green_tea
+    name: 녹차
+    category: tea
+    price: 3500
+    emoji: 🍵
+    options: [temperature, size, tumbler]
+    description: 쌉싸름하고 깔끔한 맛이 특징인 전통 녹차예요.
+    ingredients: [녹차 잎, 물]
+    allergens: []
+    caffeine: low
+    sweetness: 0
+    recommended: false
+    verified: false
+
   - id: chamomile_tea
-    name: 캐모마일 티
-    category: tea_ade
+    name: 캐모마일
+    category: tea
     price: 3800
     emoji: 🍵
     options: [temperature, size, tumbler]
@@ -243,30 +319,356 @@ items:
     recommended: false
     verified: false
 
-  - id: vanilla_ice_cream
-    name: 바닐라 아이스크림
-    category: dessert
-    price: 3000
-    emoji: 🍦
-    options: [topping]
-    description: 바닐라 향이 진한 부드러운 우유 아이스크림이에요.
-    ingredients: [우유, 생크림, 설탕, 바닐라]
+  - id: earl_grey_tea
+    name: 얼그레이
+    category: tea
+    price: 3500
+    emoji: ☕
+    options: [temperature, size, tumbler]
+    description: 베르가못 향이 은은하게 감도는 향긋한 홍차예요.
+    ingredients: [얼그레이 찻잎, 물]
+    allergens: []
+    caffeine: medium
+    sweetness: 0
+    recommended: false
+    verified: false
+
+  - id: peppermint_tea
+    name: 페퍼민트
+    category: tea
+    price: 3500
+    emoji: 🌿
+    options: [temperature, size, tumbler]
+    description: 상쾌한 민트 향이 입안을 청량하게 해주는 허브티예요.
+    ingredients: [페퍼민트 잎, 물]
+    allergens: []
+    caffeine: none
+    sweetness: 0
+    recommended: false
+    verified: false
+
+  # ==================== 에이드 / 주스 ====================
+  - id: strawberry_banana_juice
+    name: 딸기바나나주스
+    category: ade_juice
+    price: 4300
+    emoji: 🍓
+    options: [size, tumbler]
+    temperature: ice
+    description: 상큼한 딸기와 부드러운 바나나가 만나 과일 그대로 느껴지는 주스예요.
+    ingredients: [딸기, 바나나, 얼음, 물]
+    allergens: []
+    caffeine: none
+    sweetness: 3
+    recommended: true
+    verified: false
+
+  - id: strawberry_juice
+    name: 딸기주스
+    category: ade_juice
+    price: 4000
+    emoji: 🍓
+    options: [size, tumbler]
+    temperature: ice
+    description: 신선한 딸기를 듬뿍 넣어 상큼 달콤함이 폭발하는 주스예요.
+    ingredients: [딸기, 얼음, 물]
+    allergens: []
+    caffeine: none
+    sweetness: 3
+    recommended: false
+    verified: false
+
+  - id: kiwi_juice
+    name: 골드키위주스
+    category: ade_juice
+    price: 4300
+    emoji: 🥝
+    options: [size, tumbler]
+    temperature: ice
+    description: 달콤하고 상큼한 골드키위를 통째로 갈아 넣은 주스예요.
+    ingredients: [골드키위, 얼음, 물]
+    allergens: []
+    caffeine: none
+    sweetness: 3
+    recommended: false
+    verified: false
+
+  - id: lime_mojito
+    name: 라임모히또
+    category: ade_juice
+    price: 4500
+    emoji: 🍹
+    options: [size, tumbler]
+    temperature: ice
+    description: 상큼한 라임과 애플민트가 탄산수와 어우러진 청량감 넘치는 무알콜 에이드예요.
+    ingredients: [라임 베이스, 라임 슬라이스, 탄산수, 얼음]
+    allergens: []
+    caffeine: none
+    sweetness: 2
+    recommended: false
+    verified: false
+
+  - id: lemonade
+    name: 레몬에이드
+    category: ade_juice
+    price: 3900
+    emoji: 🍋
+    options: [size, tumbler]
+    temperature: ice
+    description: 톡 쏘는 톡톡 탄산수에 레몬의 신선함을 더한 톡 쏘는 에이드예요.
+    ingredients: [레몬 베이스, 탄산수, 얼음]
+    allergens: []
+    caffeine: none
+    sweetness: 2
+    recommended: false
+    verified: false
+
+  - id: grapefruit_ade
+    name: 자몽에이드
+    category: ade_juice
+    price: 3900
+    emoji: 🍊
+    options: [size, tumbler]
+    temperature: ice
+    description: 쌉싸름하면서도 달콤한 자몽 과육이 씹히는 톡 쏘는 탄산 에이드예요.
+    ingredients: [자몽 베이스, 탄산수, 얼음]
+    allergens: []
+    caffeine: none
+    sweetness: 2
+    recommended: false
+    verified: false
+
+  - id: green_grape_ade
+    name: 청포도에이드
+    category: ade_juice
+    price: 3500
+    emoji: 🍇
+    options: [size, tumbler]
+    temperature: ice
+    description: 청포도 청에 탄산수를 더해 상큼하고 달콤한 에이드예요. 아이스로만 나와요.
+    ingredients: [청포도 청, 탄산수, 얼음]
+    allergens: []
+    caffeine: none
+    sweetness: 3
+    recommended: true
+    verified: false
+
+  # ==================== 스무디 / 프라페 ====================
+  - id: cookie_frappe
+    name: 쿠키프라페
+    category: smoothie_frappe
+    price: 4500
+    emoji: 🍪
+    options: [size, tumbler, topping]
+    temperature: ice
+    description: 바삭한 바삭 쿠키를 가득 넣고 갈아 만든 시원하고 바삭한 음료예요.
+    ingredients: [우유, 쿠키 파우더, 쿠키 칩, 얼음]
+    allergens: [milk, wheat, soy]
+    caffeine: low
+    sweetness: 3
+    recommended: true
+    verified: false
+
+  - id: mint_frappe
+    name: 민트프라페
+    category: smoothie_frappe
+    price: 4500
+    emoji: 🌿
+    options: [size, tumbler, topping]
+    temperature: ice
+    description: 상쾌한 민트와 초코칩이 시원하게 씹히는 매력적인 민트 초코 프라페예요.
+    ingredients: [우유, 민트 파우더, 초코칩, 얼음]
+    allergens: [milk, soy]
+    caffeine: low
+    sweetness: 3
+    recommended: false
+    verified: false
+
+  - id: green_tea_frappe
+    name: 녹차프라페
+    category: smoothie_frappe
+    price: 4500
+    emoji: 🍵
+    options: [size, tumbler, topping]
+    temperature: ice
+    description: 진한 녹차의 쌉싸름함과 달콤함이 우유와 살얼음 형태로 씹히는 음료예요.
+    ingredients: [우유, 녹차 파우더, 얼음]
+    allergens: [milk]
+    caffeine: medium
+    sweetness: 2
+    recommended: false
+    verified: false
+
+  - id: mango_yogurt_smoothie
+    name: 망고요거트스무디
+    category: smoothie_frappe
+    price: 4800
+    emoji: 🥭
+    options: [size, tumbler]
+    temperature: ice
+    description: 상큼하고 달콤한 망고 베이스와 상큼한 요거트가 섞인 스무디예요.
+    ingredients: [망고 베이스, 요거트 파우더, 우유, 얼음]
     allergens: [milk]
     caffeine: none
     sweetness: 3
     recommended: false
     verified: false
 
-  - id: chocolate_cookie
-    name: 초코 쿠키
+  # ==================== 음료 ====================
+  - id: strawberry_latte
+    name: 딸기라떼
+    category: beverage
+    price: 4000
+    emoji: 🍓
+    options: [size, tumbler]
+    temperature: ice
+    description: 씹히는 딸기 과육과 부드러운 우유가 가득한 상큼 달콤 아이스 라떼예요.
+    ingredients: [딸기 청, 우유, 얼음]
+    allergens: [milk]
+    caffeine: none
+    sweetness: 3
+    recommended: true
+    verified: false
+
+  - id: milk_shake
+    name: 밀크쉐이크
+    category: beverage
+    price: 4500
+    emoji: 🥛
+    options: [size, tumbler]
+    temperature: ice
+    description: 순수 우유의 묵직하고 고소하고 달콤함을 부드럽게 담아낸 쉐이크예요.
+    ingredients: [우유, 아이스크림 베이스, 얼음]
+    allergens: [milk]
+    caffeine: none
+    sweetness: 3
+    recommended: false
+    verified: false
+
+  - id: grain_latte
+    name: 곡물라떼
+    category: beverage
+    price: 3800
+    emoji: 🌾
+    options: [temperature, size, tumbler]
+    description: 고소한 12가지 곡물이 조화롭게 부드럽게 녹아든 영양 만점 라떼예요.
+    ingredients: [곡물 파우더, 우유]
+    allergens: [milk, wheat, soy]
+    caffeine: none
+    sweetness: 2
+    recommended: false
+    verified: false
+
+  - id: green_tea_latte
+    name: 녹차라떼
+    category: beverage
+    price: 4000
+    emoji: 🍵
+    options: [temperature, size, tumbler, shot]
+    description: 쌉싸름한 찰진 녹차 파우더와 부드러운 우유가 만난 그라데이션 음료예요.
+    ingredients: [녹차 파우더, 우유]
+    allergens: [milk]
+    caffeine: medium
+    sweetness: 2
+    recommended: false
+    verified: false
+
+  - id: hot_choco
+    name: 핫초코
+    category: beverage
+    price: 3800
+    emoji: 🍫
+    options: [temperature, size, tumbler, topping]
+    description: 진한 초콜릿과 부드러운 우유가 조화로운 깊은 풍미의 달콤한 음료예요.
+    ingredients: [초콜릿 파우더, 우유]
+    allergens: [milk, soy]
+    caffeine: low
+    sweetness: 3
+    recommended: false
+    verified: false
+
+  - id: black_sugar_bubble_latte
+    name: 흑당버블라떼
+    category: beverage
+    price: 4700
+    emoji: 🧋
+    options: [size, tumbler, shot]
+    temperature: ice
+    description: 진한 흑당 시럽과 쫀득쫀득한 타피오카 펄, 부드러운 우유가 섞인 라떼예요.
+    ingredients: [흑당 시럽, 타피오카 펄, 우유, 얼음]
+    allergens: [milk]
+    caffeine: none
+    sweetness: 3
+    recommended: false
+    verified: false
+
+  # ==================== 디저트 / 베이커리 ====================
+  - id: potato_bread
+    name: 감자빵
     category: dessert
-    price: 2500
+    price: 3500
+    emoji: 🥔
+    options: []
+    description: 쫄깃한 빵 피 속에 쫄깃하고 담백한 감자 소가 듬뿍 들어간 빵이에요.
+    ingredients: [감자, 찹쌀가루, 밀가루, 버터]
+    allergens: [wheat, milk]
+    caffeine: none
+    sweetness: 1
+    recommended: true
+    verified: false
+
+  - id: choco_smore_cookie
+    name: 초코스모어쿠키
+    category: dessert
+    price: 3000
     emoji: 🍪
     options: []
-    description: 초콜릿 칩이 듬뿍 들어간 겉은 바삭, 속은 촉촉한 쿠키예요.
-    ingredients: [밀가루, 버터, 설탕, 계란, 초콜릿 칩]
+    description: 진한 초코 쿠키 위에 쫀득한 마시멜로가 늘어나는 스모어 쿠키예요.
+    ingredients: [밀가루, 버터, 마시멜로, 초콜릿]
     allergens: [wheat, milk, egg, soy]
     caffeine: low
     sweetness: 3
+    recommended: false
+    verified: false
+
+  - id: cheese_cake
+    name: 치즈케익
+    category: dessert
+    price: 3900
+    emoji: 🧀
+    options: []
+    description: 진하고 진득한 크림치즈의 깊은 맛이 느껴지는 수플레 타입 케이크예요.
+    ingredients: [크림치즈, 계란, 밀가루, 설탕]
+    allergens: [milk, egg, wheat]
+    caffeine: none
+    sweetness: 2
+    recommended: false
+    verified: false
+
+  - id: choco_mousse_cake
+    name: 초코무스케익
+    category: dessert
+    price: 3900
+    emoji: 🍰
+    options: []
+    description: 닿는 순간 사르르 녹아내리는 부드럽고 묵직한 디저트 케이크예요.
+    ingredients: [초콜릿, 생크림, 계란, 밀가루]
+    allergens: [milk, egg, wheat, soy]
+    caffeine: low
+    sweetness: 3
+    recommended: false
+    verified: false
+
+  - id: tiramisu_cake
+    name: 티라미수 케익
+    category: dessert
+    price: 3900
+    emoji: 🍮
+    options: []
+    description: 에스프레소에 적신 시트와 부드러운 마스카포네 치즈 크림이 층층이 적셔진 케이크예요.
+    ingredients: [마스카포네 치즈, 에스프레소, 코코아 파우더, 계란, 밀가루]
+    allergens: [milk, egg, wheat]
+    caffeine: low
+    sweetness: 2
     recommended: false
     verified: false
