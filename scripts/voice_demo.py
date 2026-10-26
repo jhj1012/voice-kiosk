@@ -126,6 +126,19 @@ STEPS = [
         lambda s: has_item(s, "cafe_latte", "HOT", "Regular"),
     ),
     Step(
+        "split",
+        "아메리카노 세 잔이요. 하나는 차갑게, 두 잔은 따뜻하게 주세요",
+        "1 cold + 2 hot americanos, separate lines (team test: the cold one was lost)",
+        lambda s: (
+            sorted(
+                (ln["quantity"], ln["chosen"].get("temperature", [""])[0])
+                for ln in s["order"]["lines"]
+                if ln["item_id"] == "americano" and "Large" not in ln["options"]
+            )
+            == [(1, "ice"), (2, "hot")]
+        ),
+    ),
+    Step(
         "change",
         "아, 카페라떼는 라지로 바꿔 주세요",
         "the latte is Large, its size shown again",
@@ -168,8 +181,8 @@ STEPS = [
 
 # When the assistant asks for an option (or the extras, or here / to go) the customer answers
 # like a person would: e.g. when the first word was not heard.
-ANSWERS = {"temperature": "따뜻한 걸로요", "size": "레귤러요", "extras": "없어요"}
-MAX_ANSWERS = 3
+ANSWERS = {"temperature": "따뜻하게요", "size": "레귤러요", "extras": "없어요"}
+MAX_ANSWERS = 6
 # The customer talks after this much silence (a reply after a function call can come 1-2 s
 # after a first short sentence).
 QUIET_S = 2.5
@@ -245,6 +258,7 @@ class Demo:
         self.state: State = {}
         self.snapshot: State = {}  # the state when a step's `until` came true
         self.heard_at = 0.0  # when the earpiece last played something
+        self.reply_at = 0.0  # when the earpiece last started playing (a new reply)
         self.speech: asyncio.Queue[tuple[bytes, asyncio.Future[float]]] = asyncio.Queue()
         self.cdp: Any = None
         self._cdp_id = 0
@@ -256,7 +270,10 @@ class Demo:
             if self.fake_sd is not None and self.fake_sd.callback is not None:
                 block = bytearray(960)
                 self.fake_sd.callback(block, 480, None, None)
-            if self.speaker.playing or self.speaker.level > 0:
+            playing = self.speaker.playing or self.speaker.level > 0
+            if playing:
+                if time.monotonic() - self.heard_at > 0.3:
+                    self.reply_at = time.monotonic()
                 self.heard_at = time.monotonic()
             await asyncio.sleep(0.02)
 
@@ -309,8 +326,9 @@ class Demo:
         reached_at = since
         while time.monotonic() < deadline:
             await asyncio.sleep(0.05)
-            if first is None and self.heard_at > since:
-                first = self.heard_at
+            # A reply that starts after the customer stopped (not the rest of an earlier one).
+            if first is None and self.reply_at > since:
+                first = self.reply_at
             if not reached:
                 reached = bool(self.state) and step.until(self.state)
                 if reached:

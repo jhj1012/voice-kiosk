@@ -254,3 +254,26 @@ def test_wants_to_stop(text, stop):
 def test_no_to_the_extras_question_is_not_asking_to_pay(assistant):
     assert not asks_to_pay("없어요", assistant)
     assert asks_to_pay("없어요, 결제할게요", assistant)
+
+
+def test_no_to_more_menu_items_still_is():
+    assert asks_to_pay("없어", "더 추가하실 메뉴가 있으신가요, 아니면 결제를 진행할까요?")
+
+
+@pytest.mark.parametrize(
+    ("said", "size"),
+    [
+        ("라디오", "large"),  # "라지요" as the transcription wrote it
+        ("큰 거예요", "large"),
+        ("레규러로 주세요", "regular"),  # spelled a little differently
+        ("레글러요", "regular"),
+    ],
+)
+def test_misheard_sizes_still_count(menu: Menu, said, size):
+    assert unheard_required(menu.item("americano"), {"size": size}, [said]) == []
+
+
+@pytest.mark.parametrize("said", ["마지막으로 하나요", "가지고 갈게요", "레몬으로요"])
+def test_short_words_need_the_real_word(menu: Menu, said):
+    assert unheard_required(menu.item("americano"), {"size": "large"}, [said]) != []
+    assert unheard_required(menu.item("americano"), {"size": "regular"}, [said]) != []

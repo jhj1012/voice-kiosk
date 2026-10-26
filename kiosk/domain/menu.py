@@ -42,6 +42,7 @@ class OptionChoice:
     name: str
     price: int = 0
     say: str = ""  # how it is read aloud; defaults to the name
+    label: str = ""  # how the screen shows it; defaults to `say`
     allergens: tuple[str, ...] = ()
     aliases: tuple[str, ...] = ()  # other words customers use for it
 

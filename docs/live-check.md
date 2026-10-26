@@ -122,6 +122,24 @@ in code, and the customer's words count for nothing (a friend's "내가 결제�
 to pay). `uv run python scripts/voice_demo.py --ignore-unrelated` adds two such sentences to the
 spoken order; the last run passed 12/12.
 
+## Team test feedback (after the new UI)
+
+- **"라지요" was transcribed as "라디오"** (synthesized speech; the team saw the same with real
+  voices: sizes were asked again and again). The assistant may have understood, but the code's
+  check (a required option must be in the customer's words) refused it. Now: known
+  mis-hearings are aliases (라디오, 라디, 나지, ...), and words of three or more syllables also
+  count when spelled a little differently ("레규러", "레글러"; letter-by-letter similarity
+  ≥ 0.8). Two-syllable words still need the exact word, so "마지막" never counts as 라지.
+- **Sentences were cut at short pauses**: "아메리카노는 얼음 조금만 넣어 주세요" arrived as
+  "아메리카노는" + "주세요", "이제 결제할게요" as "이제". `end_sensitivity: low` (wait longer at
+  pauses) fixed it in the spoken check (11/11 twice); the reply starts about 0.3 s later
+  (median 1.4–1.6 s instead of 1.1 s).
+- **"아메리카노 세 잔, 하나는 차갑게 두 잔은 따뜻하게" kept only the hot ones**: choosing the same
+  item again replaced the waiting one. Now the cups are split off as their own item (see
+  decisions); the spoken check covers it.
+- There is no setting for how fast the voice speaks; the instructions ask for a brisk pace and
+  one sentence where possible.
+
 ## Still to check by a person
 
 - **Real voice recognition and barge-in**: `uv run python scripts/live_check.py mic

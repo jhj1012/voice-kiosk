@@ -20,7 +20,8 @@ export type PaymentStep = 'insert_card' | 'processing' | 'approved';
 export interface Choice {
   id: string;
   name: string;
-  say: string;
+  say: string; // how it is said
+  label?: string; // how the screen shows it (e.g. 차갑게); falls back to `say`
   price: number;
 }
 

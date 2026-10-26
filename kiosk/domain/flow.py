@@ -238,17 +238,30 @@ class Kiosk:
         return self.pending_items[-1] if self.pending_items else None
 
     def choose_item(
-        self, item_id: str, quantity: int = 1, selection: Selection | None = None
+        self, item_id: str, quantity: int | None = 1, selection: Selection | None = None
     ) -> ItemResult:
-        """Start choosing an item. It is added at once if every required option is known;
-        otherwise it waits (next to others still waiting) until `set_options` completes it.
-        Choosing an item that is already waiting starts it over."""
+        """Start choosing an item; it waits (next to others still waiting) until its options
+        are known. The same item already waiting with options that fit is updated; given fewer
+        cups than it has and some options, those cups are split off as their own item
+        ("세 잔 중 하나는 차갑게"). Otherwise it is another cup of its own."""
         self._require(Phase.ORDERING)
         item = self.menu.item(item_id)
-        check_quantity(quantity)
+        if quantity is not None:
+            check_quantity(quantity)
         chosen = self.menu.resolve(item, selection or {})
-        self.pending_items = [p for p in self.pending_items if p.item.id != item.id]
-        pending = PendingItem(item=item, quantity=quantity, chosen=chosen)
+        same = [p for p in self.pending_items if p.item.id == item.id]
+        target = _fitting(same, chosen)
+        if target is not None and chosen and quantity is not None and quantity < target.quantity:
+            target.quantity -= quantity
+            pending = PendingItem(item=item, quantity=quantity, chosen={**target.chosen, **chosen})
+        elif target is not None:
+            pending = target
+            pending.chosen.update(chosen)
+            if quantity is not None:
+                pending.quantity = quantity
+            self.pending_items.remove(pending)
+        else:
+            pending = PendingItem(item=item, quantity=quantity or 1, chosen=chosen)
         self.pending_items.append(pending)
         return self._try_add(pending)
 
@@ -261,7 +274,7 @@ class Kiosk:
         """Add options (or change the quantity) of an item being chosen (the last one, unless
         `item_id` says which)."""
         self._require(Phase.ORDERING)
-        pending = self.pending_item(item_id)
+        pending = self.pending_item(item_id, selection)
         chosen = self.menu.resolve(pending.item, selection or {})
         if quantity is not None:
             check_quantity(quantity)
@@ -281,23 +294,33 @@ class Kiosk:
     def finish_item(self, item_id: str | None = None) -> ItemResult:
         """The customer wants no (more) extras: add the item (the last one, unless `item_id`)."""
         self._require(Phase.ORDERING)
-        pending = self.pending_item(item_id)
+        candidates = [p for p in self.pending_items if not item_id or p.item.id == item_id]
+        ready = [p for p in candidates if p.asking == EXTRAS]
+        pending = ready[-1] if ready else self.pending_item(item_id)
         if pending.missing:
             names = ", ".join(g.id for g in pending.missing)
             raise KioskError(f"{pending.item.id}: ask for {names} first")
         pending.extras_done = True
         return self._try_add(pending)
 
-    def pending_item(self, item_id: str | None = None) -> PendingItem:
+    def pending_item(
+        self, item_id: str | None = None, selection: Selection | None = None
+    ) -> PendingItem:
+        """The waiting item an answer is for: the one touched last, or of `item_id`. When the
+        same item waits more than once (split cups), the options in `selection` say which:
+        one they fit, preferably one still missing them."""
         if not self.pending_items:
             raise KioskError("no item is being chosen; use choose_item")
         if not item_id:
             return self.pending_items[-1]
-        for pending in self.pending_items:
-            if pending.item.id == item_id:
-                return pending
-        waiting = ", ".join(p.item.id for p in self.pending_items)
-        raise KioskError(f"{item_id} is not being chosen (waiting: {waiting})")
+        same = [p for p in self.pending_items if p.item.id == item_id]
+        if not same:
+            waiting = ", ".join(p.item.id for p in self.pending_items)
+            raise KioskError(f"{item_id} is not being chosen (waiting: {waiting})")
+        if len(same) > 1 and selection:
+            chosen = self.menu.resolve(same[0].item, selection)
+            return _fitting(same, chosen) or same[-1]
+        return same[-1]
 
     # --- changing the order ------------------------------------------------------------------
 
@@ -495,6 +518,18 @@ class Kiosk:
         self._menu_view = None
         self._history = []
         self._set_view(view, remember=False)
+
+
+def _fitting(entries: list[PendingItem], chosen: Chosen) -> PendingItem | None:
+    """The waiting entry whose options do not contradict `chosen`, preferably one still
+    missing some of them; the one touched last wins a tie (None if none fits)."""
+    fits = [
+        p
+        for p in entries
+        if all(not p.chosen.get(g) or tuple(p.chosen[g]) == tuple(c) for g, c in chosen.items())
+    ]
+    filling = [p for p in fits if any(not p.chosen.get(g) for g in chosen)]
+    return (filling or fits or [None])[-1]
 
 
 def _same_place(a: View, b: View) -> bool:

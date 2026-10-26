@@ -26,8 +26,14 @@ def test_init_event_carries_menu_cafe_and_images(menu, cafe):
         "id": "large",
         "name": "Large",
         "say": "라지",
+        "label": "라지",  # the screen's word (temperature: 따뜻하게 / 차갑게)
         "price": 500,
     }
+    temperature = next(g for g in event["menu"]["option_groups"] if g["id"] == "temperature")
+    assert [(c["say"], c["label"]) for c in temperature["choices"]] == [
+        ("따뜻한", "따뜻하게"),
+        ("차가운", "차갑게"),
+    ]
 
 
 def test_image_urls(menu, tmp_path):

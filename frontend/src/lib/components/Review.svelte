@@ -2,7 +2,7 @@
   // The whole order, read back before payment.
   import { fade } from 'svelte/transition';
   import { won } from '../format';
-  import { itemById, unitOf } from '../menu';
+  import { itemById, optionLabels, unitOf } from '../menu';
   import { ui } from '../store.svelte';
   import ItemImage from './ItemImage.svelte';
   import StaffNotes from './StaffNotes.svelte';
@@ -20,7 +20,9 @@
         </div>
         <div class="what">
           <span class="name">{line.name}</span>
-          {#if line.options}<span class="options">{line.options}</span>{/if}
+          {#if optionLabels(ui.menu, line.chosen)}<span class="options"
+              >{optionLabels(ui.menu, line.chosen)}</span
+            >{/if}
         </div>
         <span class="qty">{line.quantity}{unitOf(ui.menu, line.item_id)}</span>
         <span class="amount">{won(line.total)}</span>

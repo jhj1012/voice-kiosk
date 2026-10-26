@@ -20,7 +20,7 @@ def test_options_are_asked_one_at_a_time_then_the_extras(actions: Actions):
     result = actions.call("choose_item", {"item_id": "americano", "quantity": 2.0})
     assert result == {
         "not_added_yet": "아메리카노",
-        "ask": {"option": "온도", "choices": ["따뜻한", "아이스"]},
+        "ask": {"option": "온도", "choices": ["따뜻한", "차가운"]},
         "next": ASK_ONE,
     }
     result = actions.call("set_options", {"temperature": "ice", "size": "large"})
@@ -42,14 +42,14 @@ def test_options_are_asked_one_at_a_time_then_the_extras(actions: Actions):
                 ],
             },
         ],
-        "chosen": ["아이스", "라지"],
+        "chosen": ["차가운", "라지"],
         "next": ASK_EXTRAS,
     }
     assert "extras" in actions.call("set_options", {"syrup": "vanilla"})
     result = actions.call("finish_item", {})
     assert result == {
-        "added": "아이스 아메리카노 라지(바닐라 시럽) 2잔",
-        "order": ["1. 아이스 아메리카노 라지(바닐라 시럽) 2잔 10,000원"],
+        "added": "차가운 아메리카노 라지(바닐라 시럽) 2잔",
+        "order": ["1. 차가운 아메리카노 라지(바닐라 시럽) 2잔 10,000원"],
         "total": "10,000원",
     }
 

@@ -8,7 +8,7 @@
 
 {#if notes.length}
   <div class="notes box" in:fade={{ duration: 300 }}>
-    <span class="label">직원 전달</span>
+    <span class="label">직원에게 전달할 내용</span>
     <ul>
       {#each notes as note (note)}
         <li>{note}</li>
@@ -20,25 +20,28 @@
 <style>
   .notes {
     display: flex;
-    gap: 1.4rem;
-    align-items: baseline;
-    padding: 1.2rem 1.6rem;
+    flex-direction: column;
+    gap: 0.8rem;
+    padding: 1.6rem 1.8rem;
   }
   .label {
-    flex: none;
-    padding: 0.3rem 1rem;
+    align-self: flex-start;
+    padding: 0.4rem 1.4rem;
     border-radius: 999px;
     background: var(--accent-soft);
     color: var(--accent);
-    font-size: 1.5rem;
+    font-size: 2rem;
     font-weight: 700;
   }
   ul {
     margin: 0;
     padding: 0;
     list-style: none;
-    font-size: 1.8rem;
-    color: var(--text-2);
-    line-height: 1.5;
+    font-size: 2.8rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--text);
+    line-height: 1.4;
+    word-break: keep-all;
   }
 </style>

@@ -300,7 +300,7 @@ def test_review_returns_the_read_back_and_shows_it(kiosk: Kiosk):
     read_back = kiosk.review()
     assert (
         read_back
-        == "주문 확인해 드릴게요. 아이스 아메리카노 레귤러 1잔, 포장으로 총 4,000원입니다."
+        == "주문 확인해 드릴게요. 차가운 아메리카노 레귤러 1잔, 포장으로 총 4,000원입니다."
     )
     assert kiosk.view.screen is Screen.REVIEW
     assert kiosk.review_is_current
@@ -397,11 +397,38 @@ def test_several_items_can_wait_for_options(kiosk: Kiosk):
     assert len(kiosk.order.lines) == 3
 
 
-def test_choosing_a_waiting_item_again_starts_it_over(kiosk: Kiosk):
+def test_choosing_a_waiting_item_again_updates_it(kiosk: Kiosk):
     kiosk.choose_item("cafe_latte", selection={"temperature": "hot"})
-    kiosk.choose_item("cafe_latte")
+    kiosk.choose_item("cafe_latte", 2, {"size": "large"})
     assert len(kiosk.pending_items) == 1
-    assert kiosk.pending is not None and kiosk.pending.chosen == {}
+    pending = kiosk.pending
+    assert pending is not None and pending.quantity == 2
+    assert set(pending.chosen) == {"temperature", "size"}
+
+
+def test_one_item_split_into_parts_with_different_options(kiosk: Kiosk):
+    # "아메리카노 세 잔이요" - "하나는 차갑게, 두 잔은 따뜻하게"
+    kiosk.choose_item("americano", 3)
+    kiosk.choose_item("americano", 1, {"temperature": "ice"})
+    kiosk.choose_item("americano", 2, {"temperature": "hot"})
+    parts = sorted((p.quantity, p.chosen["temperature"][0].id) for p in kiosk.pending_items)
+    assert parts == [(1, "ice"), (2, "hot")]
+    # "둘 다 라지요": one answer per part, each goes to a part still missing it.
+    kiosk.set_options({"size": "large"}, item_id="americano")
+    kiosk.set_options({"size": "large"}, item_id="americano")
+    assert all(not p.missing for p in kiosk.pending_items)
+    # "차가운 건 샷 추가": the options say which part.
+    kiosk.set_options({"temperature": "ice", "shot": "extra_shot"}, item_id="americano")
+    kiosk.finish_item("americano")
+    kiosk.finish_item("americano")
+    lines = sorted((ln.quantity, ln.option_text) for ln in kiosk.order.lines)
+    assert lines == [(1, "ICE, Large, 샷 추가"), (2, "HOT, Large")]
+
+
+def test_another_cup_with_other_options_is_its_own_item(kiosk: Kiosk):
+    kiosk.choose_item("americano", 1, {"temperature": "hot"})
+    kiosk.choose_item("americano", 1, {"temperature": "ice"})  # "차가운 아메리카노도 하나"
+    assert len(kiosk.pending_items) == 2
 
 
 def test_cancel_one_of_the_waiting_items(kiosk: Kiosk):

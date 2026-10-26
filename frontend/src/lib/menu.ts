@@ -9,6 +9,21 @@ export function groupById(menu: Menu | null, id: string): OptionGroup | undefine
 }
 
 /** The counting word for an item's quantity, e.g. "잔" for drinks, "개" for desserts. */
+/** An order line's options in the screen's words (e.g. "차갑게, 라지"), without "기본"/"없음". */
+export function optionLabels(menu: Menu | null, chosen: Record<string, string[]>): string {
+  return Object.entries(chosen)
+    .flatMap(([groupId, ids]) => {
+      const group = groupById(menu, groupId);
+      return ids
+        .filter((id) => id !== 'none')
+        .map((id) => {
+          const c = group?.choices.find((x) => x.id === id);
+          return c ? c.label || c.say || c.name : id;
+        });
+    })
+    .join(', ');
+}
+
 export function unitOf(menu: Menu | null, itemId: string): string {
   const category = itemById(menu, itemId)?.category;
   return menu?.categories.find((c) => c.id === category)?.unit ?? '개';

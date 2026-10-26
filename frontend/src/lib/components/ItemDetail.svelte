@@ -23,7 +23,7 @@
   const isNone = (choice: Choice) => choice.id === 'none';
   const picked = (group: OptionGroup) =>
     group.choices.filter((c) => (chosen[group.id] ?? []).includes(c.id) && !isNone(c));
-  const chips = $derived(groups.flatMap((g) => picked(g).map((c) => c.say || c.name)));
+  const chips = $derived(groups.flatMap((g) => picked(g).map((c) => c.label || c.say || c.name)));
   const asking = $derived(groupById(ui.menu, view.group));
   const extras = $derived(groups.filter((g) => !g.required));
   const quantity = $derived(line?.quantity ?? pending?.quantity ?? 1);
@@ -69,7 +69,7 @@
           <ul class="list">
             {#each asking.choices as choice (choice.id)}
               <li class="row" class:chosen={(chosen[asking.id] ?? []).includes(choice.id)}>
-                <span class="choice">{choice.say || choice.name}</span>
+                <span class="choice">{choice.label || choice.say || choice.name}</span>
                 {#if choice.price}<span class="extra">+{won(choice.price)}</span>{/if}
               </li>
             {/each}
@@ -86,7 +86,8 @@
               <span class="pills">
                 {#each group.choices.filter((c) => !isNone(c)) as choice (choice.id)}
                   <span class="pill" class:on={(chosen[group.id] ?? []).includes(choice.id)}>
-                    {choice.say || choice.name}{#if choice.price}<small>+{won(choice.price)}</small
+                    {choice.label || choice.say || choice.name}{#if choice.price}<small
+                        >+{won(choice.price)}</small
                       >{/if}
                   </span>
                 {/each}
@@ -102,7 +103,7 @@
           <li class="row overview">
             <span class="group">{group.name}</span>
             <span class="value" class:none={!values.length}>
-              {values.map((c) => c.say || c.name).join(', ') || '없음'}
+              {values.map((c) => c.label || c.say || c.name).join(', ') || '없음'}
             </span>
           </li>
         {/each}
