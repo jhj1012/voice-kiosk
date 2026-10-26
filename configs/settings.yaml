@@ -12,7 +12,7 @@ live:
   vocabulary: true        # bias the transcription towards menu and option names
   # Server-side voice detection; values measured in docs/live-check.md.
   start_sensitivity: high # high | low | "" (API default)
-  end_sensitivity: ""
+  end_sensitivity: low     # waits longer at short pauses inside a sentence (team test)
   prefix_padding_ms: 300
   silence_duration_ms: null
 
