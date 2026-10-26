@@ -102,7 +102,12 @@ is the screen, and the handset plugged into it is the microphone and the speaker
   phone at a time (a newer connection replaces the older one), the speaker's loudness as the
   phone reports it.
 - A tap anywhere while idle is the `hook` lift; the end button puts it down; after payment the
-  session ends by itself as with the handset. No echo cancellation: the handset's earpiece does
+  session ends by itself as with the handset.
+- The phone's case covers its screen's edges: `phoneInsets` in the display settings (% of the
+  screen, set in the developer panel) become `--safe-*` on the page. The avatar stays full
+  screen; the choices, prompts, notices and subtitles keep out of the covered edges, and the
+  order moves above the avatar's head next to the end button (the bottom is the most covered).
+  In every mode the choices shrink when they are taller than their place (`fit` in `Stage`). No echo cancellation: the handset's earpiece does
   not reach its microphone.
 
 ## The server (`kiosk.server`)

@@ -12,7 +12,6 @@
   import { play, type Timeline } from './lib/player';
   import { dispatch, previewSettings, ui } from './lib/store.svelte';
   import DevPanel from './lib/components/DevPanel.svelte';
-  import PhoneEnd from './lib/components/PhoneEnd.svelte';
   import Stage from './lib/components/Stage.svelte';
 
   const params = new URLSearchParams(location.search);
@@ -120,10 +119,7 @@
 
 <svelte:window onkeydown={onKey} onpointerup={onTap} />
 
-<Stage />
-{#if ui.phone && ui.state.phase !== 'idle'}
-  <PhoneEnd onend={() => send({ type: 'hook', off_hook: false })} />
-{/if}
+<Stage onend={() => send({ type: 'hook', off_hook: false })} />
 {#if devOpen}
   <DevPanel {send} {mode} {connected} {log} />
 {/if}

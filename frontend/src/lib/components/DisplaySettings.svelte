@@ -1,9 +1,9 @@
 <script lang="ts">
   // The developer panel's settings: the conversation (ignore speech not meant for the kiosk),
-  // subtitles, the choices' background, the colours. A change shows at once; the backend saves
-  // it and sends it to every display.
+  // subtitles, the choices' background, the colours, the phone's covered edges. A change shows at
+  // once; the backend saves it and sends it to every display.
   import type { ClientEvent } from '../events';
-  import { BACKDROPS, COLORS } from '../settings';
+  import { BACKDROPS, COLORS, INSET_SIDES, MAX_INSET, type PhoneInsets } from '../settings';
   import { previewSettings, ui } from '../store.svelte';
 
   let { send }: { send: (event: ClientEvent) => void } = $props();
@@ -19,6 +19,12 @@
     const values = { colors: { ...settings.colors, [key]: value } };
     if (done) save(values);
     else previewSettings(values); // while dragging in the colour picker
+  }
+
+  function inset(side: keyof PhoneInsets, value: number) {
+    if (Number.isFinite(value) && value >= 0 && value <= MAX_INSET) {
+      save({ phoneInsets: { ...settings.phoneInsets, [side]: value } });
+    }
   }
 
   function reset() {
@@ -86,6 +92,30 @@
   <button type="button" onclick={reset}>기본값으로 되돌리기</button>
 </section>
 
+<section>
+  <h3>휴대폰 화면 가려지는 부분</h3>
+  <p class="note flush">
+    휴대폰 버전에서 선택지와 주문 현황이 피하는 가장자리. 위·아래는 화면 높이의, 왼쪽·오른쪽은 화면
+    너비의 %예요. (높이 31.5cm에서 1cm ≈ 3.2%, 너비 19.5cm에서 1cm ≈ 5.1%)
+  </p>
+  <div class="insets">
+    {#each INSET_SIDES as side (side.key)}
+      <label>
+        {side.label}
+        <input
+          type="number"
+          min="0"
+          max={MAX_INSET}
+          step="0.1"
+          value={settings.phoneInsets[side.key]}
+          onchange={(e) => inset(side.key, e.currentTarget.valueAsNumber)}
+        />
+        %
+      </label>
+    {/each}
+  </div>
+</section>
+
 <style>
   section {
     display: flex;
@@ -102,6 +132,24 @@
     margin: -0.3rem 0 0 2.2rem;
     color: #b9aca1;
     word-break: keep-all;
+  }
+  .note.flush {
+    margin-left: 0;
+  }
+  .insets {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem 1rem;
+  }
+  .insets label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  input[type='number'] {
+    width: 4.5rem;
+    margin-left: auto;
+    font: inherit;
   }
   .line {
     display: flex;

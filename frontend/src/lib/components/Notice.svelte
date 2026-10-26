@@ -17,7 +17,7 @@
 <style>
   .notice {
     position: absolute;
-    top: 1.6rem;
+    top: calc(var(--safe-top, 0px) + 1.6rem); /* the phone's covered top edge */
     left: 50%;
     translate: -50% 0;
     z-index: 20;

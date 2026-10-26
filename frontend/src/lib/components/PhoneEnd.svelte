@@ -15,9 +15,9 @@
 
 <style>
   .end {
-    position: fixed;
-    top: calc(env(safe-area-inset-top, 0px) + 2.4rem);
-    right: 2.4rem;
+    position: absolute; /* in the page, inside its covered edges */
+    top: calc(var(--safe-top, 0px) + 2.4rem);
+    right: calc(var(--safe-right, 0px) + 3rem);
     z-index: 30;
     padding: 1.4rem 2.6rem;
     border: 0.25rem solid var(--line);

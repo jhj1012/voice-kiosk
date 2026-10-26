@@ -1,7 +1,8 @@
 // The settings from the developer panel (F2): the choices' background style, subtitles, the
-// colours, and whether the assistant ignores speech not meant for the kiosk (read by the backend
-// when the next customer lifts the handset). The backend saves them (configs/display.local.json) and sends them to every
-// display; anything missing or malformed falls back to the defaults here. Pure, unit tested.
+// colours, whether the assistant ignores speech not meant for the kiosk (read by the backend when
+// the next customer lifts the handset), and how much of the phone's screen its case covers. The
+// backend saves them (configs/display.local.json) and sends them to every display; anything
+// missing or malformed falls back to the defaults here. Pure, unit tested.
 
 export type Backdrop = 'blur' | 'gradient' | 'boxes';
 
@@ -31,12 +32,31 @@ export const COLORS: ColorSetting[] = [
   { key: 'line', label: '구분선', css: '--line', value: '#e2ebf8' },
 ];
 
+/** The parts of the phone's screen its case covers, in % of the screen's height (top, bottom) and
+ * width (left, right). The phone mode keeps the choices and the order out of them. */
+export interface PhoneInsets {
+  top: number;
+  bottom: number;
+  left: number;
+  right: number;
+}
+
+export const INSET_SIDES: { key: keyof PhoneInsets; label: string }[] = [
+  { key: 'top', label: '위' },
+  { key: 'bottom', label: '아래' },
+  { key: 'left', label: '왼쪽' },
+  { key: 'right', label: '오른쪽' },
+];
+
+export const MAX_INSET = 40;
+
 export interface Settings {
   backdrop: Backdrop;
   panelOpacity: number; // 0..1, the choices' background
   subtitles: boolean; // what the customer and the assistant say, as text
   ignoreUnrelated: boolean; // no answer to words not meant for the kiosk (next customer)
   colors: Record<string, string>;
+  phoneInsets: PhoneInsets;
 }
 
 export const DEFAULTS: Settings = {
@@ -45,6 +65,8 @@ export const DEFAULTS: Settings = {
   subtitles: false,
   ignoreUnrelated: false,
   colors: Object.fromEntries(COLORS.map((c) => [c.key, c.value])),
+  // Measured on the team's 19.5 x 31.5 cm screen: 1.5 cm top, 7 cm bottom, 0.5 cm each side.
+  phoneInsets: { top: 4.8, bottom: 22.2, left: 2.6, right: 2.6 },
 };
 
 const HEX = /^#[0-9a-f]{6}$/i;
@@ -63,6 +85,14 @@ export function normalize(values: Record<string, unknown>): Settings {
     ? (values.backdrop as Backdrop)
     : DEFAULTS.backdrop;
   const opacity = values.panelOpacity;
+  const phoneInsets = { ...DEFAULTS.phoneInsets };
+  const insets = values.phoneInsets;
+  if (insets && typeof insets === 'object') {
+    for (const { key } of INSET_SIDES) {
+      const value = (insets as Record<string, unknown>)[key];
+      if (typeof value === 'number' && value >= 0 && value <= MAX_INSET) phoneInsets[key] = value;
+    }
+  }
   return {
     backdrop,
     panelOpacity:
@@ -73,6 +103,21 @@ export function normalize(values: Record<string, unknown>): Settings {
         ? values.ignoreUnrelated
         : DEFAULTS.ignoreUnrelated,
     colors,
+    phoneInsets,
+  };
+}
+
+/** The phone mode's covered edges as CSS variables for the page (`--safe-*`, lengths). The
+ * sides are measured from the screen's edges; the page may be narrower than the screen (it
+ * keeps 9:16), so only what reaches into the page counts. Use them in `left` / `right` of
+ * elements positioned in the page. */
+export function insetVariables(insets: PhoneInsets): Record<string, string> {
+  const side = (percent: number) => `max(0px, calc(${percent}vw - (100vw - 100%) / 2))`;
+  return {
+    '--safe-top': `${insets.top}dvh`,
+    '--safe-bottom': `${insets.bottom}dvh`,
+    '--safe-left': side(insets.left),
+    '--safe-right': side(insets.right),
   };
 }
 
