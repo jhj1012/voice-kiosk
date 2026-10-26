@@ -167,6 +167,7 @@ shown at once, and the read-back lets the customer correct it.
 |---|---|
 | Pay only after the customer asked | `pay` is blocked unless one of the customer's utterances since the items last changed (always including the latest) asks to pay: pay phrases ("결제할게요", "계산", "이게 다예요", ...), "아니요/없어요" right after the assistant asked whether they want anything else (not after the extras question), or a yes to a payment question. Ignored words (`stay_quiet`) do not count. |
 | Read back before paying | `pay` returns a read-back written by code. The terminal starts only after the assistant's next spoken turn contains the total (digits or Korean words, e.g. "만 삼천오백 원"); otherwise the assistant is reminded (twice, then it starts anyway since the total is on screen). If the customer talks over the read-back, their words decide: a yes ("네", "결제해 주세요") starts the terminal, a stop ("잠깐만요", "아니요", "취소") cancels it and tells the assistant, anything else waits for the assistant's next answer. An item change cancels it too. |
+| No guessed options | For `order` and `set_options`, a temperature or size the customer did not mention at all (none of the group's `words` in `menu.yaml`) is left out unless the screen asks for that option; the result says `not_said` and the kiosk asks. Answers to the question on screen are always taken. |
 | Discard only after a yes | `cancel_order` (while ordering) is blocked unless the latest customer words are a yes and the assistant's previous words asked about cancelling. |
 
 ## Function declarations
