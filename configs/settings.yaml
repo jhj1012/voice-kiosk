@@ -6,7 +6,7 @@
 
 live:
   model: gemini-3.8-live  # see docs/decisions.md; must be a Live API model
-  voice: Sulafat          # prebuilt voice name; empty = the model's default
+  voice: Charon          # prebuilt voice name; empty = the model's default
   api_key_env: GEMINI_API_KEY
   language: ko-KR
   vocabulary: true        # bias the transcription towards menu and option names
