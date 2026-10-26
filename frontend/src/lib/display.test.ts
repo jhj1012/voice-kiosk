@@ -20,10 +20,11 @@ const line = (item_id: string, quantity: number, n = 1) => ({
 
 describe('apply', () => {
   it('stores the menu from init', () => {
-    const init = demo.init as ServerEvent;
+    const init = demo.init as ServerEvent & { type: 'init' };
     const display = apply(initialDisplay(), init);
-    expect(display.menu?.items.length).toBe(12);
-    expect(display.cafe?.name).toBe('대홍단감자 카페');
+    expect(display.menu?.items.length).toBe(init.menu.items.length);
+    expect(display.menu?.items.length).toBeGreaterThan(0);
+    expect(display.cafe?.name).toBe(init.cafe.name);
   });
 
   it('replaces the snapshot and ignores older ones', () => {

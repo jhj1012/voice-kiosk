@@ -114,14 +114,14 @@ def scenario_order(r: Recorder) -> None:
     recommended = [i.id for i in k.menu.items if i.recommended]
     r.do(k.show_menu, item_ids=recommended)
     r.says(
-        "추천 메뉴는 아메리카노, 카페라떼, 아인슈페너, 청포도 에이드예요. 다른 메뉴도 보시겠어요?"
+        "추천 메뉴는 아메리카노, 카페라떼, 바닐라라떼, 청포도에이드예요. 다른 메뉴도 보시겠어요?"
     )
     r.customer("네, 다른 것도 보여주세요")
     r.do(k.show_categories)
     r.says("어떤 종류의 메뉴를 원하세요?")
-    r.customer("라떼 있나요?")
-    r.do(k.show_menu, category="latte")
-    r.says("네, 이런 라떼들이 있어요.")
+    r.customer("커피 종류 보여 주세요")
+    r.do(k.show_menu, category="coffee")
+    r.says("네, 이런 커피들이 있어요.")
     r.customer("카페라떼 하나 주세요")
     r.do(k.order_item, "cafe_latte")
     r.says("카페라떼는 따뜻하게 드릴까요, 차갑게 드릴까요?")
@@ -188,28 +188,28 @@ def scenario_allergy(r: Recorder) -> None:
         highlight_ids=["americano", "green_grape_ade"],
     )
     r.says(
-        "아메리카노, 콜드브루, 청포도 에이드를 드실 수 있어요. 알레르기 정보는 참고용이니 "
+        "아메리카노, 콜드브루, 청포도에이드를 드실 수 있어요. 알레르기 정보는 참고용이니 "
         "심하시면 직원에게 꼭 확인해 주세요."
     )
-    r.customer("청포도 에이드는 많이 달아요?")
+    r.customer("청포도에이드는 많이 달아요?")
     r.do(k.show_item, "green_grape_ade")
-    r.says("네, 청포도 청이 들어가서 달콤하고 상큼한 편이에요. 카페인은 없어요.", cut_after=0.55)
+    r.says("네, 청포도 청이 들어가 달콤하고 상큼한 편이에요. 카페인은 없어요.", cut_after=0.55)
     r.customer("그럼 와이파이 비밀번호는요?")
     r.do(k.show_info, "wifi")
     r.says("와이파이 이름은 SORI_CAFE, 비밀번호는 sori1234예요.")
     r.emit(notice_event("warn", "연결을 다시 시도하고 있어요"))
     r.wait(2200)
     r.emit(notice_event("info", ""))
-    r.customer("아까 청포도 에이드 다시 보여 주세요")
+    r.customer("아까 청포도에이드 다시 보여 주세요")
     r.do(k.go_back, "green_grape_ade")
-    r.says("네, 청포도 에이드예요.")
+    r.says("네, 청포도에이드예요.")
     r.customer("그거 라지로 하나 주세요")
     r.do(k.order_item, "green_grape_ade", 1, {"size": "large"})
-    r.says("청포도 에이드에 추가하실 거 있으세요?")
+    r.says("청포도에이드에 추가하실 거 있으세요?")
     r.customer("텀블러 쓸게요")
     r.do(k.set_options, {"tumbler": ["tumbler"]})
     r.do(k.no_more_extras)
-    r.says("청포도 에이드 라지 한 잔 담았어요. 더 필요하신 거 있으세요?")
+    r.says("청포도에이드 라지 한 잔 담았어요. 더 필요하신 거 있으세요?")
     r.customer("음... 잠깐만요")  # hesitation: no answer, the kiosk waits
     r.wait(2500)
     k.end_session()  # the customer hung up

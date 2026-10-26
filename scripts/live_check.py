@@ -477,8 +477,8 @@ SCENARIOS: dict[str, list[tuple[str, dict[str, Expect]]]] = {
             },
         ),
         (
-            "초코 쿠키도 하나 주세요",
-            {"order cookie": lambda t, k: has_call(t, "order", item_id="chocolate_cookie")},
+            "감자빵도 하나 주세요",
+            {"order bread": lambda t, k: has_call(t, "order", item_id="potato_bread")},
         ),
         (
             "이제 결제할게요",
@@ -535,7 +535,7 @@ SCENARIOS: dict[str, list[tuple[str, dict[str, Expect]]]] = {
                     "milk" in (c["args"].get("exclude_allergens") or [])
                     or (
                         c["args"].get("item_ids")
-                        and not {"cafe_latte", "cafe_mocha", "flat_white"}
+                        and not {"cafe_latte", "cafe_mocha", "vanilla_latte"}
                         & set(c["args"]["item_ids"])
                     )
                     for c in calls_named(t, "show")
@@ -565,7 +565,7 @@ SCENARIOS: dict[str, list[tuple[str, dict[str, Expect]]]] = {
     ],
     "change_and_cancel": [
         (
-            "따뜻한 아메리카노 레귤러 하나랑 청포도 에이드 라지 하나 주세요",
+            "따뜻한 아메리카노 레귤러 하나랑 청포도에이드 라지 하나 주세요",
             {"two lines": lambda t, k: len(k.order.lines) == 2},
         ),
         ("아메리카노에 샷 추가해 주세요", {"shot added": lambda t, k: has_call(t, "change")}),
@@ -630,8 +630,8 @@ PHRASES = [
     "아이스 아메리카노 라지로 두 잔 주세요",
     "카페라떼 따뜻한 걸로 하나 주세요",
     "레귤러요",
-    "할메가커피도 하나 주세요",
-    "청포도 에이드는 많이 달아요?",
+    "헛개리카노도 하나 주세요",
+    "청포도에이드는 많이 달아요?",
     "우유 알레르기가 있어요",
     "화장실 어디예요?",
     "포장이요",
@@ -798,8 +798,8 @@ async def mode_limits(setup: Setup, max_sessions: int) -> dict[str, Any]:
 # --- mode: voices ------------------------------------------------------------------------------
 
 VOICE_SAMPLE = (
-    "안녕하세요, 대홍단감자 카페입니다. 아이스 아메리카노 라지 두 잔, 초코 쿠키 한 개, "
-    "포장으로 총 만 이천칠백 원입니다. 카드를 단말기에 꽂아 주세요."
+    "안녕하세요, 대홍단감자 카페입니다. 아이스 아메리카노 라지 두 잔, 감자빵 한 개, "
+    "포장으로 총 만 사천 원입니다. 카드를 단말기에 꽂아 주세요."
 )
 
 
