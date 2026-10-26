@@ -54,7 +54,7 @@ Write-Host '키오스크를 시작해요. 처음에는 필요한 파일을 받�
 Write-Host '끄려면 이 창을 닫으세요.'
 Write-Host ''
 if ($Phone) {
-    Write-Host '휴대폰 모드: 노트북을 휴대폰 핫스팟에 연결해 두세요. 휴대폰에서 열 주소가 아래에 나와요.'
+    Write-Host '휴대폰 모드: 노트북과 화면 기기를 같은 Wi-Fi(핫스팟)에 연결해 두세요. 화면 기기에서 열 주소가 아래에 나와요.'
     Write-Host ''
     & $uv run --no-dev python -m kiosk --phone
 } else {

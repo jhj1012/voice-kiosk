@@ -180,13 +180,13 @@ def print_phone_addresses(addresses: list[str], port: int, laptop_url: str) -> N
     """What to type on the phone (in Korean: the teammates read this window)."""
     print()
     if addresses:
-        print("휴대폰 Chrome 주소창에 이 주소를 입력하세요:")
+        print("화면 기기(안드로이드)의 Chrome 주소창에 이 주소를 입력하세요:")
         print(f"    https://{addresses[0]}:{port}")
         if len(addresses) > 1:
             others = ", ".join(f"https://{a}:{port}" for a in addresses[1:])
             print(f"  (안 열리면: {others})")
     else:
-        print("네트워크에 연결되어 있지 않아요. 노트북을 휴대폰 핫스팟에 연결하고 다시 실행하세요.")
+        print("네트워크에 연결되어 있지 않아요. 노트북을 화면 기기와 같은 Wi-Fi에 연결하세요.")
     print(f"설정(F2)과 API 키는 이 노트북의 브라우저에서: {laptop_url}")
     print()
 
