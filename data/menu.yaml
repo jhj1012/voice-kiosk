@@ -6,7 +6,6 @@ allergens:
 
 categories:
   - {id: coffee, name: 커피, unit: 잔}
-  - {id: latte, name: 라떼, unit: 잔}
   - {id: tea, name: 티, unit: 잔}
   - {id: ade_juice, name: 에이드·주스, unit: 잔}
   - {id: smoothie_frappe, name: 스무디·프라페, unit: 잔}
@@ -174,7 +173,7 @@ items:
     allergens: [milk]
     caffeine: medium
     sweetness: 2
-    recommended: true
+    recommended: false
     verified: false
 
   - id: caramel_macchiato
@@ -232,7 +231,7 @@ items:
     allergens: []
     caffeine: low
     sweetness: 3
-    recommended: true
+    recommended: false
     verified: false
 
   - id: apple_citron_tea
@@ -360,7 +359,7 @@ items:
     allergens: []
     caffeine: none
     sweetness: 3
-    recommended: true
+    recommended: false
     verified: false
 
   - id: strawberry_juice
@@ -466,7 +465,7 @@ items:
     allergens: [milk, wheat, soy]
     caffeine: low
     sweetness: 3
-    recommended: true
+    recommended: false
     verified: false
 
   - id: mint_frappe

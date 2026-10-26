@@ -114,7 +114,8 @@ def scenario_order(r: Recorder) -> None:
     recommended = [i.id for i in k.menu.items if i.recommended]
     r.do(k.show_menu, item_ids=recommended)
     r.says(
-        "추천 메뉴는 아메리카노, 카페라떼, 바닐라라떼, 청포도에이드예요. 다른 메뉴도 보시겠어요?"
+        "추천 메뉴는 아메리카노, 카페라떼, 청포도에이드, 딸기라떼, 감자빵이에요. "
+        "다른 메뉴도 보시겠어요?"
     )
     r.customer("네, 다른 것도 보여주세요")
     r.do(k.show_categories)
