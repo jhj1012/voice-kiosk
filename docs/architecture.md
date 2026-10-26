@@ -115,7 +115,9 @@ changes the state (and increases `revision`) or raises `KioskError` with a messa
   (`PendingItem.asking` says which; the view's `group` shows it). Items without extras are added as
   soon as the required options are known. Several items can wait side by side ("청포도 에이드
   하나랑 아메리카노 하나"); `item_id` says which one an answer is for, and the screen shows the one
-  touched last. Optional groups keep their default ("기본", "없음"). A temperature or size the
+  touched last. The same item can wait more than once with different options ("세 잔 중 하나는
+  차갑게"): choosing it again with fewer cups and some options splits those cups off; an answer
+  goes to the part its options fit. Optional groups keep their default ("기본", "없음"). A temperature or size the
   item has no option for is accepted only if it matches how the item is served (ICE for an
   iced-only item, Regular for one size).
 - **Going back**: the views the customer saw (menus, kinds of menu, items, info, the order) are
