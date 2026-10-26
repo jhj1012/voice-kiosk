@@ -39,7 +39,7 @@ option_groups:
     name: 온도
     required: true
     multi: false
-    words: [따뜻, 따듯, 다뜻, 뜨거, 뜨겁, 뜨뜻, 뜨아, 차가, 차갑, 시원, 아이스, 아아, 핫, 온도, hot, ice]
+    words: [따뜻, 따듯, 다뜻, 뜻한, 뜨거, 뜨겁, 뜨뜻, 뜨아, 차가, 차갑, 시원, 아이스, 아아, 핫, 온도, hot, ice]
     choices:
       - id: hot
         name: HOT
