@@ -210,9 +210,9 @@ class AssistantSession:
         self._quiet_turn = False  # stay_quiet was called: this turn is not heard
         self._thought_turn = False  # the model started saying its thoughts: the rest is cut
         self._thought_retries = 0
-        # The greeting and the here-or-to-go question are not interrupted: while such a turn is
-        # said, the handset's audio goes to the model as silence, until it has been played
-        # (`_held_until`, set when the turn completes; None while it is still being said).
+        # The first turn (the greeting and the here-or-to-go question) is not interrupted: until
+        # it has been played, the handset's audio goes to the model as silence (`_held_until`,
+        # set when that turn completes; None while it is still being said).
         self._holding = False
         self._held_until: float | None = None
 
@@ -237,7 +237,7 @@ class AssistantSession:
             self._set_state(AssistantState.IDLE)
             return False
         self._receiver = asyncio.create_task(self._receive_loop())
-        self._hold()  # the greeting, from before its first word
+        self._holding, self._held_until = True, None  # the greeting, from before its first word
         await self._conn.send_text(GREETING_CUE)
         self._set_state(AssistantState.THINKING)
         return True
@@ -268,12 +268,6 @@ class AssistantSession:
                 pcm = bytes(len(pcm))  # the model's turn detection hears nobody
             with contextlib.suppress(Exception):  # dropped while reconnecting
                 await self._conn.send_audio(pcm)
-
-    def _hold(self) -> None:
-        if not self._holding:
-            log.info("this turn is not interrupted (the greeting, here or to go)")
-        self._holding = True
-        self._held_until = None
 
     def _is_held(self) -> bool:
         if self._holding and self._held_until is not None and self._clock() >= self._held_until:
@@ -363,8 +357,6 @@ class AssistantSession:
         self._close_utterance("customer")
         if not self._turn_audio:
             self._turn_audio_at = self._clock()
-            if self.kiosk.question.kind is Ask.DINING:
-                self._hold()  # asking here or to go (again)
         self._turn_audio = True
         if self._read_back is not None:
             self._read_back.spoke = True

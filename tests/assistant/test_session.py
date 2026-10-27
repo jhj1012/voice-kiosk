@@ -246,7 +246,7 @@ def test_audio_from_the_handset_goes_to_the_connection(new_kiosk):
     run(scenario, new_kiosk)
 
 
-def test_the_greeting_and_here_or_to_go_are_not_interrupted(new_kiosk):
+def test_the_greeting_is_not_interrupted(new_kiosk):
     async def scenario(h: Harness):
         await h.session.send_audio(b"\1\2")  # before the greeting's first word
         h.conn.push(OutputText("안녕하세요, 드시고 가세요?"), AudioOut(b"\0" * 4800))
@@ -261,19 +261,9 @@ def test_the_greeting_and_here_or_to_go_are_not_interrupted(new_kiosk):
         assert h.conn.audio[-1] == b"\7\0"
 
         await h.say("메뉴 뭐 있어요?")  # not answered: the question comes again
-        await h.reply("추천 메뉴예요. 드시고 가세요?")
-        h.conn.push(AudioOut(b"\0" * 4800))  # the question again, said
+        h.conn.push(OutputText("추천 메뉴예요. 드시고 가세요?"), AudioOut(b"\0" * 4800))
         await h.settle()
-        await h.session.send_audio(b"\1\1")
-        assert h.conn.audio[-1] == b"\0\0"
-        h.conn.push(TurnComplete())
-        await asyncio.sleep(0.15)
-
-        await h.say("포장이요")
-        await h.call("set_dining", dining="to_go")
-        h.conn.push(OutputText("메뉴판에서 고르신 뒤 말씀해 주세요"), AudioOut(b"\0" * 4800))
-        await h.settle()
-        await h.session.send_audio(b"\2\2")  # any other turn can be interrupted
+        await h.session.send_audio(b"\2\2")  # only the first turn: this one can be interrupted
         assert h.conn.audio[-1] == b"\2\2"
 
     run(scenario, new_kiosk)
