@@ -39,19 +39,18 @@ ASK_STAFF = (
 )
 SAY_READ_BACK = "Say the read_back now, word for word; nothing about the card yet."
 LINE_SHOWN = "Shown again. If they want to change it, call change with line {line}."
-CONFIRM_SAME = (
-    "Their answer may be for {other} too. Ask this. Yes: call set_options with draft {draft} and "
-    "the same {group}. No: {no}"
+# "따뜻한 아메리카노도 레귤러로 해 드릴까요?": an answer that may be for another drink too.
+CONFIRM = (
+    "Their answer may be for {other} too. Ask this. Yes: call {call} and the same {group}. No: {no}"
 )
-CONFIRM_NO_OTHER = "call set_options with draft {draft} and {group} {other} (the other choice)."
+CONFIRM_NO_OTHER = "call {call} and {group} {other} (the other choice)."
 CONFIRM_NO_ASK = "ask '{question}'."
 CONFIRM_NO_EXTRA = "it does not get it; nothing to call."
 CONFIRM_SKIP = " If they already said which drink it was for, do not ask this; ask '{then}'."
 HELD = "Not set for {other}: the customer did not say it was for both. Ask this first."
-CONFIRM_LINE = (
-    "Their answer may be for {other} too (line {line}, already in the order). Ask this. Yes: call "
-    "change with line {line} and the same {group}. No: it does not get it; nothing to call."
-)
+
+# A drink being chosen, or one already in the order: what an answer may be for.
+Drink = Draft | CartLine
 
 
 class Actions:
@@ -255,48 +254,52 @@ class Actions:
             return f"{name}{_topic(name)} 따뜻하게 드릴까요, 차갑게 드릴까요?"
         return f"{name} {group.name}{_topic(group.name)} 어떤 걸로 해 드릴까요?"
 
-    def confirm_same(
-        self, other: Draft, group: OptionGroup, choices: tuple[OptionChoice, ...], then: str = ""
+    def confirm(
+        self,
+        other: Drink,
+        group: OptionGroup,
+        choices: tuple[OptionChoice, ...],
+        other_choice: OptionChoice | None = None,
+        then: str = "",
     ) -> Result:
-        """Ask whether an answer given for one drink is for `other` too (the same item, also
-        missing `group`): "따뜻한 아메리카노도 레귤러로 해 드릴까요?"."""
-        name = self._draft_name(other)
-        if not group.required:  # an extra: "따뜻한 아메리카노에도 샷 추가 해 드릴까요?"
-            extras = ", ".join(c.spoken for c in choices)
-            note = CONFIRM_SAME.format(
-                other=name, draft=other.id, group=group.id, no=CONFIRM_NO_EXTRA
+        """Ask whether an answer given for one drink is for `other` too: "따뜻한 아메리카노도
+        레귤러로 해 드릴까요?", "따뜻한 레귤러 아메리카노에도 샷 추가 해 드릴까요?". With
+        `other_choice`, "아니" means that one (the only other of two)."""
+        name = self.drink_name(other)
+        if isinstance(other, CartLine):
+            number = self.kiosk.order.number_of(other)
+            call, where = (
+                f"change with line {number}",
+                f"{name} (line {number}, already in the order)",
             )
-            if then:
-                note += CONFIRM_SKIP.format(then=then)
-            return {"ask": f"{name}에도 {extras} 해 드릴까요?", "confirm_note": note}
-        value = choices[0].label or _with_ro(choices[0].spoken)
-        rest = [c for c in group.choices if c not in choices]
-        if len(rest) == 1:  # "아니" means the other one: no need to ask again
-            no = CONFIRM_NO_OTHER.format(draft=other.id, group=group.id, other=rest[0].id)
         else:
-            no = CONFIRM_NO_ASK.format(question=self._option_question(other, group))
-        note = CONFIRM_SAME.format(other=name, draft=other.id, group=group.id, no=no)
+            call, where = f"set_options with draft {other.id}", name
+        if group.required:
+            ask = f"{name}도 {choices[0].label or _with_ro(choices[0].spoken)} 해 드릴까요?"
+            if other_choice is not None:
+                no = CONFIRM_NO_OTHER.format(call=call, group=group.id, other=other_choice.id)
+            elif isinstance(other, Draft):
+                no = CONFIRM_NO_ASK.format(question=self._option_question(other, group))
+            else:
+                no = CONFIRM_NO_EXTRA
+        else:
+            ask = f"{name}에도 {', '.join(c.spoken for c in choices)} 해 드릴까요?"
+            no = CONFIRM_NO_EXTRA
+        note = CONFIRM.format(other=where, call=call, group=group.id, no=no)
         if then:
             note += CONFIRM_SKIP.format(then=then)
-        return {"ask": f"{name}도 {value} 해 드릴까요?", "confirm_note": note}
+        return {"ask": ask, "confirm_note": note}
 
-    def held(self, other: Draft) -> str:
-        return HELD.format(other=self._draft_name(other))
+    def held(self, other: Drink) -> str:
+        return HELD.format(other=self.drink_name(other))
 
-    def confirm_line(
-        self, number: int, group: OptionGroup, choices: tuple[OptionChoice, ...], then: str = ""
-    ) -> Result:
-        """Ask whether an extra given for a drink being chosen is for the same item already in
-        the order too: "따뜻한 레귤러 아메리카노에도 샷 추가 해 드릴까요?"."""
-        name = self._line_name(self.kiosk.order.line(number))
-        extras = ", ".join(c.spoken for c in choices)
-        note = CONFIRM_LINE.format(other=name, line=number, group=group.id)
-        if then:
-            note += CONFIRM_SKIP.format(then=then)
-        return {"ask": f"{name}에도 {extras} 해 드릴까요?", "confirm_note": note}
-
-    def held_line(self, number: int) -> str:
-        return HELD.format(other=self._line_name(self.kiosk.order.line(number)))
+    def drink_name(self, drink: Drink) -> str:
+        """What tells a drink apart from the same item chosen differently: "따뜻한 아메리카노"
+        (being chosen), "따뜻한 레귤러 아메리카노" (in the order)."""
+        if isinstance(drink, CartLine):
+            return self._line_name(drink)
+        said = [c.spoken for cs in drink.chosen.values() for c in cs if not c.is_none]
+        return " ".join([*said, drink.item.name])
 
     def _line_name(self, line: CartLine) -> str:
         """e.g. "따뜻한 레귤러 아메리카노": an order line by its temperature and size."""
@@ -307,11 +310,6 @@ class Actions:
             for c in line.chosen()[group.id]
         ]
         return " ".join([*said, line.item.name])
-
-    def _draft_name(self, draft: Draft) -> str:
-        """e.g. "따뜻한 아메리카노": what tells it apart from the same item chosen differently."""
-        said = [c.spoken for cs in draft.chosen.values() for c in cs if not c.is_none]
-        return " ".join([*said, draft.item.name])
 
     def _draft_text(self, draft: Draft) -> str:
         said = [c.spoken for cs in draft.chosen.values() for c in cs if not c.is_none]
