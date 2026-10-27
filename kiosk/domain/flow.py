@@ -21,6 +21,7 @@ to cancelling?) are checked by the assistant session.
 
 from __future__ import annotations
 
+import random
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from enum import StrEnum
@@ -33,6 +34,7 @@ Selection = Mapping[str, str | Sequence[str]]  # option group id -> choice id(s)
 
 EXTRAS = "extras"  # View.group / Question.group: the item's extras, all at once
 HISTORY = 30  # views remembered for go_back
+MAX_SHOWN = 5  # menu items on one screen: one column that still fits over the avatar
 
 
 class Phase(StrEnum):
@@ -137,6 +139,8 @@ class Draft:
 class MenuShown:
     item_ids: tuple[str, ...]
     removed: tuple[str, ...]  # left out because they contain an excluded allergen
+    not_shown: int = 0  # more items that fit but not on one screen (MAX_SHOWN)
+    categories: bool = False  # the whole menu was asked for: the categories are shown instead
 
 
 @dataclass(frozen=True)
@@ -149,9 +153,16 @@ class ItemResult:
 
 
 class Kiosk:
-    def __init__(self, menu: Menu, cafe: Cafe, first_order_number: int = 1) -> None:
+    def __init__(
+        self,
+        menu: Menu,
+        cafe: Cafe,
+        first_order_number: int = 1,
+        rng: random.Random | None = None,
+    ) -> None:
         self.menu = menu
         self.cafe = cafe
+        self._rng = rng or random.Random()  # picks the items shown when too many fit
         self._numbers = OrderNumbers(first_order_number)
         self.revision = 0
         self.phase = Phase.IDLE
@@ -234,18 +245,24 @@ class Kiosk:
         highlight_ids: Sequence[str] = (),
         exclude_allergens: Sequence[str] = (),
     ) -> MenuShown:
-        """Show a chosen set of items (or a category, or everything) under a heading."""
+        """Show a chosen set of items (or a category, or the items without some allergens)
+        under a heading. The whole menu does not fit: its categories are shown instead. At
+        most MAX_SHOWN items are shown: the highlighted ones, then others picked at random."""
         self._require(Phase.ORDERING)
         if item_ids:
             items = [self.menu.item(i) for i in dict.fromkeys(item_ids)]
         elif category:
             items = list(self.menu.items_in(category))
-        else:
+        elif exclude_allergens:
             items = list(self.menu.items)
+        else:
+            self.show_categories()
+            return MenuShown(item_ids=(), removed=(), categories=True)
         excluded = {self.menu.allergen(a).id for a in exclude_allergens}
-        shown = tuple(i.id for i in items if not excluded & item_allergens(i))
-        removed = tuple(i.id for i in items if i.id not in shown)
+        fitting = tuple(i.id for i in items if not excluded & item_allergens(i))
+        removed = tuple(i.id for i in items if i.id not in fitting)
         highlight = tuple(self.menu.item(i).id for i in highlight_ids)
+        shown = self._pick(fitting, highlight)
         if not title:
             title = self.menu.category(category).name if category else ""
         view = View(
@@ -256,7 +273,17 @@ class Kiosk:
         )
         self._menu_view = view
         self._show(view)
-        return MenuShown(item_ids=shown, removed=removed)
+        return MenuShown(item_ids=shown, removed=removed, not_shown=len(fitting) - len(shown))
+
+    def _pick(self, item_ids: tuple[str, ...], highlight: tuple[str, ...]) -> tuple[str, ...]:
+        """At most MAX_SHOWN of the items, in their order: the highlighted ones first, then
+        others at random."""
+        if len(item_ids) <= MAX_SHOWN:
+            return item_ids
+        first = [i for i in item_ids if i in highlight][:MAX_SHOWN]
+        rest = [i for i in item_ids if i not in first]
+        picked = set(first) | set(self._rng.sample(rest, MAX_SHOWN - len(first)))
+        return tuple(i for i in item_ids if i in picked)
 
     def show_categories(self) -> None:
         """Show the kinds of menu (커피, 라떼, ...) so the customer can pick one."""

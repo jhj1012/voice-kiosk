@@ -232,7 +232,7 @@ def build() -> dict[str, Any]:
     cafe = load_cafe(DATA_DIR / "cafe.yaml")
     scenarios = {}
     for name, (title, run) in SCENARIOS.items():
-        recorder = Recorder(Kiosk(menu, cafe))
+        recorder = Recorder(Kiosk(menu, cafe, rng=random.Random(7)))  # the same items each run
         run(recorder)
         scenarios[name] = {"title": title, "duration": recorder.t, "events": recorder.events}
     return {
