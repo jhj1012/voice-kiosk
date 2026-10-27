@@ -242,6 +242,57 @@ def test_split_cups_are_asked_about_extras_once(new_kiosk):
     run(scenario, new_kiosk)
 
 
+def test_an_extra_that_may_be_for_two_drinks_is_checked(new_kiosk):
+    # Team test: three americanos split into one iced and two hot; at the extras question
+    # "샷추가 해줘" went to all of them without asking.
+    async def scenario(h: Harness):
+        await lifted(h)
+        await h.say("아메리카노 3개")
+        await h.call("order", item_id="americano", quantity=3)
+        await h.say("1개는 차갑게, 나머지는 따뜻하게")
+        await h.call("set_options", item_id="americano", quantity=1, temperature="ice")
+        hot = next(d.id for d in h.kiosk.drafts if not d.chosen.get("temperature"))
+        await h.call("set_options", draft=hot, temperature="hot")
+        iced = next(d.id for d in h.kiosk.drafts if d.id != hot)
+        await h.say("셋 다 레귤러로")
+        await h.call("set_options", draft=iced, size="regular")
+        result = await h.call("set_options", draft=hot, size="regular")
+        assert "confirm_note" not in result and "not_set" not in result  # "셋 다"
+        await h.reply("아메리카노에 추가하실 거 있으세요?")
+        await h.say("샷추가 해줘")
+        asked = h.kiosk.question.draft
+        other = hot if asked == iced else iced
+        result = await h.call("set_options", draft=asked, shot="extra_shot")
+        assert result["ask"].endswith("에도 샷 추가 해 드릴까요?")
+        held = await h.call("set_options", draft=other, shot="extra_shot")  # the model's guess
+
+        def shots():
+            return {d.id: [c.id for c in d.chosen.get("shot", ())] for d in h.kiosk.drafts}
+
+        assert "not_set" in held and shots()[other] != ["extra_shot"]
+        await h.say("응")
+        await h.call("set_options", draft=other, shot="extra_shot")
+        assert shots() == {asked: ["extra_shot"], other: ["extra_shot"]}
+
+    run(scenario, new_kiosk)
+
+
+def test_all_of_them_in_other_words():
+    from kiosk.assistant.safety import meant_for_all
+
+    for words in [
+        "둘 다 레귤러요",
+        "셋 다 레귤러로",
+        "세 잔 다요",
+        "3잔 다 라지",
+        "전부 샷 추가",
+        "똑같이요",
+    ]:
+        assert meant_for_all(words), words
+    for words in ["레귤러요", "하나만 라지로", "다음에요", "다 됐어요"]:
+        assert not meant_for_all(words), words
+
+
 def test_the_same_answer_is_not_put_on_both_drinks_unasked(new_kiosk):
     async def scenario(h: Harness):
         await iced_and_hot(h)

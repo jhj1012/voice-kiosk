@@ -427,8 +427,9 @@ class AssistantSession:
 
     def _answer_for_one_drink(self, args: dict[str, Any]) -> Result:
         """set_options, with an answer that may be for several drinks ("레귤러요" while an iced and
-        a hot americano both need a size): it goes to one drink, and the kiosk asks whether the
-        other one gets it too, unless the customer said it was for all ("둘 다 레귤러요")."""
+        a hot americano both need a size, "샷 추가해 줘" while both are at the extras): it goes to
+        one drink, and the kiosk asks whether the other one gets it too, unless the customer said
+        it was for all ("둘 다 레귤러요")."""
         menu = self.kiosk.menu
         try:
             draft_arg = args.get("draft")
@@ -448,10 +449,11 @@ class AssistantSession:
             self._answers, self._answers_mark = [], self.transcript.mark
         latest = self.transcript.last_customer()
         for_all = meant_for_all(latest.text if latest else "")
-        answer = {
+        answer = {  # required options, and extras actually wanted (not "기본" / "없음")
             g: tuple(c.id for c in cs)
             for g, cs in chosen.items()
-            if (group := draft.item.group(g)) is not None and group.required
+            if (group := draft.item.group(g)) is not None
+            and (group.required or any(not c.is_none for c in cs))
         }
         # The same answer already went to another drink of this item in this turn: hold it.
         held = [
@@ -500,8 +502,13 @@ class AssistantSession:
                 for d in self.kiosk.drafts
                 if d.id != draft.id
                 and d.item.id == draft.item.id
-                and any(m.id == g for m in d.missing)
                 and (d.id, g) not in answered
+                and (
+                    any(m.id == g for m in d.missing)
+                    if group is not None and group.required
+                    # an extra: the other cups the extras question is about, without it yet
+                    else d.ask_extras and tuple(c.id for c in d.chosen.get(g, ())) != answer[g]
+                )
             ]
             if group is not None and others:
                 then = str(result.get("ask", ""))
@@ -523,7 +530,7 @@ class AssistantSession:
         if is_yes(words):
             return ids == asked
         others = [c.id for c in group.choices if c.id not in asked]
-        return is_no(words) and len(others) == 1 and ids == tuple(others)
+        return group.required and is_no(words) and len(others) == 1 and ids == tuple(others)
 
     def _without_guesses(self, name: str, args: dict[str, Any]) -> Result:
         """Run order / set_options without required options the customer never mentioned

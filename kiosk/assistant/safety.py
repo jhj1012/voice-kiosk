@@ -159,26 +159,16 @@ def asks_to_pay(customer: str, assistant_before: str = "") -> bool:
     return bool(_PAY_QUESTION.search(a) and is_yes(customer))  # "결제 도와드릴까요?" - "네"
 
 
-# Words that make an answer meant for every drink being chosen ("둘 다 레귤러요").
-_FOR_ALL = (
-    "둘다",
-    "두잔다",
-    "두개다",
-    "세잔다",
-    "세개다",
-    "모두",
-    "전부",
-    "다같이",
-    "똑같",
-    "같은걸로",
-    "같게",
+# Words that make an answer meant for every drink being chosen ("둘 다 레귤러요", "셋 다").
+_FOR_ALL = re.compile(
+    r"(둘|셋|넷|다섯|[두세네]\s*(잔|개)|[2-9]\s*(잔|개)?)\s*(다|모두|전부)"
+    r"|모두|전부|다\s*같이|똑같|같은\s*걸로|같게"
 )
 
 
 def meant_for_all(text: str) -> bool:
-    """The customer said their answer is for every drink ("둘 다", "전부", "똑같이")."""
-    words = normalize(text)
-    return any(w in words for w in _FOR_ALL)
+    """The customer said their answer is for every drink ("둘 다", "셋 다", "전부", "똑같이")."""
+    return bool(_FOR_ALL.search(text))
 
 
 def customer_asked_to_pay(transcript: Transcript, since: int) -> bool:

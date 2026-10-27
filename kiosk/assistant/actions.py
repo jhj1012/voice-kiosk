@@ -45,6 +45,7 @@ CONFIRM_SAME = (
 )
 CONFIRM_NO_OTHER = "call set_options with draft {draft} and {group} {other} (the other choice)."
 CONFIRM_NO_ASK = "ask '{question}'."
+CONFIRM_NO_EXTRA = "it does not get it; nothing to call."
 CONFIRM_SKIP = " If they already said which drink it was for, do not ask this; ask '{then}'."
 HELD = "Not set for {other}: the customer did not say it was for both. Ask this first."
 
@@ -256,6 +257,14 @@ class Actions:
         """Ask whether an answer given for one drink is for `other` too (the same item, also
         missing `group`): "따뜻한 아메리카노도 레귤러로 해 드릴까요?"."""
         name = self._draft_name(other)
+        if not group.required:  # an extra: "따뜻한 아메리카노에도 샷 추가 해 드릴까요?"
+            extras = ", ".join(c.spoken for c in choices)
+            note = CONFIRM_SAME.format(
+                other=name, draft=other.id, group=group.id, no=CONFIRM_NO_EXTRA
+            )
+            if then:
+                note += CONFIRM_SKIP.format(then=then)
+            return {"ask": f"{name}에도 {extras} 해 드릴까요?", "confirm_note": note}
         value = choices[0].label or _with_ro(choices[0].spoken)
         rest = [c for c in group.choices if c not in choices]
         if len(rest) == 1:  # "아니" means the other one: no need to ask again
