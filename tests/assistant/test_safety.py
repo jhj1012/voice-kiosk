@@ -216,3 +216,12 @@ def test_no_to_more_menu_items_still_is():
 def test_guessed_groups(menu: Menu, words, selection, asked, guessed):
     item = menu.item("americano")
     assert [g.id for g in guessed_groups(item, selection, words, asked)] == guessed
+
+
+def test_only_the_last_question_counts_for_paying():
+    from kiosk.assistant.safety import asks_to_pay
+
+    # Team log: "샷 추가했습니다" in front made the "아니" look like an answer about extras.
+    said = "따뜻한 아메리카노 라지 사이즈에 샷 추가했습니다. 더 필요하신 거 있으세요?"
+    assert asks_to_pay("아니", said)
+    assert not asks_to_pay("아니", "샷 추가했어요. 더 추가하실 거 있으세요?")

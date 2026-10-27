@@ -147,10 +147,17 @@ def is_no(text: str) -> bool:
     return bool(_NO.match(normalize(text)))
 
 
+def last_question(text: str) -> str:
+    """The last question in what the assistant said: "샷 추가했습니다. 더 필요하신 거 있으세요?"
+    asks about more items, not about extras."""
+    questions = [q for q in re.findall(r"[^.?!。]*\?", text) if q.strip()]
+    return questions[-1] if questions else text
+
+
 def asks_to_pay(customer: str, assistant_before: str = "") -> bool:
-    """Does this customer utterance ask to pay (given what the assistant had just said)?"""
+    """Does this customer utterance ask to pay (given what the assistant had just asked)?"""
     c = normalize(customer)
-    a = normalize(assistant_before)
+    a = normalize(last_question(assistant_before))
     if _PAY.search(c) and not _NOT_PAY.search(c):
         return True
     extras_only = _EXTRAS_QUESTION.search(a) and not _ITEMS_QUESTION.search(a)
