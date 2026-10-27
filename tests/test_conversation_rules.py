@@ -432,6 +432,24 @@ def test_extras_are_asked_once_per_item(new_kiosk):
     run(scenario, new_kiosk)
 
 
+def test_the_same_words_twice_are_two_answers(new_kiosk):
+    # Team log: "아니" to the extras question, then "아니" to "더 필요하신 거 있으세요?": the second
+    # was taken for the first (the same words), so paying was blocked.
+    async def scenario(h: Harness):
+        await lifted(h)
+        await h.say("따뜻한 아메리카노 레귤러 하나요")
+        await h.call("order", item_id="americano", temperature="hot", size="regular")
+        await h.reply("아메리카노에 추가하실 거 있으세요?")
+        await h.say("아니")
+        await h.call("no_more_extras")
+        await h.reply("더 필요하신 거 있으세요?")
+        await h.say("아니")
+        result = await h.call("pay")
+        assert "blocked" not in result
+
+    run(scenario, new_kiosk)
+
+
 def test_no_to_the_extras_question_does_not_start_paying(new_kiosk):
     async def scenario(h: Harness):
         await lifted(h)

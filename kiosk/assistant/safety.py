@@ -64,7 +64,7 @@ def thinking_aloud(text: str) -> int | None:
 # --- transcript --------------------------------------------------------------------------------
 
 
-@dataclass
+@dataclass(eq=False)  # one utterance, not its words: "아니" twice are two different answers
 class Utterance:
     speaker: Speaker
     text: str = ""
