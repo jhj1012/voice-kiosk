@@ -227,25 +227,6 @@ def test_only_the_last_question_counts_for_paying():
     assert not asks_to_pay("아니", "샷 추가했어요. 더 추가하실 거 있으세요?")
 
 
-@pytest.mark.parametrize(
-    ("said", "cut_at"),
-    [
-        # Team test: the model's thoughts after the question, then the question again.
-        ("아메리카노에 추가하실 거 있으세요?*   Wait for user preference about additions.", 19),
-        ('아메리카노 사이즈는 어떤 걸로 해 드릴까요?   The customer said "레귤러요"', 27),
-        ("**Considering the order** 네, 알겠습니다.", 0),
-        # A word or two in Latin letters is fine.
-        ("와이파이 이름은 SORI_CAFE, 비밀번호는 sori1234예요.", None),
-        ("Wi-Fi 비밀번호는 픽업대에 있어요.", None),
-        ("네, OK입니다. 따뜻한 아메리카노 라지로 해 드릴게요.", None),
-    ],
-)
-def test_thinking_aloud(said, cut_at):
-    from kiosk.assistant.safety import thinking_aloud
-
-    assert thinking_aloud(said) == cut_at
-
-
 # What the customer's words mean for which drinks (answers.py): each phrase, and what it is not.
 WORDS = [
     # meant_for_all: the answer is for every drink being chosen

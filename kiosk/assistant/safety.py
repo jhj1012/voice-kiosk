@@ -46,21 +46,6 @@ def mostly_foreign(text: str) -> bool:
     return foreign * 5 > len(letters)
 
 
-# The model's own thoughts said out loud: an English sentence ("*   Wait for user preference
-# about additions.", "The customer said ..."), or list markup. A Korean kiosk says at most a
-# word or two in Latin letters ("Wi-Fi", a password, "OK").
-_THINKING_ALOUD = re.compile(
-    r"[A-Za-z]{2,}(?:[\s,.'’:;-]+[A-Za-z]{2,}){2,}"  # three English words in a row
-    r"|\*\s+[A-Za-z]|\*\*|(?:^|\n)\s*#"  # markdown: "*   Wait", "**", "# "
-)
-
-
-def thinking_aloud(text: str) -> int | None:
-    """Where the model starts saying its own thoughts (in English, or markup), or None."""
-    found = _THINKING_ALOUD.search(text)
-    return found.start() if found else None
-
-
 # --- transcript --------------------------------------------------------------------------------
 
 

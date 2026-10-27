@@ -48,7 +48,6 @@ from kiosk.assistant.safety import (
     is_yes,
     mostly_foreign,
     said_amount,
-    thinking_aloud,
     wants_to_stop,
 )
 from kiosk.assistant.tools import (
@@ -79,12 +78,6 @@ RECONNECTED_CUE = (
     "[대화가 잠시 끊겼다가 이어졌어요. 연결 이야기는 하지 말고, 마지막 대화에 이어서 짧게 "
     "다시 물어봐 주세요.]"
 )
-# The model said its own thoughts out loud (in English): it was cut off; it says it again.
-THOUGHT_CUE = (
-    "[방금 대답에 손님에게 하지 않을 말(속생각, 영어)이 섞여서 끊겼어요. 손님에게 할 말만 한국어로 "
-    "짧게 다시 말해 주세요.]"
-)
-MAX_THOUGHT_RETRIES = 2  # in a row, until the customer speaks again
 ANSWER_CALLS = frozenset({"order", "set_options", "change", "no_more_extras"})  # see answers.py
 RECENT_FOR_RECONNECT = 8  # last transcript entries a fresh session gets
 MAX_READ_BACK_REMINDERS = 2
@@ -189,8 +182,6 @@ class AssistantSession:
         self._read_back: _ReadBack | None = None
         self._terminal_id = 0
         self._quiet_turn = False  # stay_quiet was called: this turn is not heard
-        self._thought_turn = False  # the model started saying its thoughts: the rest is cut
-        self._thought_retries = 0
 
     # --- lifecycle ---------------------------------------------------------------------------
 
@@ -280,7 +271,6 @@ class AssistantSession:
                 self._resume_handle = handle
             case InputText(text) if not mostly_foreign(text):
                 self._quiet_turn = False  # the customer talks again
-                self._thought_retries = 0
                 utterance = self.transcript.add("customer", text)
                 self.listener.on_subtitle("customer", utterance.text, False)
                 if self.state is not AssistantState.SPEAKING:
@@ -289,14 +279,9 @@ class AssistantSession:
                 log.debug("dropped foreign transcription: %r", text[:80])
             case OutputText(text) if self._quiet_turn:
                 log.info("muted (stay_quiet): %r", text[:80])
-            case OutputText(text) if self._thought_turn:
-                log.info("cut (thinking aloud): %r", text[:80])
             case OutputText(text):
                 self._close_utterance("customer")
                 utterance = self.transcript.add("assistant", text)
-                if (start := thinking_aloud(utterance.text)) is not None:
-                    self._cut_thought(utterance.text[start:])
-                    utterance.text = utterance.text[:start].rstrip()
                 self.listener.on_subtitle("assistant", utterance.text, False)
             case AudioOut(data):
                 self._on_audio(data)
@@ -311,17 +296,9 @@ class AssistantSession:
                 if self.state in (AssistantState.LISTENING, AssistantState.IDLE):
                     await self._planned_reconnect()
 
-    def _cut_thought(self, thought: str) -> None:
-        """The model started saying its own thoughts: stop the sound, drop the rest of the turn
-        (the transcript keeps only what came before), and have it say again, in Korean only."""
-        log.warning("thinking aloud, cut: %r", thought[:120])
-        self._thought_turn = True
-        self.listener.on_interrupted()  # what is still buffered is not played
-        self._play_end = self._clock()
-
     def _on_audio(self, data: bytes) -> None:
-        if self._quiet_turn or self._thought_turn:
-            return  # muted: the words were not for the kiosk, or the model's thoughts
+        if self._quiet_turn:
+            return  # muted: the words were not for the kiosk
         self._close_utterance("customer")
         if not self._turn_audio:
             self._turn_audio_at = self._clock()
@@ -361,11 +338,7 @@ class AssistantSession:
             self._spoken_turn_at = self._turn_audio_at
         elif not self._turn_calls:
             self._set_state(AssistantState.LISTENING)  # nothing to say
-        thought, self._thought_turn = self._thought_turn, False
         self._turn_audio = self._turn_calls = self._quiet_turn = False
-        if thought and self._thought_retries < MAX_THOUGHT_RETRIES and self._conn is not None:
-            self._thought_retries += 1
-            self._spawn(self._conn.send_text(THOUGHT_CUE))
         read_back = self._read_back
         if read_back is not None and read_back.spoke and not read_back.interrupted:
             self._spawn(self._check_read_back())
