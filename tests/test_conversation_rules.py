@@ -195,9 +195,8 @@ def test_options_for_only_some_cups_split_them_off(new_kiosk):
         cups = sorted(
             (d.quantity, [c.id for c in d.chosen.get("size", ())]) for d in h.kiosk.drafts
         )
-        assert cups == [(1, []), (1, ["large"])]
+        assert cups == [(1, ["large"]), (1, ["regular"])]  # "하나만": the other one is regular
         assert "confirm_note" not in result
-        assert view(h) == ("americano", "size")  # the other cup's size is asked
 
     run(scenario, new_kiosk)
 
@@ -300,6 +299,15 @@ def test_an_extra_may_be_for_a_drink_already_in_the_order(new_kiosk):
     run(scenario, new_kiosk)
 
 
+def test_only_some_in_other_words():
+    from kiosk.assistant.safety import only_some
+
+    for words in ["2개만 아이스로", "두 잔만 아이스로", "하나만 라지로 해줘", "한 잔만 차갑게"]:
+        assert only_some(words), words
+    for words in ["두 잔은 아이스로", "레귤러만 돼요?", "아메리카노 두 잔이요"]:
+        assert not only_some(words), words
+
+
 def test_all_of_them_in_other_words():
     from kiosk.assistant.safety import meant_for_all
 
@@ -310,10 +318,40 @@ def test_all_of_them_in_other_words():
         "3잔 다 라지",
         "전부 샷 추가",
         "똑같이요",
+        "다 레귤러로",
     ]:
         assert meant_for_all(words), words
     for words in ["레귤러요", "하나만 라지로", "다음에요", "다 됐어요"]:
         assert not meant_for_all(words), words
+
+
+def test_only_some_cups_means_the_rest_get_the_other_choice(new_kiosk):
+    # Team test: "아메리카노 6잔" → "2개만 아이스로" asked the other four's temperature (twice).
+    async def scenario(h: Harness):
+        await lifted(h)
+        await h.say("아메리카노 6잔")
+        await h.call("order", item_id="americano", quantity=6)
+        await h.reply("아메리카노는 따뜻하게 드릴까요, 차갑게 드릴까요?")
+        await h.say("2개만 아이스로")
+        result = await h.call("set_options", item_id="americano", quantity=2, temperature="ice")
+        cups = sorted((d.chosen["temperature"][0].id, d.quantity) for d in h.kiosk.drafts)
+        assert cups == [("hot", 4), ("ice", 2)]
+        assert "사이즈" in result["ask"]  # on to the next question
+
+    run(scenario, new_kiosk)
+
+
+def test_some_cups_without_only_leaves_the_rest_to_ask(new_kiosk):
+    async def scenario(h: Harness):
+        await lifted(h)
+        await h.say("아메리카노 3잔")
+        await h.call("order", item_id="americano", quantity=3)
+        await h.say("두 잔은 아이스로 하고")  # "나머지는…" may follow
+        await h.call("set_options", item_id="americano", quantity=2, temperature="ice")
+        rest = [d for d in h.kiosk.drafts if not d.chosen.get("temperature")]
+        assert [d.quantity for d in rest] == [1]
+
+    run(scenario, new_kiosk)
 
 
 def test_the_same_answer_is_not_put_on_both_drinks_unasked(new_kiosk):

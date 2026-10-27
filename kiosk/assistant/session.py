@@ -49,6 +49,7 @@ from kiosk.assistant.safety import (
     is_yes,
     meant_for_all,
     mostly_foreign,
+    only_some,
     said_amount,
     wants_to_stop,
 )
@@ -59,7 +60,7 @@ from kiosk.assistant.tools import (
 )
 from kiosk.config import FlowConfig
 from kiosk.domain.flow import Draft, Kiosk, Phase
-from kiosk.domain.menu import KioskError
+from kiosk.domain.menu import Chosen, KioskError
 
 log = logging.getLogger(__name__)
 
@@ -446,7 +447,7 @@ class AssistantSession:
         quantity = args.get("quantity")
         if chosen and quantity and int(float(quantity)) < draft.quantity:
             # "하나만 라지로": the customer said which cups (split off), nothing to check
-            return self._without_guesses("set_options", args)
+            return self._split_rest(draft, chosen, self._without_guesses("set_options", args))
         if self._answers_mark != self.transcript.mark:  # the customer spoke: a new answer
             self._answers, self._answers_mark = [], self.transcript.mark
         latest = self.transcript.last_customer()
@@ -531,6 +532,27 @@ class AssistantSession:
                 result.update(self.actions.confirm_line(lines[-1], group, chosen[g], then))
                 break
         return result
+
+    def _split_rest(self, rest: Draft, chosen: Chosen, result: Result) -> Result:
+        """After "두 잔만 아이스로" split some cups off: the rest get the other choice of a
+        two-choice option (temperature, size), as "only two iced" means the others are not."""
+        latest = self.transcript.last_customer()
+        if "error" in result or rest not in self.kiosk.drafts or latest is None:
+            return result
+        if not only_some(latest.text):
+            return result  # "두 잔은 아이스로": they may go on with "나머지는…"
+        others: dict[str, str] = {}
+        for g, choices in chosen.items():
+            group = rest.item.group(g)
+            if group is None or not group.required or rest.chosen.get(g):
+                continue
+            left = [c for c in group.choices if c not in choices]
+            if len(left) == 1:
+                others[g] = left[0].id
+        if not others:
+            return result
+        log.info("the rest of %s: %s", rest.item.id, others)
+        return self.actions.call("set_options", {"draft": rest.id, **others})
 
     def _held_for_line(self, args: dict[str, Any]) -> Result | None:
         """change on an order line with the answer just given for a drink being chosen, which the

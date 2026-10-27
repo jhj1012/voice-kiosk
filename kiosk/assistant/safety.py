@@ -163,12 +163,24 @@ def asks_to_pay(customer: str, assistant_before: str = "") -> bool:
 _FOR_ALL = re.compile(
     r"(둘|셋|넷|다섯|[두세네]\s*(잔|개)|[2-9]\s*(잔|개)?)\s*(다|모두|전부)"
     r"|모두|전부|다\s*같이|똑같|같은\s*걸로|같게"
+    r"|(^|\s)다\s+(?!됐|돼|했|끝|왔)"  # "다 레귤러로" (not "다음에요", "다 됐어요")
 )
 
 
 def meant_for_all(text: str) -> bool:
     """The customer said their answer is for every drink ("둘 다", "셋 다", "전부", "똑같이")."""
     return bool(_FOR_ALL.search(text))
+
+
+# "두 잔만 아이스로", "하나만 라지로": only that many cups; the rest get the other choice.
+_ONLY_SOME = re.compile(
+    r"(하나|한\s*(잔|개)|둘|두\s*(잔|개)|셋|세\s*(잔|개)|넷|네\s*(잔|개)|\d+\s*(잔|개)?)\s*만"
+)
+
+
+def only_some(text: str) -> bool:
+    """The customer said "N만": only that many cups get it ("두 잔만 아이스로")."""
+    return bool(_ONLY_SOME.search(text))
 
 
 def customer_asked_to_pay(transcript: Transcript, since: int) -> bool:
