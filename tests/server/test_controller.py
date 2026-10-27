@@ -277,6 +277,8 @@ def test_microphone_frames_reach_the_session_only_during_a_call(menu, cafe, tmp_
         s.controller.microphone_frame(b"before")  # on hook: dropped
         await s.settle()
         await s.controller.handset(True)
+        s.connector.conn.push(TurnComplete())  # the greeting (it is not interrupted) was said
+        await s.settle()
         s.controller.microphone_frame(b"\x01\x00")
         await s.settle()
         assert s.connector.conn.audio == [b"\x01\x00"]

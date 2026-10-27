@@ -210,6 +210,11 @@ class AssistantSession:
         self._quiet_turn = False  # stay_quiet was called: this turn is not heard
         self._thought_turn = False  # the model started saying its thoughts: the rest is cut
         self._thought_retries = 0
+        # The first turn (the greeting and the here-or-to-go question) is not interrupted: until
+        # it has been played, the handset's audio goes to the model as silence (`_held_until`,
+        # set when that turn completes; None while it is still being said).
+        self._holding = False
+        self._held_until: float | None = None
 
     # --- lifecycle ---------------------------------------------------------------------------
 
@@ -232,6 +237,7 @@ class AssistantSession:
             self._set_state(AssistantState.IDLE)
             return False
         self._receiver = asyncio.create_task(self._receive_loop())
+        self._holding, self._held_until = True, None  # the greeting, from before its first word
         await self._conn.send_text(GREETING_CUE)
         self._set_state(AssistantState.THINKING)
         return True
@@ -258,8 +264,15 @@ class AssistantSession:
     async def send_audio(self, pcm: bytes) -> None:
         """16 kHz 16-bit mono audio from the handset's microphone."""
         if self._conn is not None and not self._closing:
+            if self._is_held():
+                pcm = bytes(len(pcm))  # the model's turn detection hears nobody
             with contextlib.suppress(Exception):  # dropped while reconnecting
                 await self._conn.send_audio(pcm)
+
+    def _is_held(self) -> bool:
+        if self._holding and self._held_until is not None and self._clock() >= self._held_until:
+            self._holding = False  # said and played
+        return self._holding
 
     async def send_text(self, text: str) -> None:
         """Typed customer words (developer mode): handled exactly like speech."""
@@ -376,6 +389,8 @@ class AssistantSession:
     async def _on_turn_complete(self) -> None:
         self._close_utterance("customer")
         self._close_utterance("assistant")
+        if self._holding and self._held_until is None:
+            self._held_until = self._play_end  # the customer is heard once it has been played
         if self._turn_audio:
             self._spoken_turn_at = self._turn_audio_at
         elif not self._turn_calls:

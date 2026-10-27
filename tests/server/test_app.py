@@ -134,6 +134,8 @@ def test_phone_audio_in_and_out(menu, cafe, tmp_path):
     ):
         display.send_json({"type": "hook", "off_hook": True})  # the tap
         until(display, "state", phase="ordering")
+        client.portal.call(connector.conn.push, TurnComplete())  # the greeting was said
+        until(display, "state", assistant="listening")
         audio.send_bytes(frame)
         audio.send_text('{"out": 0.5}')
         until(display, "level", out=0.5)
