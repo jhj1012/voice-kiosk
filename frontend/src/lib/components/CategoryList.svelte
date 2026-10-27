@@ -39,16 +39,19 @@
     place-items: center;
     border-radius: var(--radius-s);
     background: var(--image-bg);
-    font-size: 3.8rem;
+    --text-role: categorylist-emoji;
+    font-size: calc(3.8rem * var(--size-all) * var(--fs-categorylist-emoji, 1));
   }
   .name {
     flex: 1;
-    font-size: 2.6rem;
+    --text-role: categorylist-name;
+    font-size: calc(2.6rem * var(--size-all) * var(--fs-categorylist-name, 1));
     font-weight: 700;
     letter-spacing: -0.02em;
   }
   .count {
-    font-size: 1.8rem;
+    --text-role: categorylist-count;
+    font-size: calc(1.8rem * var(--size-all) * var(--fs-categorylist-count, 1));
     color: var(--muted);
   }
 </style>

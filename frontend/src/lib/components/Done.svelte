@@ -56,11 +56,13 @@
     animation: draw 0.6s 0.35s var(--ease-out) forwards;
   }
   .label {
-    font-size: 2rem;
+    --text-role: done-label;
+    font-size: calc(2rem * var(--size-all) * var(--fs-done-label, 1));
     color: var(--muted);
   }
   .number {
-    font-size: 14rem;
+    --text-role: done-number;
+    font-size: calc(14rem * var(--size-all) * var(--fs-done-number, 1));
     font-weight: 800;
     line-height: 1;
     letter-spacing: -0.05em;
@@ -68,7 +70,8 @@
   }
   .note {
     margin-top: 1rem;
-    font-size: 2.1rem;
+    --text-role: done-note;
+    font-size: calc(2.1rem * var(--size-all) * var(--fs-done-note, 1));
     color: var(--text-2);
   }
   @keyframes draw {

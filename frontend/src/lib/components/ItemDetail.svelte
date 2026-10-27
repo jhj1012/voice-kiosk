@@ -139,12 +139,14 @@
     gap: 0.4rem;
   }
   h2 {
-    font-size: 3.4rem;
+    --text-role: itemdetail-h2;
+    font-size: calc(3.4rem * var(--size-all) * var(--fs-itemdetail-h2, 1));
     font-weight: 800;
     letter-spacing: -0.03em;
   }
   .price {
-    font-size: 2rem;
+    --text-role: itemdetail-price;
+    font-size: calc(2rem * var(--size-all) * var(--fs-itemdetail-price, 1));
     color: var(--text-2);
   }
   .qty {
@@ -162,7 +164,8 @@
     border-radius: 999px;
     background: var(--accent);
     color: var(--on-accent);
-    font-size: 1.5rem;
+    --text-role: itemdetail-chip;
+    font-size: calc(1.5rem * var(--size-all) * var(--fs-itemdetail-chip, 1));
     font-weight: 700;
   }
   .block {
@@ -180,11 +183,17 @@
   }
   .choice {
     flex: 1;
-    font-size: 2.6rem;
+    --text-role: itemdetail-choice;
+    font-size: calc(2.6rem * var(--size-all) * var(--fs-itemdetail-choice, 1));
     font-weight: 700;
   }
+  .row.chosen .choice {
+    --text-role: itemdetail-row-chosen-choice;
+    font-size: calc(2.6rem * var(--size-all) * var(--fs-itemdetail-row-chosen-choice, 1));
+  }
   .extra {
-    font-size: 1.8rem;
+    --text-role: itemdetail-extra;
+    font-size: calc(1.8rem * var(--size-all) * var(--fs-itemdetail-extra, 1));
     color: inherit;
     opacity: 0.75;
   }
@@ -195,7 +204,8 @@
   .group {
     width: 9rem;
     flex: none;
-    font-size: 1.8rem;
+    --text-role: itemdetail-group;
+    font-size: calc(1.8rem * var(--size-all) * var(--fs-itemdetail-group, 1));
     font-weight: 700;
     color: var(--text-2);
   }
@@ -208,7 +218,8 @@
     padding: 0.5rem 1.2rem;
     border-radius: 999px;
     background: var(--tint);
-    font-size: 1.7rem;
+    --text-role: itemdetail-pill;
+    font-size: calc(1.7rem * var(--size-all) * var(--fs-itemdetail-pill, 1));
     font-weight: 600;
     transition:
       background 0.35s var(--ease-out),
@@ -216,15 +227,19 @@
   }
   .pill small {
     margin-left: 0.4rem;
-    font-size: 1.3rem;
+    --text-role: itemdetail-pill-small;
+    font-size: calc(1.3rem * var(--size-all) * var(--fs-itemdetail-pill-small, 1));
     opacity: 0.75;
   }
   .pill.on {
     background: var(--accent);
     color: var(--on-accent);
+    --text-role: itemdetail-pill-on;
+    font-size: calc(1.7rem * var(--size-all) * var(--fs-itemdetail-pill-on, 1));
   }
   .value {
-    font-size: 2.2rem;
+    --text-role: itemdetail-value;
+    font-size: calc(2.2rem * var(--size-all) * var(--fs-itemdetail-value, 1));
     font-weight: 700;
   }
   .value.none {
@@ -236,7 +251,8 @@
     flex-direction: column;
     gap: 0.6rem;
     padding: 1.4rem 1.6rem;
-    font-size: 1.7rem;
+    --text-role: itemdetail-facts;
+    font-size: calc(1.7rem * var(--size-all) * var(--fs-itemdetail-facts, 1));
     color: var(--text-2);
     line-height: 1.5;
   }

@@ -1,9 +1,18 @@
 <script lang="ts">
   // The developer panel's settings: the conversation (ignore speech not meant for the kiosk),
-  // subtitles, the choices' background, the colours, the phone's covered edges. A change shows at
+  // subtitles, the choices' background, the colours, the phone's covered edges and text size
+  // (each place's own size: the text size editor, F4). A change shows at
   // once; the backend saves it and sends it to every display.
   import type { ClientEvent } from '../events';
-  import { BACKDROPS, COLORS, INSET_SIDES, MAX_INSET, type PhoneInsets } from '../settings';
+  import {
+    BACKDROPS,
+    COLORS,
+    INSET_SIDES,
+    MAX_INSET,
+    MAX_TEXT_SIZE,
+    MIN_TEXT_SIZE,
+    type PhoneInsets,
+  } from '../settings';
   import { previewSettings, ui } from '../store.svelte';
 
   let { send }: { send: (event: ClientEvent) => void } = $props();
@@ -24,6 +33,12 @@
   function inset(side: keyof PhoneInsets, value: number) {
     if (Number.isFinite(value) && value >= 0 && value <= MAX_INSET) {
       save({ phoneInsets: { ...settings.phoneInsets, [side]: value } });
+    }
+  }
+
+  function textScale(value: number) {
+    if (Number.isFinite(value) && value >= MIN_TEXT_SIZE && value <= MAX_TEXT_SIZE) {
+      save({ phoneTextScale: value });
     }
   }
 
@@ -113,6 +128,28 @@
         %
       </label>
     {/each}
+  </div>
+</section>
+
+<section>
+  <h3>휴대폰 글자 크기</h3>
+  <p class="note flush">
+    휴대폰 버전의 글자 전체 크기예요. 100%가 원래 크기예요. 글자마다 따로 바꾸려면 F4를 누르고
+    화면의 글자를 누르세요.
+  </p>
+  <div class="insets">
+    <label>
+      전체
+      <input
+        type="number"
+        min={MIN_TEXT_SIZE}
+        max={MAX_TEXT_SIZE}
+        step="5"
+        value={settings.phoneTextScale}
+        onchange={(e) => textScale(e.currentTarget.valueAsNumber)}
+      />
+      %
+    </label>
   </div>
 </section>
 

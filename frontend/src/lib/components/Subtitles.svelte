@@ -34,12 +34,14 @@
     opacity: 1;
   }
   .assistant {
-    font-size: 2.5rem;
+    --text-role: subtitles-assistant;
+    font-size: calc(2.5rem * var(--size-all) * var(--fs-subtitles-assistant, 1));
     font-weight: 600;
     letter-spacing: -0.02em;
   }
   .customer {
-    font-size: 1.9rem;
+    --text-role: subtitles-customer;
+    font-size: calc(1.9rem * var(--size-all) * var(--fs-subtitles-customer, 1));
     color: var(--accent);
   }
 </style>

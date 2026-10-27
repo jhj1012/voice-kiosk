@@ -47,12 +47,14 @@
   }
   .count {
     margin-left: 0.6rem;
-    font-size: 1.9rem;
+    --text-role: orderbar-count;
+    font-size: calc(1.9rem * var(--size-all) * var(--fs-orderbar-count, 1));
     color: var(--text-2);
   }
   .total {
     margin-left: auto;
-    font-size: 2.8rem;
+    --text-role: orderbar-total;
+    font-size: calc(2.8rem * var(--size-all) * var(--fs-orderbar-total, 1));
     font-weight: 800;
     letter-spacing: -0.02em;
   }

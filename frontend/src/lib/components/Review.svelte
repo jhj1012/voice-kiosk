@@ -57,19 +57,23 @@
     flex-direction: column;
   }
   .name {
-    font-size: 2.3rem;
+    --text-role: review-name;
+    font-size: calc(2.3rem * var(--size-all) * var(--fs-review-name, 1));
     font-weight: 700;
   }
   .options {
-    font-size: 1.6rem;
+    --text-role: review-options;
+    font-size: calc(1.6rem * var(--size-all) * var(--fs-review-options, 1));
     color: var(--muted);
   }
   .qty {
-    font-size: 2rem;
+    --text-role: review-qty;
+    font-size: calc(2rem * var(--size-all) * var(--fs-review-qty, 1));
     color: var(--text-2);
   }
   .amount {
-    font-size: 2.2rem;
+    --text-role: review-amount;
+    font-size: calc(2.2rem * var(--size-all) * var(--fs-review-amount, 1));
     font-weight: 600;
     text-align: right;
   }
@@ -84,16 +88,19 @@
     border-radius: 999px;
     background: var(--accent-soft);
     color: var(--accent);
-    font-size: 1.8rem;
+    --text-role: review-dining;
+    font-size: calc(1.8rem * var(--size-all) * var(--fs-review-dining, 1));
     font-weight: 700;
   }
   .label {
     margin-left: auto;
-    font-size: 1.9rem;
+    --text-role: review-label;
+    font-size: calc(1.9rem * var(--size-all) * var(--fs-review-label, 1));
     color: var(--muted);
   }
   .value {
-    font-size: 4.4rem;
+    --text-role: review-value;
+    font-size: calc(4.4rem * var(--size-all) * var(--fs-review-value, 1));
     font-weight: 800;
     letter-spacing: -0.03em;
   }

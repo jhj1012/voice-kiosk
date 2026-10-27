@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { cssVariables, DEFAULTS, insetVariables, normalize, withAlpha } from './settings';
+import {
+  cssVariables,
+  DEFAULTS,
+  insetVariables,
+  normalize,
+  textSizeVariables,
+  withAlpha,
+} from './settings';
 
 describe('display settings', () => {
   it('uses the defaults when nothing is saved', () => {
@@ -47,5 +54,25 @@ describe('phone insets', () => {
     expect(variables['--safe-top']).toBe('4.8dvh');
     expect(variables['--safe-bottom']).toBe('22.2dvh');
     expect(variables['--safe-left']).toBe('max(0px, calc(2.6vw - (100vw - 100%) / 2))');
+  });
+});
+
+describe('phone text sizes', () => {
+  it('takes the size for all and the known places within the range', () => {
+    const settings = normalize({
+      phoneTextScale: 90,
+      phoneTextRoles: { 'menulist-name': 120, 'review-name': 500, nowhere: 120, 'done-note': 'x' },
+    });
+    expect(settings.phoneTextScale).toBe(90);
+    expect(settings.phoneTextRoles).toEqual({ 'menulist-name': 120 });
+    expect(normalize({ phoneTextScale: 10 }).phoneTextScale).toBe(DEFAULTS.phoneTextScale);
+  });
+
+  it('become factors', () => {
+    const settings = normalize({ phoneTextScale: 85, phoneTextRoles: { 'review-name': 130 } });
+    expect(textSizeVariables(settings)).toEqual({
+      '--size-all': '0.85',
+      '--fs-review-name': '1.3',
+    });
   });
 });

@@ -1,20 +1,24 @@
 :root {
   /* The colours can be changed in the developer panel (settings.ts sets these on the page);
-     these are the defaults. White and soft blue, flat: no shadows. */
-  --bg: #ffffff;
-  --glow: #dcebff;
-  --panel: #ffffff;
-  --panel-soft: rgb(255 255 255 / 0.72);
-  --image-bg: #eef4ff;
+     these are the defaults (the same as there). Grey behind, soft blue boxes, flat: no shadows. */
+  --bg: #b0b0b0;
+  --glow: #c4c4c4;
+  --panel: #dceefe;
+  --panel-soft: rgb(220 238 254 / 0.88);
+  --image-bg: #ffffff;
   --line: #e2ebf8;
   --text: #0e1a2b;
   --text-2: #4b5b71;
-  --muted: #94a3b8;
-  --accent: #2f6fed;
+  --muted: #212121;
+  --accent: #3d7eff;
   --on-accent: #ffffff;
   --ok: #2f6fed;
   --warn: #e0a21b;
   --error: #d6453b;
+  /* The phone's text sizes as factors of the designed sizes: all of it (developer panel), and
+     each place's own (`--fs-<role>`, the text size editor; every font-size names its
+     `--text-role`, so a click finds it). */
+  --size-all: 1;
   --radius-s: 0.9rem;
   --radius-m: 1.6rem;
   --radius-l: 2.4rem;
@@ -33,6 +37,9 @@
   color: var(--text);
   background: #eaf1fb;
   -webkit-font-smoothing: antialiased;
+  /* Android Chrome must not enlarge the text on its own: every size is laid out in rem. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
   font-feature-settings: 'tnum' 1;
 }
 
@@ -57,9 +64,18 @@ body {
   overflow: hidden;
   background: var(--bg);
 }
+/* The phone mode's screen is wider than 9:16: the page fills it (its case covers the edges,
+   `--safe-*`), so no empty strips are left at the sides. */
+body.phone-mode #app {
+  width: 100vw;
+}
 
 body.kiosk-mode {
   cursor: none;
+}
+/* The text size editor (F4) is used with the mouse: its text is clicked. */
+body.kiosk-mode.text-edit {
+  cursor: crosshair;
 }
 
 h1,
@@ -123,7 +139,8 @@ p {
   background: var(--panel-soft);
 }
 .caption {
-  font-size: 1.7rem;
+  --text-role: page-caption;
+  font-size: calc(1.7rem * var(--size-all) * var(--fs-page-caption, 1));
   font-weight: 600;
   color: var(--text-2);
   text-align: center;

@@ -61,7 +61,7 @@
   const showStill = $derived(!files?.[current] || !ready[current]);
 </script>
 
-<div class="avatar" aria-hidden="true">
+<div class="avatar" class:phone={ui.phone} aria-hidden="true">
   {#if files?.still && showStill}
     <img src={files.still} alt="" />
   {/if}
@@ -99,6 +99,13 @@
     height: 100%;
     object-fit: cover;
     object-position: center bottom;
+  }
+  /* The phone's screen is wider than the 9:16 clips, so they are cut at the top or the bottom:
+     the bottom, which its case covers anyway. He stands lower and his face clears the order,
+     which is at the top there. */
+  .phone img,
+  .phone video {
+    object-position: center top;
   }
   video {
     opacity: 0;
