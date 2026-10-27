@@ -48,6 +48,10 @@ CONFIRM_NO_ASK = "ask '{question}'."
 CONFIRM_NO_EXTRA = "it does not get it; nothing to call."
 CONFIRM_SKIP = " If they already said which drink it was for, do not ask this; ask '{then}'."
 HELD = "Not set for {other}: the customer did not say it was for both. Ask this first."
+CONFIRM_LINE = (
+    "Their answer may be for {other} too (line {line}, already in the order). Ask this. Yes: call "
+    "change with line {line} and the same {group}. No: it does not get it; nothing to call."
+)
 
 
 class Actions:
@@ -278,6 +282,31 @@ class Actions:
 
     def held(self, other: Draft) -> str:
         return HELD.format(other=self._draft_name(other))
+
+    def confirm_line(
+        self, number: int, group: OptionGroup, choices: tuple[OptionChoice, ...], then: str = ""
+    ) -> Result:
+        """Ask whether an extra given for a drink being chosen is for the same item already in
+        the order too: "따뜻한 레귤러 아메리카노에도 샷 추가 해 드릴까요?"."""
+        name = self._line_name(self.kiosk.order.line(number))
+        extras = ", ".join(c.spoken for c in choices)
+        note = CONFIRM_LINE.format(other=name, line=number, group=group.id)
+        if then:
+            note += CONFIRM_SKIP.format(then=then)
+        return {"ask": f"{name}에도 {extras} 해 드릴까요?", "confirm_note": note}
+
+    def held_line(self, number: int) -> str:
+        return HELD.format(other=self._line_name(self.kiosk.order.line(number)))
+
+    def _line_name(self, line: CartLine) -> str:
+        """e.g. "따뜻한 레귤러 아메리카노": an order line by its temperature and size."""
+        said = [
+            c.spoken
+            for group in line.item.option_groups
+            if group.required
+            for c in line.chosen()[group.id]
+        ]
+        return " ".join([*said, line.item.name])
 
     def _draft_name(self, draft: Draft) -> str:
         """e.g. "따뜻한 아메리카노": what tells it apart from the same item chosen differently."""

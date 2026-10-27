@@ -412,6 +412,8 @@ class AssistantSession:
             result = self._answer_for_one_drink(args)
         elif call.name == "order":
             result = self._without_guesses(call.name, args)
+        elif call.name == "change" and (held := self._held_for_line(args)) is not None:
+            result = held
         else:
             result = self.actions.call(call.name, args)
         if self.kiosk.question != question:
@@ -515,7 +517,46 @@ class AssistantSession:
                 result.update(self.actions.confirm_same(others[0], group, chosen[g], then))
                 self._confirming = (others[0].id, g, answer[g])
                 break
+            # An extra: the same item already in the order may want it too.
+            lines = [
+                n
+                for n, line in enumerate(self.kiosk.order.lines, start=1)
+                if group is not None
+                and not group.required
+                and line.item.id == draft.item.id
+                and tuple(c.id for c in line.chosen().get(g, ())) != answer[g]
+            ]
+            if group is not None and lines:
+                then = str(result.get("ask", ""))
+                result.update(self.actions.confirm_line(lines[-1], group, chosen[g], then))
+                break
         return result
+
+    def _held_for_line(self, args: dict[str, Any]) -> Result | None:
+        """change on an order line with the answer just given for a drink being chosen, which the
+        customer did not say was for both: not done; the kiosk asks first."""
+        if self._answers_mark != self.transcript.mark or not self._answers:
+            return None
+        try:
+            number = int(float(args.get("line", 0)))
+            line = self.kiosk.order.line(number)
+            chosen = self.kiosk.menu.resolve(line.item, selection_from_args(self.kiosk.menu, args))
+        except (KioskError, TypeError, ValueError):
+            return None
+        latest = self.transcript.last_customer()
+        if meant_for_all(latest.text if latest else ""):
+            return None
+        for g, choices in chosen.items():
+            ids = tuple(c.id for c in choices)
+            group = line.item.group(g)
+            same = any((i, gr, c) == (line.item.id, g, ids) for _, i, gr, c in self._answers)
+            if group is not None and not group.required and same:
+                log.info("held: the same %s for line %d", g, number)
+                return {
+                    "not_set": self.actions.held_line(number),
+                    **self.actions.confirm_line(number, group, choices),
+                }
+        return None
 
     def _confirmed(self, draft: Draft, answer: dict[str, tuple[str, ...]], words: str) -> bool:
         """The answer is what the customer agreed to when the kiosk asked "따뜻한 아메리카노도

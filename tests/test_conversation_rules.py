@@ -277,6 +277,29 @@ def test_an_extra_that_may_be_for_two_drinks_is_checked(new_kiosk):
     run(scenario, new_kiosk)
 
 
+def test_an_extra_may_be_for_a_drink_already_in_the_order(new_kiosk):
+    # An iced and a hot americano ordered separately: the hot one went into the order as soon as
+    # its size was set, so "샷추가 해줘" for the iced one never asked about it.
+    async def scenario(h: Harness):
+        await iced_and_hot(h)
+        await h.say("둘 다 레귤러요")
+        await h.call("set_options", draft=1, size="regular")
+        await h.call("set_options", draft=2, size="regular")
+        assert len(h.kiosk.order.lines) == 1  # the hot one, in the order
+        await h.reply("아메리카노에 추가하실 거 있으세요?")
+        await h.say("샷추가 해줘")
+        result = await h.call("set_options", draft=1, shot="extra_shot")
+        assert result["ask"] == "따뜻한 레귤러 아메리카노에도 샷 추가 해 드릴까요?"
+        held = await h.call("change", line=1, shot="extra_shot")  # the model's guess
+        assert "not_set" in held
+        assert [c.id for c in h.kiosk.order.lines[0].chosen()["shot"]] == ["none"]
+        await h.say("응")
+        await h.call("change", line=1, shot="extra_shot")
+        assert [c.id for c in h.kiosk.order.lines[0].chosen()["shot"]] == ["extra_shot"]
+
+    run(scenario, new_kiosk)
+
+
 def test_all_of_them_in_other_words():
     from kiosk.assistant.safety import meant_for_all
 
