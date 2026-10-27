@@ -5,7 +5,7 @@ Phases: idle -> ordering -> paying (insert card -> processing) -> done -> idle. 
 handset starts a session, hanging up ends it from any phase.
 
 The **current question** (`Kiosk.question`) is decided here, from the state: here or to go,
-then each drink's missing required options one at a time, the first drink's extras, what else
+then each drink's missing required options one at a time, each item's extras (once), what else
 they would like, and when they pay: anything for the staff, then the read-back. The display
 shows it and the assistant is told to ask it, so the two always match. The assistant's actions
 are not tied to it: a customer may say more than was asked ("아메리카노 아이스로, 카페라떼는
@@ -67,7 +67,7 @@ class Ask(StrEnum):
     DINING = "dining"  # here or to go
     MENU = "menu"  # what they would like (from the menu board) / anything else
     OPTION = "option"  # a required option of a drink being chosen
-    EXTRAS = "extras"  # the first drink's extras: "추가하실 거 있으세요?"
+    EXTRAS = "extras"  # an item's extras, once per item: "추가하실 거 있으세요?"
     LINE = "line"  # an order line shown again (go_back): change it if they want
     STAFF = "staff"  # before the read-back: "직원에게 따로 전달할 말씀 있으세요?"
     REVIEW = "review"  # the read-back
@@ -106,13 +106,13 @@ _REMEMBERED = {Screen.MENU, Screen.CATEGORIES, Screen.ITEM, Screen.INFO, Screen.
 
 @dataclass
 class Draft:
-    """A drink being chosen: its required options first, then (first drink only) its extras."""
+    """A drink being chosen: its required options first, then (first of its item) its extras."""
 
     id: int
     item: MenuItem
     quantity: int = 1
     chosen: Chosen = field(default_factory=dict)
-    ask_extras: bool = True  # only the order's first drink asks "추가하실 거 있으세요?"
+    ask_extras: bool = True  # "추가하실 거 있으세요?": asked once per item (its first drink)
     extras_done: bool = False
 
     @property
@@ -562,7 +562,10 @@ class Kiosk:
     # --- helpers -----------------------------------------------------------------------------
 
     def _new_draft(self, item: MenuItem, quantity: int, chosen: Chosen) -> Draft:
-        first = self.order.is_empty and not self.drafts and not self._added
+        # The extras question once per item: 카페라떼 once, 아메리카노 once (split cups share it).
+        first = not any(d.item.id == item.id for d in self.drafts) and not any(
+            line.item.id == item.id for line in self.order.lines
+        )
         draft = Draft(self._next_draft, item, quantity, dict(chosen), ask_extras=first)
         self._next_draft += 1
         self.drafts.append(draft)

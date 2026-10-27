@@ -137,16 +137,17 @@ def test_required_options_one_at_a_time_then_the_first_drinks_extras(kiosk: Kios
     assert kiosk.question.kind is Ask.MENU and kiosk.view.screen is Screen.MENU  # back
 
 
-def test_only_the_first_drink_asks_for_extras(kiosk: Kiosk):
+def test_extras_are_asked_once_per_item(kiosk: Kiosk):
     add(kiosk, "americano", temperature="hot", size="regular")
+    result = kiosk.order_item("americano", 1, {"temperature": "ice", "size": "regular"})
+    assert result.line is not None  # a second americano: added at once
     result = kiosk.order_item("cafe_latte", 1, {"temperature": "hot", "size": "regular"})
-    assert result.line is not None  # the second drink: added at once
-    kiosk.cancel_order()
-    assert kiosk.order_item("cafe_latte", 1, {"temperature": "hot", "size": "regular"}).draft
+    assert result.draft is not None  # another item: its extras are asked
+    assert question(kiosk) == (Ask.EXTRAS, "cafe_latte", "")
 
 
 def test_extras_can_still_be_said_for_later_drinks(kiosk: Kiosk):
-    add(kiosk, "chocolate_cookie")  # the first drink (no extras to ask)
+    add(kiosk, "americano", temperature="hot", size="regular")  # americano's extras were asked
     line = kiosk.order_item(
         "americano", 1, {"temperature": "ice", "size": "large", "shot": "decaf"}
     )
@@ -174,21 +175,22 @@ def test_several_drinks_at_once_each_get_their_answer(kiosk: Kiosk):
     kiosk.order_item("americano", 1, {"temperature": "ice"})
     kiosk.order_item("cafe_latte", 1, {"temperature": "hot"})
     assert question(kiosk) == (Ask.OPTION, "americano", "size")  # in the order they were said
-    # "라떼는 레귤러요" while the americano's size is asked: goes to the latte, which is then
-    # complete (not the first drink: no extras), and the question stays.
-    result = kiosk.set_options({"size": "regular"}, item_id="cafe_latte")
-    assert result.line is not None and result.line.option_text == "HOT, Regular"
+    # "라떼는 레귤러요" while the americano's size is asked: goes to the latte, and the question
+    # stays with the americano.
+    kiosk.set_options({"size": "regular"}, item_id="cafe_latte")
     assert question(kiosk) == (Ask.OPTION, "americano", "size")
     kiosk.set_options({"size": "large"}, item_id="americano")
-    assert question(kiosk) == (Ask.EXTRAS, "americano", "")  # the first drink's extras
+    assert question(kiosk) == (Ask.EXTRAS, "americano", "")  # each item's extras, once
     kiosk.no_more_extras("americano")
+    assert question(kiosk) == (Ask.EXTRAS, "cafe_latte", "")
+    kiosk.no_more_extras("cafe_latte")
     assert kiosk.question.kind is Ask.MENU
     assert sorted(ln.option_text for ln in kiosk.order.lines) == ["HOT, Regular", "ICE, Large"]
 
 
 def test_one_item_split_into_parts_with_different_options(kiosk: Kiosk):
     # "아메리카노 세 잔이요" - "하나는 차갑게, 두 잔은 따뜻하게"
-    add(kiosk, "chocolate_cookie")  # so no extras are asked
+    add(kiosk, "americano", temperature="hot", size="regular")  # so no extras are asked
     kiosk.order_item("americano", 3)
     kiosk.order_item("americano", 1, {"temperature": "ice"})
     kiosk.order_item("americano", 2, {"temperature": "hot"})
@@ -199,11 +201,7 @@ def test_one_item_split_into_parts_with_different_options(kiosk: Kiosk):
     # "둘 다 라지요": one answer per part, each goes to a part still missing it.
     kiosk.set_options({"size": "large"}, item_id="americano")
     kiosk.set_options({"size": "large"}, item_id="americano")
-    lines = sorted(
-        (ln.quantity, ln.option_text)
-        for ln in kiosk.order.lines
-        if ln.item.id != "chocolate_cookie"
-    )
+    lines = sorted((ln.quantity, ln.option_text) for ln in kiosk.order.lines[1:])
     assert lines == [(1, "ICE, Large"), (2, "HOT, Large")]
 
 

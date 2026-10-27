@@ -84,7 +84,7 @@ def test_an_option_said_turns_earlier_is_taken(new_kiosk):
         )
         assert "not_heard" not in result
         assert "따뜻하게" not in result["ask"]  # not the temperature again
-        assert result["added"] == "따뜻한 카페라떼 레귤러 1잔"
+        assert result["being_chosen"] == "따뜻한 레귤러 카페라떼 1잔"  # on to its extras
 
     run(scenario, new_kiosk)
 
@@ -412,17 +412,22 @@ def test_different_answers_for_each_drink_are_taken(new_kiosk):
     run(scenario, new_kiosk)
 
 
-def test_extras_are_asked_only_for_the_first_item(new_kiosk):
+def test_extras_are_asked_once_per_item(new_kiosk):
+    # Team test: "카페라떼랑 아메리카노 3잔" asked the latte's extras only; the americanos went in
+    # without the question, so the customer had to ask for the shot afterwards.
     async def scenario(h: Harness):
         await lifted(h)
         await h.say("따뜻한 아메리카노 레귤러 하나요")
         result = await h.call("order", item_id="americano", temperature="hot", size="regular")
-        assert "추가하실 거 있으세요?" in result["ask"]  # the first item
+        assert "추가하실 거 있으세요?" in result["ask"]  # the americano's extras
         await h.say("없어요")
         await h.call("no_more_extras")
+        await h.say("차가운 아메리카노 레귤러도 하나요")
+        result = await h.call("order", item_id="americano", temperature="ice", size="regular")
+        assert "added" in result  # another americano: added at once
         await h.say("따뜻한 카페라떼 레귤러도 하나요")
         result = await h.call("order", item_id="cafe_latte", temperature="hot", size="regular")
-        assert "added" in result  # the second: added at once
+        assert result["ask"] == "카페라떼에 추가하실 거 있으세요?"  # another item: asked once
 
     run(scenario, new_kiosk)
 

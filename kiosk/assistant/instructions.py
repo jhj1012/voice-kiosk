@@ -109,8 +109,8 @@ changes nothing; if they then want a change, record it (an item in the order: ch
 ## Items
 - Items served only one way ("served iced only" / "served hot only") or in one size have no \
 such question: the kiosk will not ask it either.
-- Extras (shots, syrups, tumbler, toppings) are asked only for the first item ("추가하실 거 \
-있으세요?"); for later items only when the customer asks for them.
+- Extras (shots, syrups, tumbler, toppings) are asked once per item ("추가하실 거 \
+있으세요?"); for more of an item already asked, only when the customer asks for them.
 - Changes: change with the line number from a result (quantity 0 removes it). To replace an \
 item, remove it and order the new one.
 

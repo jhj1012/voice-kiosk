@@ -477,11 +477,13 @@ def test_two_items_in_one_sentence_wait_side_by_side(new_kiosk):
         await h.say("둘 다 라지로요")
         result = await h.call("set_options", item_id="green_grape_ade", size="large")
         assert "추가하실 거 있으세요?" in result["ask"]  # the first item's extras
-        result = await h.call("set_options", item_id="americano", size="large")
-        assert result["added"] == "차가운 아메리카노 라지 1잔"  # the second: no extras
+        await h.call("set_options", item_id="americano", size="large")
         await h.reply("청포도 에이드에 추가하실 거 있으세요?")
         await h.say("아니요 없어요")
         assert "added" in await h.call("no_more_extras", item_id="green_grape_ade")
+        await h.reply("아메리카노에 추가하실 거 있으세요?")  # each item's extras, once
+        await h.say("없어요")
+        assert "added" in await h.call("no_more_extras", item_id="americano")
         assert sorted(line.option_text for line in h.kiosk.order.lines) == ["ICE, Large", "Large"]
 
     run(scenario, new_kiosk)

@@ -226,7 +226,7 @@ the screen can follow the conversation (e.g. "우유가 들어가지 않은 메�
 | `show(what, …)` | `menu` (item_ids, a category or everything, highlight_ids, exclude_allergens filtered by code, a title only for a filter), `categories`, `item` (its facts; the result has the description to say), `info` (a topic from `cafe.yaml`), `order`. Display only. |
 | `order(item_id, quantity?, options…)` | A new drink (or the same item split into parts, or updated). It goes into the order once it needs nothing more. |
 | `set_options(item_id?, draft?, quantity?, options…)` | Options or the number of a drink being chosen, whichever was asked; quantity 0 cancels it. |
-| `no_more_extras(item_id?)` | "추가하실 거 있으세요?" - "없어요": the first drink goes into the order. |
+| `no_more_extras(item_id?)` | "추가하실 거 있으세요?" - "없어요": the drink goes into the order (the extras are asked once per item; only after the customer answered). |
 | `set_dining(dining)` | Here (`here`) or to go (`to_go`). |
 | `change(line, quantity?, options…)` | Changes an order line; quantity 0 removes it. The screen shows the changed option. |
 | `go_back(to?)` | The previous screen, or the latest one of an item / kind of screen. Changes nothing. |

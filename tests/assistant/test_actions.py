@@ -53,7 +53,7 @@ def test_two_items_in_one_sentence(actions: Actions):
     # "둘 다 라지요"
     actions.call("set_options", {"item_id": "americano", "size": "large"})
     result = actions.call("set_options", {"item_id": "cafe_latte", "size": "large"})
-    assert result["added"] == "따뜻한 카페라떼 라지 1잔"  # not the first item: no extras
+    assert result["being_chosen"][1]["missing"] == ["extras"]  # each item's extras, once
 
 
 def test_parts_of_one_item_are_named_by_their_options(actions: Actions):
