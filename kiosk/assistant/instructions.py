@@ -14,7 +14,7 @@ from collections.abc import Sequence
 from kiosk.domain.cafe import Cafe
 from kiosk.domain.flow import Draft
 from kiosk.domain.menu import Menu, MenuItem
-from kiosk.domain.order import Order, won
+from kiosk.domain.order import Order, won_spoken
 
 GREETING_CUE = "[손님이 수화기를 들었습니다]"
 
@@ -59,6 +59,9 @@ them. Never fill in a default (no size unless they said one, no temperature unle
 one). When they answer the question asked, pass what you understood even if the words were \
 unclear ("라디오" for "라지요" is large).
 - Never make up your own question about options: ask the result's "ask".
+- One answer is for one drink: the one asked about. When the same item is being chosen more \
+than once (e.g. an iced and a hot 아메리카노) and the customer did not say which one or "둘 다", \
+set it for the asked one only; the result then asks whether the other gets the same.
 - "차가운/차갑게/아이스/아아" = ice, "따뜻한/뜨거운/핫" = hot, "라지/큰 거" = large, \
 "레귤러/작은 거" = regular.
 - One item in parts ("아메리카노 세 잔, 하나는 차갑게 두 잔은 따뜻하게"): order once per part, \
@@ -106,8 +109,8 @@ changes nothing; if they then want a change, record it (an item in the order: ch
 ## Items
 - Items served only one way ("served iced only" / "served hot only") or in one size have no \
 such question: the kiosk will not ask it either.
-- Extras (shots, syrups, tumbler, toppings) are asked only for the first item ("추가하실 거 \
-있으세요?"); for later items only when the customer asks for them.
+- Extras (shots, syrups, tumbler, toppings) are asked once per item ("추가하실 거 \
+있으세요?"); for more of an item already asked, only when the customer asks for them.
 - Changes: change with the line number from a result (quantity 0 removes it). To replace an \
 item, remove it and order the new one.
 
@@ -190,7 +193,8 @@ def menu_text(menu: Menu) -> str:
         kind = "REQUIRED" if group.required else "extra"
         many = ", any number" if group.multi else ""
         choices = ", ".join(
-            f"{c.id} {c.name}" + (f" +{won(c.price)}" if c.price else "") for c in group.choices
+            f"{c.id} {c.name}" + (f" +{won_spoken(c.price)}" if c.price else "")
+            for c in group.choices
         )
         lines.append(f"- {group.id} ({group.name}, {kind}{many}): {choices}")
     lines.append("")
@@ -207,7 +211,7 @@ def _item_line(item: MenuItem, allergen_names: dict[str, str]) -> str:
     served = {"hot": "served hot only", "ice": "served iced only"}.get(item.temperature or "")
     allergens = ", ".join(allergen_names[a] for a in item.allergens) or "없음"
     facts = [
-        f"{won(item.price)}",
+        f"{won_spoken(item.price)}",
         f"options: {options}",
         *([served] if served else []),
         f"caffeine: {item.caffeine}",
@@ -250,10 +254,10 @@ def resume_text(
 def order_text(menu: Menu, order: Order) -> str:
     lines = ["## The customer's order so far (the conversation was reconnected)"]
     for n, line in enumerate(order.lines, start=1):
-        lines.append(f"{n}. {line.spoken(menu.unit(line.item))} {won(line.total)}")
+        lines.append(f"{n}. {line.spoken(menu.unit(line.item))} {won_spoken(line.total)}")
     if order.dining is not None:
         lines.append(f"Dining: {order.dining.label}")
     if order.notes:
         lines.append(f"Notes for the staff: {'; '.join(order.notes)}")
-    lines.append(f"Total: {won(order.total)}")
+    lines.append(f"Total: {won_spoken(order.total)}")
     return "\n".join(lines)

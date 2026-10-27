@@ -130,7 +130,12 @@ def function_declarations(menu: Menu, cafe: Cafe) -> list[dict[str, Any]]:
                     "description": "Which one, when the same item is being chosen more than "
                     "once (the number from a result); otherwise leave out.",
                 },
-                "quantity": {"type": "INTEGER", "description": "Number; 0 cancels it."},
+                "quantity": {
+                    "type": "INTEGER",
+                    "description": "Number; 0 cancels it. With options and fewer cups than it "
+                    "has ('두 잔 중 하나만 라지로': 1), only those cups get them (split off; the "
+                    "rest are asked again).",
+                },
                 **options,
             },
         ),

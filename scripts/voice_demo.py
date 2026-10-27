@@ -404,15 +404,15 @@ SCENARIOS: dict[str, tuple[str, list[Step], bool]] = {
         False,
     ),
     "second-item": (
-        "the extras question only for the first item",
+        "the extras question once per item: not again for a second americano",
         [
             TO_GO,
             HOT_AMERICANO,
             Step(
-                "latte",
-                "따뜻한 카페라떼 레귤러도 하나 주세요",
+                "iced",
+                "차가운 아메리카노 레귤러도 하나 주세요",
                 "added without the extras question",
-                lambda s: has_item(s, "cafe_latte", "HOT", "Regular"),
+                lambda s: has_item(s, "americano", "ICE", "Regular"),
                 said=lambda t: "추가하실" not in t,
             ),
         ],

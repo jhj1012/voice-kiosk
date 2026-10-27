@@ -45,9 +45,13 @@ from kiosk.assistant.safety import (
     confirmed_cancel,
     customer_asked_to_pay,
     guessed_groups,
+    is_no,
     is_yes,
+    meant_for_all,
     mostly_foreign,
+    only_some,
     said_amount,
+    wants_nothing_more,
     wants_to_stop,
 )
 from kiosk.assistant.tools import (
@@ -56,8 +60,8 @@ from kiosk.assistant.tools import (
     selection_from_args,
 )
 from kiosk.config import FlowConfig
-from kiosk.domain.flow import Kiosk, Phase
-from kiosk.domain.menu import KioskError
+from kiosk.domain.flow import Ask, Draft, Kiosk, Phase
+from kiosk.domain.menu import Chosen, KioskError
 
 log = logging.getLogger(__name__)
 
@@ -88,6 +92,10 @@ CONNECTION_LOST = "연결이 끊어졌어요. 수화기를 내려놓았다가 �
 NOT_ASKED_TO_PAY = (
     "BLOCKED: the customer has not asked to pay (or changed the order since). Do not start the "
     "payment. Ask whether they want anything else or would like to pay."
+)
+EXTRAS_NOT_ANSWERED = (
+    "Not done: the customer has not answered '추가하실 거 있으세요?' yet. Wait for their answer; "
+    "call no_more_extras only after they say they want nothing (more)."
 )
 NOT_SAID = (
     "The customer did not mention {groups}, so it was not set: never fill in an option. Ask the "
@@ -185,6 +193,11 @@ class AssistantSession:
         # Where the transcript was when the kiosk's question last changed: only customer words
         # after it answer that question (not an answer the model made up right after asking).
         self._question_mark = 0
+        # Required options set since the customer last spoke: (draft, item, group, choices).
+        self._answers: list[tuple[int, str, str, tuple[str, ...]]] = []
+        self._answers_mark = -1
+        # The kiosk asked "따뜻한 아메리카노도 레귤러로 해 드릴까요?": (draft, group, choices).
+        self._confirming: tuple[int, str, tuple[str, ...]] | None = None
         self._read_back: _ReadBack | None = None
         self._terminal_id = 0
         self._quiet_turn = False  # stay_quiet was called: this turn is not heard
@@ -401,8 +414,15 @@ class AssistantSession:
             and not confirmed_cancel(self.transcript)
         ):
             result = {"blocked": CANCEL_NOT_CONFIRMED}
-        elif call.name in ("order", "set_options"):
+        elif call.name == "set_options":
+            result = self._answer_for_one_drink(args)
+        elif call.name == "order":
             result = self._without_guesses(call.name, args)
+        elif call.name == "change" and (held := self._held_for_line(args)) is not None:
+            result = held
+        elif call.name == "no_more_extras" and not self._extras_answered():
+            log.info("no_more_extras before the customer answered: not done")
+            result = {"not_done": EXTRAS_NOT_ANSWERED}
         else:
             result = self.actions.call(call.name, args)
         if self.kiosk.question != question:
@@ -415,6 +435,183 @@ class AssistantSession:
                 result = {**result, "payment": ORDER_CHANGED_NOTE}
         log.info("call %s(%s) -> %s", call.name, args, result)
         return result
+
+    def _answer_for_one_drink(self, args: dict[str, Any]) -> Result:
+        """set_options, with an answer that may be for several drinks ("레귤러요" while an iced and
+        a hot americano both need a size, "샷 추가해 줘" while both are at the extras): it goes to
+        one drink, and the kiosk asks whether the other one gets it too, unless the customer said
+        it was for all ("둘 다 레귤러요")."""
+        menu = self.kiosk.menu
+        try:
+            draft_arg = args.get("draft")
+            draft = self.kiosk.find_draft(
+                args.get("item_id") or None,
+                selection_from_args(menu, args),
+                int(float(draft_arg)) if draft_arg else None,
+            )
+            chosen = menu.resolve(draft.item, selection_from_args(menu, args))
+        except (KioskError, TypeError, ValueError):
+            return self._without_guesses("set_options", args)
+        quantity = args.get("quantity")
+        if chosen and quantity and int(float(quantity)) < draft.quantity:
+            # "하나만 라지로": the customer said which cups (split off), nothing to check
+            return self._split_rest(draft, chosen, self._without_guesses("set_options", args))
+        if self._answers_mark != self.transcript.mark:  # the customer spoke: a new answer
+            self._answers, self._answers_mark = [], self.transcript.mark
+        latest = self.transcript.last_customer()
+        for_all = meant_for_all(latest.text if latest else "")
+        answer = {  # required options, and extras actually wanted (not "기본" / "없음")
+            g: tuple(c.id for c in cs)
+            for g, cs in chosen.items()
+            if (group := draft.item.group(g)) is not None
+            and (group.required or any(not c.is_none for c in cs))
+        }
+        # The same answer already went to another drink of this item in this turn: hold it.
+        held = [
+            g
+            for g, ids in answer.items()
+            if not for_all
+            and any(
+                d != draft.id and (i, gr, c) == (draft.item.id, g, ids)
+                for d, i, gr, c in self._answers
+            )
+        ]
+        for g in held:
+            args.pop(g, None)
+            del answer[g]
+        held_group = draft.item.group(held[0]) if held else None
+        if held_group is not None:
+            log.info("held: the same %s for another %s", held_group.id, draft.item.id)
+            confirm = self.actions.confirm_same(draft, held_group, chosen[held_group.id])
+            self._confirming = (draft.id, held_group.id, tuple(c.id for c in chosen[held_group.id]))
+            if not set(args) - {"item_id", "draft"}:  # nothing else to set
+                return {"not_set": self.actions.held(draft), **confirm}
+        if latest is not None and self._confirmed(draft, answer, latest.text):
+            # "네" to the kiosk's own question (or "아니" with only one other choice).
+            self._confirming = None
+            result = self.actions.call("set_options", args)
+        else:
+            result = self._without_guesses("set_options", args)
+        if "error" in result:
+            return result
+        if held_group is not None:
+            return {**result, "not_set": self.actions.held(draft), **confirm}
+        # Only what was really set (a guessed option was left out) counts as answered.
+        answer = {
+            g: ids
+            for g, ids in answer.items()
+            if tuple(c.id for c in draft.chosen.get(g, ())) == ids
+        }
+        self._answers += [(draft.id, draft.item.id, g, ids) for g, ids in answer.items()]
+        if for_all:
+            return result
+        answered = {(d, g) for d, _, g, _ in self._answers}
+        for g in answer:
+            group = draft.item.group(g)
+            others = [
+                d
+                for d in self.kiosk.drafts
+                if d.id != draft.id
+                and d.item.id == draft.item.id
+                and (d.id, g) not in answered
+                and (
+                    any(m.id == g for m in d.missing)
+                    if group is not None and group.required
+                    # an extra: the other cups the extras question is about, without it yet
+                    else d.ask_extras and tuple(c.id for c in d.chosen.get(g, ())) != answer[g]
+                )
+            ]
+            if group is not None and others:
+                then = str(result.get("ask", ""))
+                result.update(self.actions.confirm_same(others[0], group, chosen[g], then))
+                self._confirming = (others[0].id, g, answer[g])
+                break
+            # An extra: the same item already in the order may want it too.
+            lines = [
+                n
+                for n, line in enumerate(self.kiosk.order.lines, start=1)
+                if group is not None
+                and not group.required
+                and line.item.id == draft.item.id
+                and tuple(c.id for c in line.chosen().get(g, ())) != answer[g]
+            ]
+            if group is not None and lines:
+                then = str(result.get("ask", ""))
+                result.update(self.actions.confirm_line(lines[-1], group, chosen[g], then))
+                break
+        return result
+
+    def _split_rest(self, rest: Draft, chosen: Chosen, result: Result) -> Result:
+        """After "두 잔만 아이스로" split some cups off: the rest get the other choice of a
+        two-choice option (temperature, size), as "only two iced" means the others are not."""
+        latest = self.transcript.last_customer()
+        if "error" in result or rest not in self.kiosk.drafts or latest is None:
+            return result
+        if not only_some(latest.text):
+            return result  # "두 잔은 아이스로": they may go on with "나머지는…"
+        others: dict[str, str] = {}
+        for g, choices in chosen.items():
+            group = rest.item.group(g)
+            if group is None or not group.required or rest.chosen.get(g):
+                continue
+            left = [c for c in group.choices if c not in choices]
+            if len(left) == 1:
+                others[g] = left[0].id
+        if not others:
+            return result
+        log.info("the rest of %s: %s", rest.item.id, others)
+        return self.actions.call("set_options", {"draft": rest.id, **others})
+
+    def _extras_answered(self) -> bool:
+        """The customer answered the extras question: they spoke after it was asked, or said
+        before that they want nothing added ("레귤러로, 추가는 없어요")."""
+        if self.kiosk.question.kind is not Ask.EXTRAS:
+            return True  # the domain explains any mistake
+        if self.transcript.customer_since(self._question_mark):
+            return True
+        latest = self.transcript.last_customer()
+        return latest is not None and wants_nothing_more(latest.text)
+
+    def _held_for_line(self, args: dict[str, Any]) -> Result | None:
+        """change on an order line with the answer just given for a drink being chosen, which the
+        customer did not say was for both: not done; the kiosk asks first."""
+        if self._answers_mark != self.transcript.mark or not self._answers:
+            return None
+        try:
+            number = int(float(args.get("line", 0)))
+            line = self.kiosk.order.line(number)
+            chosen = self.kiosk.menu.resolve(line.item, selection_from_args(self.kiosk.menu, args))
+        except (KioskError, TypeError, ValueError):
+            return None
+        latest = self.transcript.last_customer()
+        if meant_for_all(latest.text if latest else ""):
+            return None
+        for g, choices in chosen.items():
+            ids = tuple(c.id for c in choices)
+            group = line.item.group(g)
+            same = any((i, gr, c) == (line.item.id, g, ids) for _, i, gr, c in self._answers)
+            if group is not None and not group.required and same:
+                log.info("held: the same %s for line %d", g, number)
+                return {
+                    "not_set": self.actions.held_line(number),
+                    **self.actions.confirm_line(number, group, choices),
+                }
+        return None
+
+    def _confirmed(self, draft: Draft, answer: dict[str, tuple[str, ...]], words: str) -> bool:
+        """The answer is what the customer agreed to when the kiosk asked "따뜻한 아메리카노도
+        레귤러로 해 드릴까요?": "네" and that choice, or "아니" and the only other choice."""
+        if self._confirming is None or self._confirming[0] != draft.id:
+            return False
+        _, group_id, asked = self._confirming
+        ids = answer.get(group_id)
+        group = draft.item.group(group_id)
+        if ids is None or group is None:
+            return False
+        if is_yes(words):
+            return ids == asked
+        others = [c.id for c in group.choices if c.id not in asked]
+        return group.required and is_no(words) and len(others) == 1 and ids == tuple(others)
 
     def _without_guesses(self, name: str, args: dict[str, Any]) -> Result:
         """Run order / set_options without required options the customer never mentioned

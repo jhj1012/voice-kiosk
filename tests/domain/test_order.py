@@ -1,7 +1,7 @@
 import pytest
 
 from kiosk.domain.menu import KioskError, Menu
-from kiosk.domain.order import MAX_QUANTITY, Dining, Order, OrderNumbers, won
+from kiosk.domain.order import MAX_QUANTITY, Dining, Order, OrderNumbers, won, won_spoken
 
 
 def choices(menu: Menu, item_id: str, **selection):
@@ -88,10 +88,10 @@ def test_read_back(menu: Menu):
     order.set_dining(Dining.TO_GO)
     assert order.read_back(menu) == (
         "주문 확인해 드릴게요. 차가운 아메리카노 라지(샷 추가) 2잔, 초코 쿠키 1개, "
-        "콜드브루 레귤러 1잔, 포장으로 총 17,200원입니다."
+        "콜드브루 레귤러 1잔, 포장으로 총 만 칠천이백 원입니다."
     )
     order.set_dining(Dining.HERE)
-    assert order.read_back(menu).endswith("1잔, 매장에서 드시고 총 17,200원입니다.")
+    assert order.read_back(menu).endswith("1잔, 매장에서 드시고 총 만 칠천이백 원입니다.")
 
 
 def test_read_back_of_empty_order(menu: Menu):
@@ -103,6 +103,15 @@ def test_order_numbers_and_won():
     numbers = OrderNumbers(7)
     assert [numbers.next(), numbers.next()] == [7, 8]
     assert won(17200) == "17,200원"
+
+
+def test_spoken_prices_follow_korean_10000_groups():
+    # The model said "13,200원" as "십삼만 이천 원"; it gets the words instead.
+    assert won_spoken(13200) == "만 삼천이백 원"
+    assert won_spoken(4500) == "사천오백 원"
+    assert won_spoken(21000) == "이만 천 원"
+    assert won_spoken(110500) == "십일만 오백 원"
+    assert won_spoken(500) == "오백 원"
 
 
 def test_lines_signature_ignores_dining(menu: Menu):

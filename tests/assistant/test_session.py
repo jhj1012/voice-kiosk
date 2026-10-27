@@ -254,6 +254,7 @@ def test_function_calls_change_the_kiosk(new_kiosk):
             "order", item_id="americano", quantity=2, temperature="ice", size="large"
         )
         assert "추가하실 거 있으세요?" in result["ask"]  # the first item's extras
+        await h.say("없어요")
         result = await h.call("no_more_extras")
         assert result["added"] == "차가운 아메리카노 라지 2잔"
         assert h.kiosk.order.total == 9000
@@ -302,7 +303,7 @@ def test_full_payment_after_the_read_back(new_kiosk):
         await order_ready(h)
         await h.say("결제할게요")
         result = await h.call("pay")
-        assert result["read_back"].endswith("포장으로 총 4,000원입니다.")
+        assert result["read_back"].endswith("포장으로 총 사천 원입니다.")
         assert h.kiosk.view.screen is Screen.REVIEW
         assert h.kiosk.phase is Phase.ORDERING  # not before the read-back was said
         await h.reply(result["read_back"])
@@ -438,7 +439,7 @@ def test_failed_resume_starts_fresh_with_the_order(new_kiosk, monkeypatch):
         setup = connector.setups[-1]
         assert setup.resume_handle is None
         # The fresh session knows the order, what is still waiting and what was just said.
-        assert "1. 차가운 아메리카노 레귤러 1잔 4,000원" in setup.instructions
+        assert "1. 차가운 아메리카노 레귤러 1잔 사천 원" in setup.instructions
         assert "cafe_latte 카페라떼 x1, missing 온도, 사이즈" in setup.instructions
         assert "- assistant: 따뜻하게 드릴까요, 아이스로 드릴까요?" in setup.instructions
         assert h.conn.texts == [RECONNECTED_CUE]
@@ -476,11 +477,13 @@ def test_two_items_in_one_sentence_wait_side_by_side(new_kiosk):
         await h.say("둘 다 라지로요")
         result = await h.call("set_options", item_id="green_grape_ade", size="large")
         assert "추가하실 거 있으세요?" in result["ask"]  # the first item's extras
-        result = await h.call("set_options", item_id="americano", size="large")
-        assert result["added"] == "차가운 아메리카노 라지 1잔"  # the second: no extras
+        await h.call("set_options", item_id="americano", size="large")
         await h.reply("청포도 에이드에 추가하실 거 있으세요?")
         await h.say("아니요 없어요")
         assert "added" in await h.call("no_more_extras", item_id="green_grape_ade")
+        await h.reply("아메리카노에 추가하실 거 있으세요?")  # each item's extras, once
+        await h.say("없어요")
+        assert "added" in await h.call("no_more_extras", item_id="americano")
         assert sorted(line.option_text for line in h.kiosk.order.lines) == ["ICE, Large", "Large"]
 
     run(scenario, new_kiosk)

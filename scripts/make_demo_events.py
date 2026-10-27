@@ -139,7 +139,10 @@ def scenario_order(r: Recorder) -> None:
     r.do(k.no_more_extras)
     r.says("따뜻한 카페라떼 레귤러 한 잔 담았어요. 더 필요하신 거 있으세요?")
     r.customer("차가운 아메리카노 라지로 두 잔도요")
-    r.do(k.order_item, "americano", 2, {"temperature": "ice", "size": "large"})  # no extras
+    r.do(k.order_item, "americano", 2, {"temperature": "ice", "size": "large"})
+    r.says("아메리카노에 추가하실 거 있으세요?")  # each item's extras, once
+    r.customer("아니요")
+    r.do(k.no_more_extras, "americano")
     r.says("차가운 아메리카노 라지 두 잔도 담았어요. 더 필요하신 거 있으세요?")
     r.customer("아, 라떼는 라지로 바꿔 주세요")
     r.do(k.change_line, 1, None, {"size": "large"})  # the size choices come back

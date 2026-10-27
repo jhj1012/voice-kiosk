@@ -5,7 +5,7 @@ Phases: idle -> ordering -> paying (insert card -> processing) -> done -> idle. 
 handset starts a session, hanging up ends it from any phase.
 
 The **current question** (`Kiosk.question`) is decided here, from the state: here or to go,
-then each drink's missing required options one at a time, the first drink's extras, what else
+then each drink's missing required options one at a time, each item's extras (once), what else
 they would like, and when they pay: anything for the staff, then the read-back. The display
 shows it and the assistant is told to ask it, so the two always match. The assistant's actions
 are not tied to it: a customer may say more than was asked ("아메리카노 아이스로, 카페라떼는
@@ -67,7 +67,7 @@ class Ask(StrEnum):
     DINING = "dining"  # here or to go
     MENU = "menu"  # what they would like (from the menu board) / anything else
     OPTION = "option"  # a required option of a drink being chosen
-    EXTRAS = "extras"  # the first drink's extras: "추가하실 거 있으세요?"
+    EXTRAS = "extras"  # an item's extras, once per item: "추가하실 거 있으세요?"
     LINE = "line"  # an order line shown again (go_back): change it if they want
     STAFF = "staff"  # before the read-back: "직원에게 따로 전달할 말씀 있으세요?"
     REVIEW = "review"  # the read-back
@@ -106,13 +106,13 @@ _REMEMBERED = {Screen.MENU, Screen.CATEGORIES, Screen.ITEM, Screen.INFO, Screen.
 
 @dataclass
 class Draft:
-    """A drink being chosen: its required options first, then (first drink only) its extras."""
+    """A drink being chosen: its required options first, then (first of its item) its extras."""
 
     id: int
     item: MenuItem
     quantity: int = 1
     chosen: Chosen = field(default_factory=dict)
-    ask_extras: bool = True  # only the order's first drink asks "추가하실 거 있으세요?"
+    ask_extras: bool = True  # "추가하실 거 있으세요?": asked once per item (its first drink)
     extras_done: bool = False
 
     @property
@@ -319,9 +319,7 @@ class Kiosk:
         chosen = self.menu.resolve(item, selection or {})
         target = _fitting([d for d in self.drafts if d.item.id == item.id], chosen)
         if target is not None and chosen and quantity is not None and quantity < target.quantity:
-            target.quantity -= quantity
-            draft = self._new_draft(item, quantity, {**target.chosen, **chosen})
-            draft.ask_extras = target.ask_extras
+            draft = self._split_off(target, quantity, chosen)
         elif target is not None:
             draft = target
             draft.chosen.update(chosen)
@@ -340,10 +338,14 @@ class Kiosk:
         draft_id: int | None = None,
     ) -> ItemResult:
         """Options (required or extras) or the number of cups of a drink being chosen.
-        Quantity 0 cancels it."""
+        Quantity 0 cancels it. Options with fewer cups than it has go to only that many cups
+        ("두 잔 중 하나만 라지로"): they are split off as a drink of their own, as with order."""
         self._require(Phase.ORDERING)
         draft = self.find_draft(item_id, selection, draft_id)
         chosen = self.menu.resolve(draft.item, selection or {})
+        if chosen and quantity and quantity < draft.quantity:
+            check_quantity(quantity)
+            return self._after_draft(self._split_off(draft, quantity, chosen))
         if quantity == 0:
             self.drafts.remove(draft)
             self._focus = None
@@ -356,6 +358,20 @@ class Kiosk:
         draft.chosen.update(chosen)
         self._touch_draft(draft)
         return self._after_draft(draft)
+
+    def _split_off(self, draft: Draft, cups: int, chosen: Selection) -> Draft:
+        """`cups` of `draft` as a drink of their own, with `chosen` on top of its options.
+
+        An option every cup already has is a correction ("샷 추가" went to all three, then "하나만
+        샷 추가해 줘"): only the split-off cups keep it; the rest lose it again (an extra goes back
+        to none, a temperature or size is asked again)."""
+        draft.quantity -= cups
+        new = self._new_draft(draft.item, cups, {**draft.chosen, **chosen})
+        new.ask_extras = draft.ask_extras
+        for group_id, choices in chosen.items():
+            if tuple(draft.chosen.get(group_id, ())) == tuple(choices):
+                del draft.chosen[group_id]
+        return new
 
     def no_more_extras(self, item_id: str | None = None, draft_id: int | None = None) -> ItemResult:
         """ "추가하실 거 있으세요?" - "없어요": the drink goes into the order."""
@@ -371,6 +387,13 @@ class Kiosk:
             names = ", ".join(g.id for g in draft.missing)
             raise KioskError(f"{draft.item.id}: {names} not chosen yet; ask for that first")
         draft.extras_done = True
+        # Cups split off the same drink ("하나만 라지로") had the same question: one "없어요" is
+        # for all of them, so it is not asked once per cup.
+        for other in [d for d in self.drafts if d is not draft and d.item.id == draft.item.id]:
+            if other.ask_extras:
+                other.extras_done = True
+                if not other.asking:
+                    self._add_line(other)
         return self._after_draft(draft)
 
     def find_draft(
@@ -380,13 +403,28 @@ class Kiosk:
         draft_id: int | None = None,
     ) -> Draft:
         """The drink being chosen that an answer is for: by number, or by item (when the same
-        item is there more than once, the one the options fit), else the one asked about."""
+        item is there more than once, the one the options fit, the asked one first), else the one
+        asked about. A number whose drink already has another temperature or size is taken as a
+        slip when another drink of that item still needs it ("나머지는 차갑게" sent to the drink
+        just made hot)."""
         if not self.drafts:
             raise KioskError("no drink is being chosen; use order")
         if draft_id:
             draft = self.draft(draft_id)
             if draft is None:
                 raise KioskError(f"there is no drink {draft_id} being chosen")
+            required = {
+                g: c
+                for g, c in self.menu.resolve(draft.item, selection or {}).items()
+                if (group := draft.item.group(g)) is not None and group.required
+            }
+            if any(
+                draft.chosen.get(g) and tuple(draft.chosen[g]) != c for g, c in required.items()
+            ):
+                others = [d for d in self.drafts if d.item.id == draft.item.id and d is not draft]
+                better = _fitting(others, required, filling_only=True)
+                if better is not None:
+                    return better
             return draft
         if not item_id:
             return self.asking_draft or self.drafts[-1]
@@ -396,7 +434,7 @@ class Kiosk:
             raise KioskError(f"{item_id} is not being chosen (being chosen: {waiting})")
         if len(same) > 1 and selection:
             chosen = self.menu.resolve(same[0].item, selection)
-            return _fitting(same, chosen) or same[-1]
+            return _fitting(same, chosen, prefer=self.asking_draft) or same[-1]
         return next((d for d in reversed(same) if d.asking), same[-1])
 
     # --- changing the order ------------------------------------------------------------------
@@ -524,7 +562,10 @@ class Kiosk:
     # --- helpers -----------------------------------------------------------------------------
 
     def _new_draft(self, item: MenuItem, quantity: int, chosen: Chosen) -> Draft:
-        first = self.order.is_empty and not self.drafts and not self._added
+        # The extras question once per item: 카페라떼 once, 아메리카노 once (split cups share it).
+        first = not any(d.item.id == item.id for d in self.drafts) and not any(
+            line.item.id == item.id for line in self.order.lines
+        )
         draft = Draft(self._next_draft, item, quantity, dict(chosen), ask_extras=first)
         self._next_draft += 1
         self.drafts.append(draft)
@@ -538,13 +579,16 @@ class Kiosk:
         """A drink changed: into the order if nothing is left to ask; then the next question."""
         self._focus = None
         self._changed()
-        line = None
-        if not draft.asking and draft in self.drafts:
-            line = self.order.add(draft.item, draft.item.complete(draft.chosen), draft.quantity)
-            self.drafts.remove(draft)
-            self._added[draft.id] = line
+        line = self._add_line(draft) if not draft.asking and draft in self.drafts else None
         self._sync()
         return ItemResult(line=line, draft=None if line else draft)
+
+    def _add_line(self, draft: Draft) -> CartLine:
+        """A finished drink into the order."""
+        line = self.order.add(draft.item, draft.item.complete(draft.chosen), draft.quantity)
+        self.drafts.remove(draft)
+        self._added[draft.id] = line
+        return line
 
     def _changed(self) -> None:
         """The order or a drink changed: paying must be asked for again."""
@@ -641,13 +685,23 @@ class Kiosk:
         self._touch()
 
 
-def _fitting(entries: list[Draft], chosen: Chosen) -> Draft | None:
+def _fitting(
+    entries: list[Draft],
+    chosen: Chosen,
+    *,
+    prefer: Draft | None = None,
+    filling_only: bool = False,
+) -> Draft | None:
     """The drink whose options do not contradict `chosen`, preferably one still missing some
-    of them; the one touched last wins a tie (None if none fits)."""
+    of them, then `prefer` (the one asked about); else the one touched last (None if none fits,
+    or with `filling_only` none still missing them)."""
     fits = [
         d
         for d in entries
         if all(not d.chosen.get(g) or tuple(d.chosen[g]) == tuple(c) for g, c in chosen.items())
     ]
     filling = [d for d in fits if any(not d.chosen.get(g) for g in chosen)]
-    return (filling or fits or [None])[-1]
+    best = filling if filling or filling_only else fits
+    if prefer is not None and prefer in best:
+        return prefer
+    return (best or [None])[-1]
