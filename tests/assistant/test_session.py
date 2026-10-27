@@ -683,3 +683,24 @@ def test_three_cups_one_cold_two_hot(new_kiosk):
         assert sorted(d.quantity for d in h.kiosk.drafts) == [1, 2]
 
     run(scenario, new_kiosk)
+
+
+def test_thoughts_said_out_loud_are_cut_and_said_again(new_kiosk):
+    # Team test: "아메리카노에 추가하실 거 있으세요?*   Wait for user preference about additions."
+    async def scenario(h: Harness):
+        before = h.listener.interruptions
+        h.conn.push(
+            OutputText("아메리카노에 추가하실 거 있으세요?"),
+            AudioOut(b"\0" * 48),
+            OutputText("*   Wait for user preference about additions."),
+            AudioOut(b"\0" * 48),  # the thought's sound: not played
+            TurnComplete(),
+        )
+        await h.settle()
+        assert h.listener.interruptions == before + 1  # the sound stopped at once
+        assert len(h.listener.audio) == 1
+        said = [u.text for u in h.session.transcript.entries if u.speaker == "assistant"]
+        assert said[-1] == "아메리카노에 추가하실 거 있으세요?"
+        assert h.conn.texts[-1].startswith("[방금 대답에 손님에게 하지 않을 말")
+
+    run(scenario, new_kiosk)
