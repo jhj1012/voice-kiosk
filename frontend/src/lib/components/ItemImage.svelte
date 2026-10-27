@@ -17,6 +17,7 @@
 
 <style>
   .tile {
+    position: relative; /* the image fills it and never sizes it (photos are 1024 px wide) */
     width: 100%;
     aspect-ratio: 1;
     border-radius: var(--radius-m);
@@ -32,17 +33,22 @@
     border-radius: var(--radius-s);
   }
   img {
+    position: absolute;
+    inset: 0;
     width: 100%;
     height: 100%;
     object-fit: contain;
   }
   .emoji {
-    font-size: 5.5rem;
+    --text-role: itemimage-emoji;
+    font-size: calc(5.5rem * var(--size-all) * var(--fs-itemimage-emoji, 1));
   }
   .l .emoji {
-    font-size: 13rem;
+    --text-role: itemimage-l-emoji;
+    font-size: calc(13rem * var(--size-all) * var(--fs-itemimage-l-emoji, 1));
   }
   .s .emoji {
-    font-size: 2.2rem;
+    --text-role: itemimage-s-emoji;
+    font-size: calc(2.2rem * var(--size-all) * var(--fs-itemimage-s-emoji, 1));
   }
 </style>
