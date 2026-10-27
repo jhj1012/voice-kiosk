@@ -302,7 +302,7 @@ def test_full_payment_after_the_read_back(new_kiosk):
         await order_ready(h)
         await h.say("결제할게요")
         result = await h.call("pay")
-        assert result["read_back"].endswith("포장으로 총 4,000원입니다.")
+        assert result["read_back"].endswith("포장으로 총 사천 원입니다.")
         assert h.kiosk.view.screen is Screen.REVIEW
         assert h.kiosk.phase is Phase.ORDERING  # not before the read-back was said
         await h.reply(result["read_back"])
@@ -438,7 +438,7 @@ def test_failed_resume_starts_fresh_with_the_order(new_kiosk, monkeypatch):
         setup = connector.setups[-1]
         assert setup.resume_handle is None
         # The fresh session knows the order, what is still waiting and what was just said.
-        assert "1. 차가운 아메리카노 레귤러 1잔 4,000원" in setup.instructions
+        assert "1. 차가운 아메리카노 레귤러 1잔 사천 원" in setup.instructions
         assert "cafe_latte 카페라떼 x1, missing 온도, 사이즈" in setup.instructions
         assert "- assistant: 따뜻하게 드릴까요, 아이스로 드릴까요?" in setup.instructions
         assert h.conn.texts == [RECONNECTED_CUE]

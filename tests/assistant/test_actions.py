@@ -37,8 +37,8 @@ def test_options_are_asked_one_at_a_time_without_choices_or_prices(actions: Acti
     result = actions.call("no_more_extras", {})
     assert result == {
         "added": "차가운 아메리카노 라지(바닐라 시럽) 2잔",
-        "order": ["1. 차가운 아메리카노 라지(바닐라 시럽) 2잔 10,000원"],
-        "total": "10,000원",
+        "order": ["1. 차가운 아메리카노 라지(바닐라 시럽) 2잔 만 원"],
+        "total": "만 원",
         "ask": ANYTHING_ELSE,
     }
 
@@ -137,7 +137,7 @@ def test_pay_asks_for_what_is_missing_then_the_staff_then_reads_back(
     assert actions.call("pay", {}) == {"ask_first": STAFF_QUESTION, "next": ASK_STAFF}
     result = actions.call("pay", {})
     assert result["read_back"] == (
-        "주문 확인해 드릴게요. 초코 쿠키 1개, 매장에서 드시고 총 2,500원입니다."
+        "주문 확인해 드릴게요. 초코 쿠키 1개, 매장에서 드시고 총 이천오백 원입니다."
     )
     assert kiosk.review_is_current and kiosk.phase is Phase.ORDERING  # the session goes on
 

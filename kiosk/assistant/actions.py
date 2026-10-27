@@ -15,8 +15,8 @@ from typing import Any
 
 from kiosk.assistant.tools import selection_from_args
 from kiosk.domain.flow import EXTRAS, Ask, Draft, ItemResult, Kiosk, Phase, Screen, View
-from kiosk.domain.menu import TEMPERATURE, KioskError, OptionGroup
-from kiosk.domain.order import CartLine, Dining, won
+from kiosk.domain.menu import TEMPERATURE, KioskError, OptionChoice, OptionGroup
+from kiosk.domain.order import CartLine, Dining, won_spoken
 
 log = logging.getLogger(__name__)
 
@@ -39,6 +39,12 @@ ASK_STAFF = (
 )
 SAY_READ_BACK = "Say the read_back now, word for word; nothing about the card yet."
 LINE_SHOWN = "Shown again. If they want to change it, call change with line {line}."
+CONFIRM_SAME = (
+    "Their answer may be for {other} too. Ask this. Yes: call set_options with draft {draft} and "
+    "the same {group}. No: ask '{no}'."
+)
+CONFIRM_SKIP = " If they already said which drink it was for, do not ask this; ask '{then}'."
+HELD = "Not set for {other}: the customer did not say it was for both. Ask this first."
 
 
 class Actions:
@@ -242,6 +248,28 @@ class Actions:
             return f"{name}{_topic(name)} 따뜻하게 드릴까요, 차갑게 드릴까요?"
         return f"{name} {group.name}{_topic(group.name)} 어떤 걸로 해 드릴까요?"
 
+    def confirm_same(
+        self, other: Draft, group: OptionGroup, choices: tuple[OptionChoice, ...], then: str = ""
+    ) -> Result:
+        """Ask whether an answer given for one drink is for `other` too (the same item, also
+        missing `group`): "따뜻한 아메리카노도 레귤러로 해 드릴까요?"."""
+        name = self._draft_name(other)
+        value = choices[0].label or _with_ro(choices[0].spoken)
+        note = CONFIRM_SAME.format(
+            other=name, draft=other.id, group=group.id, no=self._option_question(other, group)
+        )
+        if then:
+            note += CONFIRM_SKIP.format(then=then)
+        return {"ask": f"{name}도 {value} 해 드릴까요?", "confirm_note": note}
+
+    def held(self, other: Draft) -> str:
+        return HELD.format(other=self._draft_name(other))
+
+    def _draft_name(self, draft: Draft) -> str:
+        """e.g. "따뜻한 아메리카노": what tells it apart from the same item chosen differently."""
+        said = [c.spoken for cs in draft.chosen.values() for c in cs if not c.is_none]
+        return " ".join([*said, draft.item.name])
+
     def _draft_text(self, draft: Draft) -> str:
         said = [c.spoken for cs in draft.chosen.values() for c in cs if not c.is_none]
         unit = self.kiosk.menu.unit(draft.item)
@@ -291,10 +319,10 @@ class Actions:
         order = self.kiosk.order
         return {
             "order": [
-                f"{n}. {self._spoken(line)} {won(line.total)}"
+                f"{n}. {self._spoken(line)} {won_spoken(line.total)}"
                 for n, line in enumerate(order.lines, start=1)
             ],
-            "total": won(order.total),
+            "total": won_spoken(order.total),
         }
 
     def _spoken(self, line: CartLine) -> str:
@@ -310,6 +338,16 @@ def _topic(word: str) -> str:
     if "가" <= last <= "힣" and (ord(last) - 0xAC00) % 28:
         return "은"
     return "는"
+
+
+def _with_ro(word: str) -> str:
+    """으로 after a final consonant other than ㄹ, 로 otherwise ("레귤러로", "라지로")."""
+    last = word[-1] if word else ""
+    if "가" <= last <= "힣":
+        final = (ord(last) - 0xAC00) % 28
+        if final and final != 8:  # 8: ㄹ
+            return f"{word}으로"
+    return f"{word}로"
 
 
 def _int(value: Any) -> int:

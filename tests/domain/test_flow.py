@@ -348,7 +348,7 @@ def test_paying_asks_the_staff_question_then_reads_back(kiosk: Kiosk):
     assert kiosk.question.kind is Ask.STAFF and kiosk.view.screen is Screen.REVIEW
     assert kiosk.request_payment() is Ask.REVIEW
     assert kiosk.read_back == (
-        "주문 확인해 드릴게요. 차가운 아메리카노 레귤러 1잔, 포장으로 총 4,000원입니다."
+        "주문 확인해 드릴게요. 차가운 아메리카노 레귤러 1잔, 포장으로 총 사천 원입니다."
     )
     assert kiosk.review_is_current
 

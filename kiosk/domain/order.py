@@ -26,8 +26,37 @@ class Dining(StrEnum):
 
 
 def won(amount: int) -> str:
-    """Format a price, e.g. 4500 -> "4,500원"."""
+    """Format a price for the screen, e.g. 4500 -> "4,500원"."""
     return f"{amount:,}원"
+
+
+_DIGIT_WORDS = "영일이삼사오육칠팔구"
+
+
+def won_spoken(amount: int) -> str:
+    """A price in Korean words, for the assistant to say: 13200 -> "만 삼천이백 원".
+
+    The model read "13,200원" as "십삼만 이천 원" (thousands commas against Korean 만 groups), so
+    it gets the words instead."""
+    if amount <= 0:
+        return "영 원"
+
+    def below_10000(n: int) -> str:
+        words = ""
+        for unit, value in (("천", 1000), ("백", 100), ("십", 10)):
+            digit, n = divmod(n, value)
+            if digit:
+                words += ("" if digit == 1 else _DIGIT_WORDS[digit]) + unit
+        return words + (_DIGIT_WORDS[n] if n else "")
+
+    parts = []
+    for unit, value in (("억", 100_000_000), ("만", 10_000)):
+        group, amount = divmod(amount, value)
+        if group:
+            parts.append(("" if group == 1 else below_10000(group)) + unit)
+    if amount:
+        parts.append(below_10000(amount))
+    return " ".join(parts) + " 원"
 
 
 def check_quantity(quantity: int) -> None:
@@ -182,7 +211,7 @@ class Order:
         if self.is_empty:
             raise KioskError("the order is empty")
         items = ", ".join(line.spoken(menu.unit(line.item)) for line in self.lines)
-        total = f"총 {won(self.total)}입니다."
+        total = f"총 {won_spoken(self.total)}입니다."
         if self.dining is Dining.HERE:
             total = f"매장에서 드시고 {total}"
         elif self.dining is Dining.TO_GO:
