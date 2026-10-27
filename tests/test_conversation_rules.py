@@ -355,6 +355,26 @@ def test_some_cups_without_only_leaves_the_rest_to_ask(new_kiosk):
     run(scenario, new_kiosk)
 
 
+def test_an_extra_for_all_cups_corrected_to_one(new_kiosk):
+    # Team test: three regular cups, "샷 추가" went to all three; "레귤러 중에 하나만 샷추가 해줘"
+    # split one off but the other two kept the shot.
+    async def scenario(h: Harness):
+        await lifted(h)
+        await h.say("따뜻한 아메리카노 레귤러 세 잔이요")
+        await h.call("order", item_id="americano", quantity=3, temperature="hot", size="regular")
+        await h.reply("아메리카노에 추가하실 거 있으세요?")
+        await h.say("샷 추가")
+        await h.call("set_options", item_id="americano", shot="extra_shot")
+        await h.say("아니 레귤러중에 하나만 샷추가 해줘")
+        await h.call("set_options", item_id="americano", quantity=1, shot="extra_shot")
+        cups = sorted(
+            (d.quantity, [c.id for c in d.chosen.get("shot", ())]) for d in h.kiosk.drafts
+        )
+        assert cups == [(1, ["extra_shot"]), (2, [])]
+
+    run(scenario, new_kiosk)
+
+
 def test_the_same_answer_is_not_put_on_both_drinks_unasked(new_kiosk):
     async def scenario(h: Harness):
         await iced_and_hot(h)

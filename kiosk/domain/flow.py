@@ -360,10 +360,17 @@ class Kiosk:
         return self._after_draft(draft)
 
     def _split_off(self, draft: Draft, cups: int, chosen: Selection) -> Draft:
-        """`cups` of `draft` as a drink of their own, with `chosen` on top of its options."""
+        """`cups` of `draft` as a drink of their own, with `chosen` on top of its options.
+
+        An option every cup already has is a correction ("샷 추가" went to all three, then "하나만
+        샷 추가해 줘"): only the split-off cups keep it; the rest lose it again (an extra goes back
+        to none, a temperature or size is asked again)."""
         draft.quantity -= cups
         new = self._new_draft(draft.item, cups, {**draft.chosen, **chosen})
         new.ask_extras = draft.ask_extras
+        for group_id, choices in chosen.items():
+            if tuple(draft.chosen.get(group_id, ())) == tuple(choices):
+                del draft.chosen[group_id]
         return new
 
     def no_more_extras(self, item_id: str | None = None, draft_id: int | None = None) -> ItemResult:
