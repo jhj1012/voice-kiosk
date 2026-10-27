@@ -27,8 +27,8 @@ option_groups:
     multi: false
     words: [사이즈, 레귤, 레규, 라지, 라디, 큰, 크게, 작은, 작게, 보통, 기본, 스몰, regular, large]
     choices:
-      - {id: regular, name: Regular, say: 레귤러, price: 0}
-      - {id: large, name: Large, say: 라지, price: 500}
+      - {id: regular, name: Regular, say: 레귤러 (기본), price: 0}
+      - {id: large, name: Large, say: 라지 (큰 사이즈), price: 500}
   - id: tumbler
     name: 텀블러
     required: false
