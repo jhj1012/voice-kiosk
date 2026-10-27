@@ -300,6 +300,32 @@ def test_an_extra_may_be_for_a_drink_already_in_the_order(new_kiosk):
     run(scenario, new_kiosk)
 
 
+def test_only_some_in_other_words():
+    from kiosk.assistant.safety import only_some
+
+    for words in ["2개만 아이스로", "두 잔만 아이스로", "하나만 라지로 해줘", "한 잔만 차갑게"]:
+        assert only_some(words), words
+    for words in ["두 잔은 아이스로", "레귤러만 돼요?", "아메리카노 두 잔이요"]:
+        assert not only_some(words), words
+
+
+def test_all_of_them_in_other_words():
+    from kiosk.assistant.safety import meant_for_all
+
+    for words in [
+        "둘 다 레귤러요",
+        "셋 다 레귤러로",
+        "세 잔 다요",
+        "3잔 다 라지",
+        "전부 샷 추가",
+        "똑같이요",
+        "다 레귤러로",
+    ]:
+        assert meant_for_all(words), words
+    for words in ["레귤러요", "하나만 라지로", "다음에요", "다 됐어요"]:
+        assert not meant_for_all(words), words
+
+
 def test_only_some_cups_means_the_rest_get_the_other_choice(new_kiosk):
     # Team test: "아메리카노 6잔" → "2개만 아이스로" asked the other four's temperature (twice).
     async def scenario(h: Harness):
@@ -402,6 +428,24 @@ def test_extras_are_asked_once_per_item(new_kiosk):
         await h.say("따뜻한 카페라떼 레귤러도 하나요")
         result = await h.call("order", item_id="cafe_latte", temperature="hot", size="regular")
         assert result["ask"] == "카페라떼에 추가하실 거 있으세요?"  # another item: asked once
+
+    run(scenario, new_kiosk)
+
+
+def test_the_same_words_twice_are_two_answers(new_kiosk):
+    # Team log: "아니" to the extras question, then "아니" to "더 필요하신 거 있으세요?": the second
+    # was taken for the first (the same words), so paying was blocked.
+    async def scenario(h: Harness):
+        await lifted(h)
+        await h.say("따뜻한 아메리카노 레귤러 하나요")
+        await h.call("order", item_id="americano", temperature="hot", size="regular")
+        await h.reply("아메리카노에 추가하실 거 있으세요?")
+        await h.say("아니")
+        await h.call("no_more_extras")
+        await h.reply("더 필요하신 거 있으세요?")
+        await h.say("아니")
+        result = await h.call("pay")
+        assert "blocked" not in result
 
     run(scenario, new_kiosk)
 
