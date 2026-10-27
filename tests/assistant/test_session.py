@@ -254,6 +254,7 @@ def test_function_calls_change_the_kiosk(new_kiosk):
             "order", item_id="americano", quantity=2, temperature="ice", size="large"
         )
         assert "추가하실 거 있으세요?" in result["ask"]  # the first item's extras
+        await h.say("없어요")
         result = await h.call("no_more_extras")
         assert result["added"] == "차가운 아메리카노 라지 2잔"
         assert h.kiosk.order.total == 9000

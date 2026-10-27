@@ -51,6 +51,7 @@ from kiosk.assistant.safety import (
     mostly_foreign,
     only_some,
     said_amount,
+    wants_nothing_more,
     wants_to_stop,
 )
 from kiosk.assistant.tools import (
@@ -59,7 +60,7 @@ from kiosk.assistant.tools import (
     selection_from_args,
 )
 from kiosk.config import FlowConfig
-from kiosk.domain.flow import Draft, Kiosk, Phase
+from kiosk.domain.flow import Ask, Draft, Kiosk, Phase
 from kiosk.domain.menu import Chosen, KioskError
 
 log = logging.getLogger(__name__)
@@ -91,6 +92,10 @@ CONNECTION_LOST = "연결이 끊어졌어요. 수화기를 내려놓았다가 �
 NOT_ASKED_TO_PAY = (
     "BLOCKED: the customer has not asked to pay (or changed the order since). Do not start the "
     "payment. Ask whether they want anything else or would like to pay."
+)
+EXTRAS_NOT_ANSWERED = (
+    "Not done: the customer has not answered '추가하실 거 있으세요?' yet. Wait for their answer; "
+    "call no_more_extras only after they say they want nothing (more)."
 )
 NOT_SAID = (
     "The customer did not mention {groups}, so it was not set: never fill in an option. Ask the "
@@ -415,6 +420,9 @@ class AssistantSession:
             result = self._without_guesses(call.name, args)
         elif call.name == "change" and (held := self._held_for_line(args)) is not None:
             result = held
+        elif call.name == "no_more_extras" and not self._extras_answered():
+            log.info("no_more_extras before the customer answered: not done")
+            result = {"not_done": EXTRAS_NOT_ANSWERED}
         else:
             result = self.actions.call(call.name, args)
         if self.kiosk.question != question:
@@ -553,6 +561,16 @@ class AssistantSession:
             return result
         log.info("the rest of %s: %s", rest.item.id, others)
         return self.actions.call("set_options", {"draft": rest.id, **others})
+
+    def _extras_answered(self) -> bool:
+        """The customer answered the extras question: they spoke after it was asked, or said
+        before that they want nothing added ("레귤러로, 추가는 없어요")."""
+        if self.kiosk.question.kind is not Ask.EXTRAS:
+            return True  # the domain explains any mistake
+        if self.transcript.customer_since(self._question_mark):
+            return True
+        latest = self.transcript.last_customer()
+        return latest is not None and wants_nothing_more(latest.text)
 
     def _held_for_line(self, args: dict[str, Any]) -> Result | None:
         """change on an order line with the answer just given for a drink being chosen, which the

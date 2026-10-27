@@ -41,8 +41,9 @@ def test_split_cups_become_separate_lines(new_kiosk):
         await h.say("둘 다 레귤러요")
         await h.call("set_options", item_id="americano", size="regular")
         await h.call("set_options", item_id="americano", size="regular")
-        for _ in range(2):
-            await h.call("no_more_extras", item_id="americano")
+        await h.reply("아메리카노에 추가하실 거 있으세요?")
+        await h.say("없어요")
+        await h.call("no_more_extras", item_id="americano")
         lines = sorted((ln.quantity, ln.option_text) for ln in h.kiosk.order.lines)
         assert lines == [(1, "ICE, Regular"), (2, "HOT, Regular")]
 
@@ -415,6 +416,36 @@ def test_no_to_the_extras_question_does_not_start_paying(new_kiosk):
         await h.say("없어요")
         await h.call("no_more_extras")
         assert "blocked" in await h.call("pay")
+
+    run(scenario, new_kiosk)
+
+
+def test_the_extras_question_waits_for_the_customer(new_kiosk):
+    # Real run: the model asked "추가하실 거 있으세요?" and called no_more_extras without an answer.
+    async def scenario(h: Harness):
+        await lifted(h)
+        await h.say("따뜻한 아메리카노 레귤러 하나요")
+        await h.call("order", item_id="americano", temperature="hot", size="regular")
+        await h.reply("아메리카노에 추가하실 거 있으세요?")
+        result = await h.call("no_more_extras")  # nobody answered
+        assert "not_done" in result and h.kiosk.drafts
+        await h.say("샷 추가요")
+        await h.call("set_options", shot="extra_shot")
+        await h.reply("더 추가하실 거 있으세요?")
+        await h.say("없어요")
+        result = await h.call("no_more_extras")
+        assert "not_done" not in result and not h.kiosk.drafts
+
+    run(scenario, new_kiosk)
+
+
+def test_nothing_to_add_said_up_front_is_taken(new_kiosk):
+    async def scenario(h: Harness):
+        await lifted(h)
+        await h.say("따뜻한 아메리카노 레귤러로 하나, 추가는 없어요")
+        await h.call("order", item_id="americano", temperature="hot", size="regular")
+        result = await h.call("no_more_extras")
+        assert "not_done" not in result and not h.kiosk.drafts
 
     run(scenario, new_kiosk)
 

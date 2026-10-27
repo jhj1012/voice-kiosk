@@ -183,6 +183,15 @@ def only_some(text: str) -> bool:
     return bool(_ONLY_SOME.search(text))
 
 
+# "추가는 없어요", "그냥 주세요", "괜찮아요": nothing (more) to add.
+_NOTHING_MORE = re.compile(r"없|괜찮|그냥|됐|안\s*(해|넣)")
+
+
+def wants_nothing_more(text: str) -> bool:
+    """The customer said they want nothing (more) added ("추가는 없어요", "그냥 주세요")."""
+    return bool(_NOTHING_MORE.search(text))
+
+
 def customer_asked_to_pay(transcript: Transcript, since: int) -> bool:
     """True if a customer utterance from `since` on (always including the latest) asks to pay."""
     utterances = transcript.customer_since(since)
