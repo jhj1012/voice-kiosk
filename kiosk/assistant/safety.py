@@ -166,30 +166,6 @@ def asks_to_pay(customer: str, assistant_before: str = "") -> bool:
     return bool(_PAY_QUESTION.search(a) and is_yes(customer))  # "결제 도와드릴까요?" - "네"
 
 
-def customer_asked_to_pay(transcript: Transcript, since: int) -> bool:
-    """True if a customer utterance from `since` on (always including the latest) asks to pay."""
-    utterances = transcript.customer_since(since)
-    latest = transcript.last_customer()
-    if latest is not None and latest not in utterances:
-        utterances.append(latest)
-    for utterance in utterances:
-        before = transcript.assistant_before(utterance)
-        if asks_to_pay(utterance.text, before.text if before else ""):
-            return True
-    return False
-
-
-def confirmed_cancel(transcript: Transcript) -> bool:
-    """The latest customer words are a yes to the assistant's question about cancelling."""
-    latest = transcript.last_customer()
-    if latest is None or not is_yes(latest.text):
-        return False
-    before = transcript.assistant_before(latest)
-    return before is not None and bool(_CANCEL_QUESTION.search(normalize(before.text)))
-
-
-# --- which drinks an answer is for (answers.py) ---------------------------------------------------
-
 # Words that make an answer meant for every drink being chosen ("둘 다 레귤러요", "셋 다").
 _FOR_ALL = re.compile(
     r"(둘|셋|넷|다섯|[두세네]\s*(잔|개)|[2-9]\s*(잔|개)?)\s*(다|모두|전부)"
@@ -221,6 +197,28 @@ _NOTHING_MORE = re.compile(r"없|괜찮|그냥|됐|안\s*(해|넣)")
 def wants_nothing_more(text: str) -> bool:
     """The customer said they want nothing (more) added ("추가는 없어요", "그냥 주세요")."""
     return bool(_NOTHING_MORE.search(text))
+
+
+def customer_asked_to_pay(transcript: Transcript, since: int) -> bool:
+    """True if a customer utterance from `since` on (always including the latest) asks to pay."""
+    utterances = transcript.customer_since(since)
+    latest = transcript.last_customer()
+    if latest is not None and latest not in utterances:
+        utterances.append(latest)
+    for utterance in utterances:
+        before = transcript.assistant_before(utterance)
+        if asks_to_pay(utterance.text, before.text if before else ""):
+            return True
+    return False
+
+
+def confirmed_cancel(transcript: Transcript) -> bool:
+    """The latest customer words are a yes to the assistant's question about cancelling."""
+    latest = transcript.last_customer()
+    if latest is None or not is_yes(latest.text):
+        return False
+    before = transcript.assistant_before(latest)
+    return before is not None and bool(_CANCEL_QUESTION.search(normalize(before.text)))
 
 
 # --- guessed options ---------------------------------------------------------------------------

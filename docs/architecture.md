@@ -210,24 +210,6 @@ shown at once, and the read-back lets the customer correct it.
 | No guessed options | For `order` and `set_options`, a temperature or size the customer did not mention at all (none of the group's `words` in `menu.yaml`) is left out unless the screen asks for that option; the result says `not_said` and the kiosk asks. Answers to the question on screen are always taken. |
 | Discard only after a yes | `cancel_order` (while ordering) is blocked unless the latest customer words are a yes and the assistant's previous words asked about cancelling. |
 
-### Whose answer, for which drink (`kiosk.assistant.answers`)
-
-`order`, `set_options`, `change` and `no_more_extras` go through `Answers` before the kiosk. It
-keeps what these rules need of the conversation (where the current question started, the
-options given since the customer last spoke, the "…도 레귤러로 해 드릴까요?" being asked) and
-decides what of the model's call the customer really said and for which drink:
-
-- no guessed options (above); an answer to the question on screen counts only once the customer
-  spoke after it was asked; the extras question waits for an answer;
-- one answer, one drink: with the same item chosen more than once (or already in the order) and
-  no "둘 다", the drink asked about gets it and the kiosk asks about the other; the same answer
-  put on another drink in the same turn is held;
-- "N만" splits cups off (the domain's split) and gives the rest the only other choice.
-
-What differs between kinds of options (required with two choices, required with more, extras)
-is in one place, `OptionRule`; the Korean phrases in `safety` ("둘 다", "N만", "추가는 없어요"),
-with a table test. `scripts/typed_check.py` replays the team's cases through the real Live API.
-
 ## Function declarations
 
 Eleven functions, named by **what they change**, not by the question asked: one sentence may
