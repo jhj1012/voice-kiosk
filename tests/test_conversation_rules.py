@@ -131,6 +131,79 @@ def test_an_answer_the_customer_did_not_give_is_not_taken(new_kiosk):
     run(scenario, new_kiosk)
 
 
+async def iced_and_hot(h: Harness) -> None:
+    await lifted(h)
+    await h.say("아이스 아메리카노 하나랑 핫 아메리카노 하나 주세요")
+    await h.call("order", item_id="americano", temperature="ice")
+    await h.call("order", item_id="americano", temperature="hot")
+    assert view(h) == ("americano", "size")
+    await h.reply("차가운 아메리카노 사이즈는 어떤 걸로 해 드릴까요?")
+
+
+def sizes(h: Harness) -> dict[str, list[str]]:
+    """Each americano's temperature and size, being chosen or in the order."""
+    drinks = [d.chosen for d in h.kiosk.drafts] + [line.chosen() for line in h.kiosk.order.lines]
+    return {
+        c["temperature"][0].id: [x.id for x in c.get("size", ())]
+        for c in drinks
+        if "temperature" in c
+    }
+
+
+def test_an_answer_that_may_be_for_two_drinks_is_checked(new_kiosk):
+    # Team test: "아이스/핫 아메리카노" at once; "레귤러요" went to both, or only one was asked.
+    async def scenario(h: Harness):
+        await iced_and_hot(h)
+        await h.say("레귤러요")
+        result = await h.call("set_options", draft=1, size="regular")
+        assert sizes(h) == {"ice": ["regular"], "hot": []}
+        assert result["ask"] == "따뜻한 아메리카노도 레귤러로 해 드릴까요?"
+        assert "따뜻한 아메리카노 사이즈는" in result["confirm_note"]  # the question if "아니요"
+        await h.say("네")
+        result = await h.call("set_options", draft=2, size="regular")
+        assert sizes(h) == {"ice": ["regular"], "hot": ["regular"]}
+        assert "confirm_note" not in result
+
+    run(scenario, new_kiosk)
+
+
+def test_the_same_answer_is_not_put_on_both_drinks_unasked(new_kiosk):
+    async def scenario(h: Harness):
+        await iced_and_hot(h)
+        await h.say("레귤러요")
+        await h.call("set_options", draft=1, size="regular")
+        result = await h.call("set_options", draft=2, size="regular")  # the model's guess
+        assert sizes(h) == {"ice": ["regular"], "hot": []}
+        assert "not_set" in result
+        assert result["ask"] == "따뜻한 아메리카노도 레귤러로 해 드릴까요?"
+
+    run(scenario, new_kiosk)
+
+
+def test_an_answer_for_both_drinks_goes_to_both(new_kiosk):
+    async def scenario(h: Harness):
+        await iced_and_hot(h)
+        await h.say("둘 다 레귤러요")
+        await h.call("set_options", draft=1, size="regular")
+        result = await h.call("set_options", draft=2, size="regular")
+        assert sizes(h) == {"ice": ["regular"], "hot": ["regular"]}
+        assert "confirm_note" not in result and "not_set" not in result
+
+    run(scenario, new_kiosk)
+
+
+def test_different_answers_for_each_drink_are_taken(new_kiosk):
+    async def scenario(h: Harness):
+        await iced_and_hot(h)
+        await h.say("아이스는 레귤러, 핫은 라지로 주세요")
+        await h.call("set_options", draft=1, size="regular")
+        result = await h.call("set_options", draft=2, size="large")
+        assert sizes(h) == {"ice": ["regular"], "hot": ["large"]}
+        assert "confirm_note" not in result and "not_set" not in result
+
+    run(scenario, new_kiosk)
+
+
 def test_extras_are_asked_only_for_the_first_item(new_kiosk):
     async def scenario(h: Harness):
         await lifted(h)

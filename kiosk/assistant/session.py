@@ -46,6 +46,7 @@ from kiosk.assistant.safety import (
     customer_asked_to_pay,
     guessed_groups,
     is_yes,
+    meant_for_all,
     mostly_foreign,
     said_amount,
     wants_to_stop,
@@ -185,6 +186,11 @@ class AssistantSession:
         # Where the transcript was when the kiosk's question last changed: only customer words
         # after it answer that question (not an answer the model made up right after asking).
         self._question_mark = 0
+        # Required options set since the customer last spoke: (draft, item, group, choices).
+        self._answers: list[tuple[int, str, str, tuple[str, ...]]] = []
+        self._answers_mark = -1
+        # The kiosk asked "따뜻한 아메리카노도 레귤러로 해 드릴까요?": (draft, group, choices).
+        self._confirming: tuple[int, str, tuple[str, ...]] | None = None
         self._read_back: _ReadBack | None = None
         self._terminal_id = 0
         self._quiet_turn = False  # stay_quiet was called: this turn is not heard
@@ -401,7 +407,9 @@ class AssistantSession:
             and not confirmed_cancel(self.transcript)
         ):
             result = {"blocked": CANCEL_NOT_CONFIRMED}
-        elif call.name in ("order", "set_options"):
+        elif call.name == "set_options":
+            result = self._answer_for_one_drink(args)
+        elif call.name == "order":
             result = self._without_guesses(call.name, args)
         else:
             result = self.actions.call(call.name, args)
@@ -414,6 +422,90 @@ class AssistantSession:
                 self._read_back = None
                 result = {**result, "payment": ORDER_CHANGED_NOTE}
         log.info("call %s(%s) -> %s", call.name, args, result)
+        return result
+
+    def _answer_for_one_drink(self, args: dict[str, Any]) -> Result:
+        """set_options, with an answer that may be for several drinks ("레귤러요" while an iced and
+        a hot americano both need a size): it goes to one drink, and the kiosk asks whether the
+        other one gets it too, unless the customer said it was for all ("둘 다 레귤러요")."""
+        menu = self.kiosk.menu
+        try:
+            draft_arg = args.get("draft")
+            draft = self.kiosk.find_draft(
+                args.get("item_id") or None,
+                selection_from_args(menu, args),
+                int(float(draft_arg)) if draft_arg else None,
+            )
+            chosen = menu.resolve(draft.item, selection_from_args(menu, args))
+        except (KioskError, TypeError, ValueError):
+            return self._without_guesses("set_options", args)
+        if self._answers_mark != self.transcript.mark:  # the customer spoke: a new answer
+            self._answers, self._answers_mark = [], self.transcript.mark
+        latest = self.transcript.last_customer()
+        for_all = meant_for_all(latest.text if latest else "")
+        answer = {
+            g: tuple(c.id for c in cs)
+            for g, cs in chosen.items()
+            if (group := draft.item.group(g)) is not None and group.required
+        }
+        # The same answer already went to another drink of this item in this turn: hold it.
+        held = [
+            g
+            for g, ids in answer.items()
+            if not for_all
+            and any(
+                d != draft.id and (i, gr, c) == (draft.item.id, g, ids)
+                for d, i, gr, c in self._answers
+            )
+        ]
+        for g in held:
+            args.pop(g, None)
+            del answer[g]
+        held_group = draft.item.group(held[0]) if held else None
+        if held_group is not None:
+            log.info("held: the same %s for another %s", held_group.id, draft.item.id)
+            confirm = self.actions.confirm_same(draft, held_group, chosen[held_group.id])
+            self._confirming = (draft.id, held_group.id, tuple(c.id for c in chosen[held_group.id]))
+            if not set(args) - {"item_id", "draft"}:  # nothing else to set
+                return {"not_set": self.actions.held(draft), **confirm}
+        confirmed = self._confirming is not None and any(
+            self._confirming == (draft.id, g, ids) for g, ids in answer.items()
+        )
+        if confirmed and latest is not None and is_yes(latest.text):
+            # "네" to the kiosk's own question: the option is what it asked about.
+            self._confirming = None
+            result = self.actions.call("set_options", args)
+        else:
+            result = self._without_guesses("set_options", args)
+        if "error" in result:
+            return result
+        if held_group is not None:
+            return {**result, "not_set": self.actions.held(draft), **confirm}
+        # Only what was really set (a guessed option was left out) counts as answered.
+        answer = {
+            g: ids
+            for g, ids in answer.items()
+            if tuple(c.id for c in draft.chosen.get(g, ())) == ids
+        }
+        self._answers += [(draft.id, draft.item.id, g, ids) for g, ids in answer.items()]
+        if for_all:
+            return result
+        answered = {(d, g) for d, _, g, _ in self._answers}
+        for g in answer:
+            group = draft.item.group(g)
+            others = [
+                d
+                for d in self.kiosk.drafts
+                if d.id != draft.id
+                and d.item.id == draft.item.id
+                and any(m.id == g for m in d.missing)
+                and (d.id, g) not in answered
+            ]
+            if group is not None and others:
+                then = str(result.get("ask", ""))
+                result.update(self.actions.confirm_same(others[0], group, chosen[g], then))
+                self._confirming = (others[0].id, g, answer[g])
+                break
         return result
 
     def _without_guesses(self, name: str, args: dict[str, Any]) -> Result:
