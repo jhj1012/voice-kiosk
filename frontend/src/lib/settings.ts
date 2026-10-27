@@ -1,8 +1,11 @@
 // The settings from the developer panel (F2): the choices' background style, subtitles, the
 // colours, whether the assistant ignores speech not meant for the kiosk (read by the backend when
-// the next customer lifts the handset), and how much of the phone's screen its case covers. The
+// the next customer lifts the handset), how much of the phone's screen its case covers, and the
+// phone's text sizes (all of it here; each place in the text size editor, F4). The
 // backend saves them (configs/display.local.json) and sends them to every display; anything
 // missing or malformed falls back to the defaults here. Pure, unit tested.
+
+import { TEXT_ROLES } from './textRoles';
 
 export type Backdrop = 'blur' | 'gradient' | 'boxes';
 
@@ -20,14 +23,14 @@ export interface ColorSetting {
 }
 
 export const COLORS: ColorSetting[] = [
-  { key: 'background', label: '배경', css: '--bg', value: '#ffffff' },
-  { key: 'glow', label: '배경 빛', css: '--glow', value: '#dcebff' },
-  { key: 'panel', label: '선택지 배경', css: '--panel', value: '#ffffff' },
-  { key: 'imageBg', label: '메뉴 사진 배경', css: '--image-bg', value: '#eef4ff' },
+  { key: 'background', label: '배경', css: '--bg', value: '#b0b0b0' },
+  { key: 'glow', label: '배경 빛', css: '--glow', value: '#c4c4c4' },
+  { key: 'panel', label: '선택지 배경', css: '--panel', value: '#dceefe' },
+  { key: 'imageBg', label: '메뉴 사진 배경', css: '--image-bg', value: '#ffffff' },
   { key: 'text', label: '글자', css: '--text', value: '#0e1a2b' },
   { key: 'text2', label: '보조 글자', css: '--text-2', value: '#4b5b71' },
-  { key: 'muted', label: '흐린 글자', css: '--muted', value: '#94a3b8' },
-  { key: 'accent', label: '강조', css: '--accent', value: '#2f6fed' },
+  { key: 'muted', label: '흐린 글자', css: '--muted', value: '#212121' },
+  { key: 'accent', label: '강조', css: '--accent', value: '#3d7eff' },
   { key: 'onAccent', label: '강조 위 글자', css: '--on-accent', value: '#ffffff' },
   { key: 'line', label: '구분선', css: '--line', value: '#e2ebf8' },
 ];
@@ -50,6 +53,11 @@ export const INSET_SIDES: { key: keyof PhoneInsets; label: string }[] = [
 
 export const MAX_INSET = 40;
 
+// The phone's text sizes, in % of the designed sizes (its own font may be wider): all of it, and
+// each place on the screen on top of that (a role of textRoles.ts -> %, only those changed).
+export const MIN_TEXT_SIZE = 30;
+export const MAX_TEXT_SIZE = 300;
+
 export interface Settings {
   backdrop: Backdrop;
   panelOpacity: number; // 0..1, the choices' background
@@ -57,17 +65,67 @@ export interface Settings {
   ignoreUnrelated: boolean; // no answer to words not meant for the kiosk (next customer)
   colors: Record<string, string>;
   phoneInsets: PhoneInsets;
+  phoneTextScale: number;
+  phoneTextRoles: Record<string, number>;
 }
 
 export const DEFAULTS: Settings = {
-  backdrop: 'blur',
-  panelOpacity: 0.72,
+  backdrop: 'boxes',
+  panelOpacity: 0.88,
   subtitles: false,
   ignoreUnrelated: false,
   colors: Object.fromEntries(COLORS.map((c) => [c.key, c.value])),
-  // Measured on the team's 19.5 x 31.5 cm screen: 1.5 cm top, 7 cm bottom, 0.5 cm each side.
-  phoneInsets: { top: 4.8, bottom: 22.2, left: 2.6, right: 2.6 },
+  // Set on the team's 19.5 x 31.5 cm screen: 1.5 cm top, about 7 cm bottom, nothing at the sides.
+  phoneInsets: { top: 4.8, bottom: 21.3, left: 0, right: 0 },
+  phoneTextScale: 100,
+  // Set with the text size editor (F4) on the team's phone.
+  phoneTextRoles: {
+    'stage-prompt': 55,
+    'diningchoice-emoji': 75,
+    'diningchoice-label': 60,
+    'stage-prompt-small': 55,
+    'itemdetail-h2': 65,
+    'itemdetail-price': 65,
+    'page-caption': 65,
+    'itemdetail-choice': 60,
+    'itemdetail-extra': 70,
+    'itemdetail-chip': 70,
+    'itemdetail-row-chosen-choice': 65,
+    'phoneend-end': 45,
+    'itemdetail-group': 80,
+    'itemdetail-pill-small': 80,
+    'itemdetail-pill': 60,
+    'itemdetail-pill-on': 60,
+    'orderbar-count': 60,
+    'orderbar-total': 60,
+    'menulist-name': 70,
+    'menulist-price': 70,
+    'categorylist-name': 80,
+    'categorylist-count': 80,
+    'categorylist-emoji': 60,
+    'itemdetail-facts': 70,
+    'review-amount': 75,
+    'review-qty': 60,
+    'review-name': 75,
+    'review-options': 65,
+    'review-value': 45,
+    'review-label': 70,
+    'review-dining': 60,
+    'staffnotes-ul': 75,
+    'payment-h2': 50,
+    'staffnotes-label': 60,
+    'payment-screen': 70,
+    'info-icon': 60,
+    'info-h2': 60,
+    'info-p': 70,
+    'done-label': 85,
+    'done-number': 80,
+    'done-note': 70,
+  },
 };
+
+const isTextSize = (value: unknown): value is number =>
+  typeof value === 'number' && value >= MIN_TEXT_SIZE && value <= MAX_TEXT_SIZE;
 
 const HEX = /^#[0-9a-f]{6}$/i;
 
@@ -93,6 +151,14 @@ export function normalize(values: Record<string, unknown>): Settings {
       if (typeof value === 'number' && value >= 0 && value <= MAX_INSET) phoneInsets[key] = value;
     }
   }
+  // the saved places replace the default ones ("모두 되돌리기" saves none: all at 100%)
+  const roles = values.phoneTextRoles ?? DEFAULTS.phoneTextRoles;
+  const phoneTextRoles: Record<string, number> = {};
+  if (roles && typeof roles === 'object') {
+    for (const [role, value] of Object.entries(roles)) {
+      if (role in TEXT_ROLES && isTextSize(value)) phoneTextRoles[role] = value;
+    }
+  }
   return {
     backdrop,
     panelOpacity:
@@ -104,6 +170,10 @@ export function normalize(values: Record<string, unknown>): Settings {
         : DEFAULTS.ignoreUnrelated,
     colors,
     phoneInsets,
+    phoneTextScale: isTextSize(values.phoneTextScale)
+      ? values.phoneTextScale
+      : DEFAULTS.phoneTextScale,
+    phoneTextRoles,
   };
 }
 
@@ -119,6 +189,15 @@ export function insetVariables(insets: PhoneInsets): Record<string, string> {
     '--safe-left': side(insets.left),
     '--safe-right': side(insets.right),
   };
+}
+
+/** The phone's text sizes as CSS variables for the page (`--size-all`, `--fs-<role>`, factors). */
+export function textSizeVariables(settings: Settings): Record<string, string> {
+  const variables: Record<string, string> = { '--size-all': String(settings.phoneTextScale / 100) };
+  for (const [role, size] of Object.entries(settings.phoneTextRoles)) {
+    variables[`--fs-${role}`] = String(size / 100);
+  }
+  return variables;
 }
 
 /** The CSS variables for the page (colours, and the choices' see-through background). */

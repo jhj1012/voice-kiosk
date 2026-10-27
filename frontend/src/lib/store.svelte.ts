@@ -18,6 +18,7 @@ let apiKey = $state.raw(start.apiKey);
 let keyFormOpen = $state(false); // the developer panel's "API 키 바꾸기"
 let lastAdded = $state.raw(start.lastAdded);
 let phone = $state(start.phone);
+let textEdit = $state(false); // the text size editor (F4)
 const settings = $derived(normalize(savedSettings));
 
 export const ui = {
@@ -59,6 +60,10 @@ export const ui = {
   get phone() {
     return phone;
   },
+  /** The text size editor (F4): this screen shows the phone's text sizes while it is open. */
+  get textEdit() {
+    return textEdit;
+  },
   /** The API key form: when the key does not work, or when someone wants to change it. */
   get keyForm() {
     return apiKey !== 'ok' || keyFormOpen;
@@ -67,6 +72,10 @@ export const ui = {
 
 export function openKeyForm(open: boolean): void {
   keyFormOpen = open;
+}
+
+export function openTextEdit(open: boolean): void {
+  textEdit = open;
 }
 
 /** Shows a settings change at once, before the backend saved it (and in demo mode). */

@@ -28,7 +28,8 @@
     border-radius: 999px;
     background: white;
     border: 1px solid var(--line);
-    font-size: 1.4rem;
+    --text-role: notice-notice;
+    font-size: calc(1.4rem * var(--size-all) * var(--fs-notice-notice, 1));
     font-weight: 600;
   }
   .dot {

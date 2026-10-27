@@ -55,7 +55,8 @@
     background: #dbe9ff;
     display: grid;
     place-items: center;
-    font-size: 2.2rem;
+    --text-role: payment-screen;
+    font-size: calc(2.2rem * var(--size-all) * var(--fs-payment-screen, 1));
     font-weight: 700;
     color: #142033;
   }
@@ -103,7 +104,8 @@
     animation: spin 0.8s linear infinite;
   }
   h2 {
-    font-size: 3.6rem;
+    --text-role: payment-h2;
+    font-size: calc(3.6rem * var(--size-all) * var(--fs-payment-h2, 1));
     font-weight: 800;
     letter-spacing: -0.03em;
   }

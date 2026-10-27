@@ -87,9 +87,9 @@ def function_declarations(menu: Menu, cafe: Cafe) -> list[dict[str, Any]]:
         declare(
             "show",
             "Show something on the screen (display only): 'menu' (item_ids, a category, or "
-            "items without allergens; at most five unless a whole category), 'categories' (the "
-            "kinds of menu), 'item' (one item's facts), 'info' (a cafe topic), 'order' (the "
-            "order so far).",
+            "items without allergens; at most five fit, the rest are left out at random), "
+            "'categories' (the kinds of menu), 'item' (one item's facts), 'info' (a cafe "
+            "topic), 'order' (the order so far).",
             {
                 "what": _enum(WHAT_TO_SHOW),
                 "item_ids": _array(item_ids, "menu: exactly these items, in this order."),

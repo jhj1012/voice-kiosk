@@ -100,7 +100,15 @@ class Actions:
                 highlight_ids=list(args.get("highlight_ids") or []),
                 exclude_allergens=list(args.get("exclude_allergens") or []),
             )
-            result = {"shown": self._names(shown.item_ids)}
+            if shown.categories:
+                result = {
+                    "shown": [c.name for c in kiosk.menu.categories],
+                    "note": "the whole menu does not fit: the categories are shown instead",
+                }
+            else:
+                result = {"shown": self._names(shown.item_ids)}
+            if shown.not_shown:
+                result["more_not_shown"] = shown.not_shown
             if shown.removed:
                 result["left_out_for_allergens"] = self._names(shown.removed)
         elif what == "categories":

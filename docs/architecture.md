@@ -223,7 +223,7 @@ the screen can follow the conversation (e.g. "우유가 들어가지 않은 메�
 
 | Function | Effect / rules in code |
 |---|---|
-| `show(what, …)` | `menu` (item_ids, a category or everything, highlight_ids, exclude_allergens filtered by code, a title only for a filter), `categories`, `item` (its facts; the result has the description to say), `info` (a topic from `cafe.yaml`), `order`. Display only. |
+| `show(what, …)` | `menu` (item_ids, a category or the items without some allergens, highlight_ids, exclude_allergens filtered by code, a title only for a filter; at most five, the highlighted first and the rest at random, `more_not_shown` says how many were left out; nothing chosen shows the categories), `categories`, `item` (its facts; the result has the description to say), `info` (a topic from `cafe.yaml`), `order`. Display only. |
 | `order(item_id, quantity?, options…)` | A new drink (or the same item split into parts, or updated). It goes into the order once it needs nothing more. |
 | `set_options(item_id?, draft?, quantity?, options…)` | Options or the number of a drink being chosen, whichever was asked; quantity 0 cancels it. |
 | `no_more_extras(item_id?)` | "추가하실 거 있으세요?" - "없어요": the drink goes into the order (the extras are asked once per item; only after the customer answered). |
@@ -296,9 +296,9 @@ to the next screen": choices appear and disappear in place.
   which keeps playing underneath, so clips that do not meet exactly still join smoothly.
 - **Start**: the avatar and "수화기를 들고 말씀해 주세요".
 - **Choices as lists**, only what the assistant is asking now:
-  - **Menus**: the items it chose (3–5 recommendations, a category, a filtered set; two columns
-    for long lists), with a small caption for a filter or a category. Rows that stay move to their
-    new places (`flip`).
+  - **Menus**: the items it chose (3–5 recommendations, a category, a filtered set; one column,
+    at most five: `MAX_SHOWN` in `kiosk/domain/flow.py`), with a small caption for a filter or a
+    category. Rows that stay move to their new places (`flip`).
   - **Kinds of menu** (`show_categories`).
   - **Take-out question** first: two rows, 매장 / 포장.
   - **Item**: name, picture and price; while choosing, only the option being asked (one
@@ -311,7 +311,18 @@ to the next screen": choices appear and disappear in place.
 - **Background of the choices** (developer panel): *blur* (a blurred, see-through patch fading
   out at its edges), *gradient* (the panel colour rising from the bottom of the screen) or
   *boxes* (each row its own see-through box).
-- **Order bar**: a quiet bar at the bottom while ordering. An added item flies into it.
+- **Fitting**: choices taller than their place are shrunk (`fit` in `Stage.svelte`), laid out
+  wider by as much, so every screen's box keeps the same width; only the text gets smaller.
+- **Order bar**: a quiet bar at the bottom while ordering (at the top on the phone). An added
+  item flies into it.
+- **Phone mode**: the page fills the phone's screen (wider than 9:16), keeps out of the edges its
+  case covers, and the avatar stands lower (the clips are cut at the bottom) so his face clears
+  the order bar.
+- **Text sizes on the phone**: every font size names its place (`--text-role`, listed with a
+  Korean name in `lib/textRoles.ts`, checked by its test) and is multiplied by the size for all
+  of it (developer panel) and its place's own (`--fs-<role>`). The **text size editor** (`F4`,
+  on the laptop) shows the phone's sizes; a click on any text picks its place, − / + change it.
+  The phone's own font (Pretendard is not bundled) is wider, hence different sizes there.
 - **Subtitles**: off by default; the developer panel turns them on (top of the screen).
 - **Colours**: every main colour (background, its light, the choices' background and how see-through it
   is, the menu pictures' background, text, secondary and faint text, highlight, text on the

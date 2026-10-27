@@ -53,5 +53,6 @@ export default defineConfig({
       '/api': backend,
     },
   },
-  test: { include: ['src/**/*.test.ts'] },
+  // app.css is read by textRoles.test.ts (Vitest leaves other CSS empty)
+  test: { include: ['src/**/*.test.ts'], css: { include: [/app\.css/] } },
 });

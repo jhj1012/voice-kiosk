@@ -30,14 +30,16 @@
     border-radius: 999px;
     background: var(--accent-soft);
     color: var(--accent);
-    font-size: 2rem;
+    --text-role: staffnotes-label;
+    font-size: calc(2rem * var(--size-all) * var(--fs-staffnotes-label, 1));
     font-weight: 700;
   }
   ul {
     margin: 0;
     padding: 0;
     list-style: none;
-    font-size: 2.8rem;
+    --text-role: staffnotes-ul;
+    font-size: calc(2.8rem * var(--size-all) * var(--fs-staffnotes-ul, 1));
     font-weight: 700;
     letter-spacing: -0.02em;
     color: var(--text);

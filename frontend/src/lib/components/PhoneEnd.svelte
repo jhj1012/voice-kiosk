@@ -25,7 +25,8 @@
     background: var(--panel);
     color: var(--text-2);
     font: inherit;
-    font-size: 3rem;
+    --text-role: phoneend-end;
+    font-size: calc(3rem * var(--size-all) * var(--fs-phoneend-end, 1));
     font-weight: 700;
     cursor: pointer;
   }

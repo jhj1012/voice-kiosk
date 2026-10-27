@@ -80,7 +80,7 @@
     {#if mode === 'live'}
       <button type="button" onclick={() => openKeyForm(true)}>API 키 바꾸기</button>
     {/if}
-    <span class="hint">Space: 수화기 · F2: 닫기</span>
+    <span class="hint">Space: 수화기 · F2: 닫기 · F4: 글자 크기 편집</span>
   </div>
   {#if mode === 'live'}
     <div class="row">

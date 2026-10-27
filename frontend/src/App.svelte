@@ -2,7 +2,7 @@
   // Picks the event source: the backend's WebSocket, or a recorded demo timeline
   // (?demo=order, ?demo=allergy; &at=<ms> starts later, &pause stops there; &dev opens the
   // developer panel; &backdrop=blur|gradient|boxes picks the choices' background; &phone shows
-  // the phone mode's screen).
+  // the phone mode's screen). F2 opens the developer panel, F4 the text size editor.
   // On the phone of the phone mode a tap anywhere starts the conversation (and turns on the
   // phone's microphone and speaker the first time); the end button ends it.
   import { onMount } from 'svelte';
@@ -10,9 +10,10 @@
   import { connect, type Connection } from './lib/connection';
   import { startPhoneAudio, type PhoneAudio } from './lib/phone';
   import { play, type Timeline } from './lib/player';
-  import { dispatch, previewSettings, ui } from './lib/store.svelte';
+  import { dispatch, openTextEdit, previewSettings, ui } from './lib/store.svelte';
   import DevPanel from './lib/components/DevPanel.svelte';
   import Stage from './lib/components/Stage.svelte';
+  import TextSizeEditor from './lib/components/TextSizeEditor.svelte';
 
   const params = new URLSearchParams(location.search);
   const demoName = params.get('demo');
@@ -28,6 +29,12 @@
 
   // The phone sends its microphone only while a conversation is on.
   $effect(() => phoneAudio?.setActive(ui.state.phase !== 'idle'));
+  $effect(() => {
+    document.body.classList.toggle('phone-mode', ui.phone);
+  });
+  $effect(() => {
+    document.body.classList.toggle('text-edit', ui.textEdit);
+  });
 
   function receive(event: ServerEvent) {
     dispatch(event);
@@ -46,6 +53,9 @@
     if (event.key === 'F2') {
       event.preventDefault();
       devOpen = !devOpen;
+    } else if (event.key === 'F4') {
+      event.preventDefault();
+      openTextEdit(!ui.textEdit);
     } else if (event.code === 'Space' && !(event.target instanceof HTMLInputElement)) {
       event.preventDefault();
       send({ type: 'hook', off_hook: ui.state.phase === 'idle' });
@@ -122,4 +132,7 @@
 <Stage onend={() => send({ type: 'hook', off_hook: false })} />
 {#if devOpen}
   <DevPanel {send} {mode} {connected} {log} />
+{/if}
+{#if ui.textEdit}
+  <TextSizeEditor {send} />
 {/if}

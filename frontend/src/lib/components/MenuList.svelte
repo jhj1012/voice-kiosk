@@ -14,8 +14,6 @@
   const items = $derived(
     view.item_ids.map((id) => itemById(ui.menu, id)).filter((i): i is MenuItem => !!i),
   );
-  // A long list (the whole menu) takes two columns so it still fits over the avatar.
-  const wide = $derived(items.length > 6);
 </script>
 
 <div class="menu">
@@ -27,7 +25,7 @@
   {#if items.length === 0}
     <p class="caption" in:fade>해당하는 메뉴가 없어요</p>
   {/if}
-  <ul class="list" class:wide>
+  <ul class="list">
     {#each items as item, i (item.id)}
       <li
         class="row"
@@ -55,37 +53,22 @@
     padding: 0;
     list-style: none;
   }
-  .wide {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    column-gap: 1.6rem;
-  }
-  .wide .row {
-    border-top: none;
-  }
   .thumb {
     width: 7.5rem;
     flex: none;
   }
-  .wide .thumb {
-    width: 5.5rem;
-  }
   .name {
     flex: 1;
-    font-size: 2.5rem;
+    --text-role: menulist-name;
+    font-size: calc(2.5rem * var(--size-all) * var(--fs-menulist-name, 1));
     font-weight: 700;
     letter-spacing: -0.02em;
     word-break: keep-all;
   }
-  .wide .name {
-    font-size: 2rem;
-  }
   .price {
-    font-size: 2rem;
+    --text-role: menulist-price;
+    font-size: calc(2rem * var(--size-all) * var(--fs-menulist-price, 1));
     color: var(--text-2);
-  }
-  .wide .price {
-    font-size: 1.6rem;
   }
   .highlight .name {
     color: var(--accent);

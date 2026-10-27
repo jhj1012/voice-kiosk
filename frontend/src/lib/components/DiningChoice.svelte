@@ -33,12 +33,14 @@
     min-height: 9rem;
   }
   .emoji {
-    font-size: 4rem;
+    --text-role: diningchoice-emoji;
+    font-size: calc(4rem * var(--size-all) * var(--fs-diningchoice-emoji, 1));
     width: 6rem;
     text-align: center;
   }
   .label {
-    font-size: 3rem;
+    --text-role: diningchoice-label;
+    font-size: calc(3rem * var(--size-all) * var(--fs-diningchoice-label, 1));
     font-weight: 700;
     letter-spacing: -0.02em;
   }

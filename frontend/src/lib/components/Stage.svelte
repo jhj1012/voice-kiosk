@@ -3,12 +3,12 @@
   // about appears over his chest, on a see-through background (blur, a gradient from the bottom,
   // or boxes: the developer panel's choice). The order stays at the bottom.
   // On the phone of the phone mode its case covers the screen's edges (`--safe-*`, set in the
-  // developer panel): the avatar stays as it is, everything else keeps out of them, and the order
+  // developer panel): the avatar stands a little lower, everything else keeps out of them, and the order
   // moves above the avatar's head (the bottom is covered), next to the end button.
   import { tick } from 'svelte';
   import { fade } from 'svelte/transition';
   import { ui } from '../store.svelte';
-  import { cssVariables, insetVariables } from '../settings';
+  import { cssVariables, insetVariables, textSizeVariables } from '../settings';
   import { appear, disappear } from '../transitions';
   import ApiKeyForm from './ApiKeyForm.svelte';
   import Avatar from './Avatar.svelte';
@@ -34,6 +34,7 @@
     Object.entries({
       ...cssVariables(settings),
       ...(ui.phone ? insetVariables(settings.phoneInsets) : {}),
+      ...(ui.phone || ui.textEdit ? textSizeVariables(settings) : {}),
     })
       .map(([name, value]) => `${name}: ${value}`)
       .join('; '),
@@ -59,15 +60,39 @@
     if (added) void flyToOrder(added.itemId);
   });
 
-  /** Shrinks the choices when they are taller than their place (a long menu, the phone's covered
-   * bottom), so nothing reaches under the order or off the screen. */
+  /** Shrinks the choices when they are taller than their place (a long menu, larger text, the
+   * phone's covered bottom), so nothing reaches under the order or off the screen. They are
+   * laid out wider by as much as they shrink, so the box keeps the width of every other screen:
+   * the largest scale whose layout at full width / scale still fits (a few layouts, searched). */
   function fit(surface: HTMLElement) {
     const place = surface.closest<HTMLElement>('.content');
     if (!place) return;
+    const layout = (scale: number, full: number) => {
+      surface.style.width = scale < 1 ? `${full / scale}px` : '';
+      surface.style.marginLeft = scale < 1 ? `${(full - full / scale) / 2}px` : '';
+      // the box's layout height (the scale does not change it; the blurred patch reaching out
+      // of it does not count)
+      return surface.offsetHeight * scale;
+    };
     const update = () => {
-      const height = surface.scrollHeight; // the layout height: the scale does not change it
       const space = place.clientHeight;
-      surface.style.scale = height > space && space > 0 ? String(space / height) : '';
+      const full = surface.parentElement?.clientWidth ?? 0;
+      let best = 1;
+      if (space > 0 && full > 0 && layout(1, full) > space) {
+        let low = space / layout(1, full); // fits: wider only makes it shorter
+        let high = 1;
+        for (let i = 0; i < 6; i++) {
+          const mid = (low + high) / 2;
+          if (layout(mid, full) <= space) low = mid;
+          else high = mid;
+        }
+        best = low;
+      }
+      // its own resizing calls this again: a slightly smaller scale (it still fits) stays
+      const now = Number(surface.style.scale || 1);
+      if (now <= best && best - now < 0.01) best = now;
+      layout(best, full);
+      surface.style.scale = best < 1 ? String(best) : '';
     };
     const observer = new ResizeObserver(update);
     observer.observe(surface);
@@ -178,7 +203,8 @@
     </div>
   {/if}
 
-  {#if ui.phone && ui.state.phase !== 'idle' && onend}
+  {#if onend && ((ui.phone && ui.state.phase !== 'idle') || ui.textEdit)}
+    <!-- also while editing the text sizes, so its size can be chosen here (a click only picks) -->
     <PhoneEnd {onend} />
   {/if}
 
@@ -240,6 +266,7 @@
     left: 4.5rem;
     right: 4.5rem;
     display: grid;
+    grid-template-columns: minmax(0, 1fr); /* its width: `fit` lays the choices out wider */
   }
   .block {
     grid-area: 1 / 1;
@@ -272,8 +299,13 @@
     left: 50%;
     bottom: 12rem;
     translate: -50% 0;
-    white-space: nowrap;
-    font-size: 3.2rem;
+    /* One line when it fits; a wider font (the phone's own) wraps inside the box instead. */
+    width: max-content;
+    max-width: calc(100% - 4rem);
+    text-align: center;
+    word-break: keep-all;
+    --text-role: stage-prompt;
+    font-size: calc(3.2rem * var(--size-all) * var(--fs-stage-prompt, 1));
     font-weight: 700;
     letter-spacing: -0.03em;
     padding: 1.8rem 3.6rem;
@@ -281,7 +313,8 @@
     background: var(--panel-soft);
   }
   .prompt.small {
-    font-size: 2.6rem;
+    --text-role: stage-prompt-small;
+    font-size: calc(2.6rem * var(--size-all) * var(--fs-stage-prompt-small, 1));
     bottom: 40%;
   }
   .backdrop-blur .prompt {

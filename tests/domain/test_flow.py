@@ -1,6 +1,17 @@
+import random
+
 import pytest
 
-from kiosk.domain.flow import EXTRAS, Ask, Kiosk, PaymentStep, Phase, Question, Screen
+from kiosk.domain.flow import (
+    EXTRAS,
+    MAX_SHOWN,
+    Ask,
+    Kiosk,
+    PaymentStep,
+    Phase,
+    Question,
+    Screen,
+)
 from kiosk.domain.menu import KioskError
 from kiosk.domain.order import CartLine, Dining
 
@@ -69,10 +80,13 @@ def test_second_start_is_refused(kiosk: Kiosk):
 # --- display -----------------------------------------------------------------------------------
 
 
-def test_show_whole_menu_or_category(kiosk: Kiosk, menu):
+def test_the_whole_menu_shows_its_categories(kiosk: Kiosk):
     shown = kiosk.show_menu()
-    assert shown.item_ids == tuple(i.id for i in menu.items)
-    assert kiosk.view.title == ""
+    assert shown.categories and shown.item_ids == ()
+    assert kiosk.view.screen is Screen.CATEGORIES
+
+
+def test_show_category(kiosk: Kiosk):
     kiosk.show_menu(category="tea_ade")
     assert kiosk.view.title == "티·에이드"
     assert kiosk.view.item_ids == ("green_grape_ade", "chamomile_tea")
@@ -86,6 +100,18 @@ def test_assistant_chooses_items_title_and_highlights(kiosk: Kiosk):
     )
     assert kiosk.view.item_ids == ("einspanner", "americano")
     assert kiosk.view.highlight == ("einspanner",)
+
+
+def test_at_most_five_items_highlighted_first_then_at_random(menu, cafe):
+    kiosk = Kiosk(menu, cafe, rng=random.Random(1))
+    kiosk.start_session()
+    every = [i.id for i in menu.items]
+    shown = kiosk.show_menu(item_ids=every, highlight_ids=["chocolate_cookie", "espresso"])
+    assert len(shown.item_ids) == MAX_SHOWN and shown.not_shown == len(every) - MAX_SHOWN
+    assert {"chocolate_cookie", "espresso"} <= set(shown.item_ids)
+    assert list(shown.item_ids) == [i for i in every if i in shown.item_ids]  # menu order
+    picks = {kiosk.show_menu(item_ids=every).item_ids for _ in range(10)}
+    assert len(picks) > 1
 
 
 def test_allergen_filter_is_done_by_code(kiosk: Kiosk):
