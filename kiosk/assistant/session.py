@@ -45,6 +45,7 @@ from kiosk.assistant.safety import (
     confirmed_cancel,
     customer_asked_to_pay,
     guessed_groups,
+    is_no,
     is_yes,
     meant_for_all,
     mostly_foreign,
@@ -57,7 +58,7 @@ from kiosk.assistant.tools import (
     selection_from_args,
 )
 from kiosk.config import FlowConfig
-from kiosk.domain.flow import Kiosk, Phase
+from kiosk.domain.flow import Draft, Kiosk, Phase
 from kiosk.domain.menu import KioskError
 
 log = logging.getLogger(__name__)
@@ -439,6 +440,10 @@ class AssistantSession:
             chosen = menu.resolve(draft.item, selection_from_args(menu, args))
         except (KioskError, TypeError, ValueError):
             return self._without_guesses("set_options", args)
+        quantity = args.get("quantity")
+        if chosen and quantity and int(float(quantity)) < draft.quantity:
+            # "하나만 라지로": the customer said which cups (split off), nothing to check
+            return self._without_guesses("set_options", args)
         if self._answers_mark != self.transcript.mark:  # the customer spoke: a new answer
             self._answers, self._answers_mark = [], self.transcript.mark
         latest = self.transcript.last_customer()
@@ -468,11 +473,8 @@ class AssistantSession:
             self._confirming = (draft.id, held_group.id, tuple(c.id for c in chosen[held_group.id]))
             if not set(args) - {"item_id", "draft"}:  # nothing else to set
                 return {"not_set": self.actions.held(draft), **confirm}
-        confirmed = self._confirming is not None and any(
-            self._confirming == (draft.id, g, ids) for g, ids in answer.items()
-        )
-        if confirmed and latest is not None and is_yes(latest.text):
-            # "네" to the kiosk's own question: the option is what it asked about.
+        if latest is not None and self._confirmed(draft, answer, latest.text):
+            # "네" to the kiosk's own question (or "아니" with only one other choice).
             self._confirming = None
             result = self.actions.call("set_options", args)
         else:
@@ -507,6 +509,21 @@ class AssistantSession:
                 self._confirming = (others[0].id, g, answer[g])
                 break
         return result
+
+    def _confirmed(self, draft: Draft, answer: dict[str, tuple[str, ...]], words: str) -> bool:
+        """The answer is what the customer agreed to when the kiosk asked "따뜻한 아메리카노도
+        레귤러로 해 드릴까요?": "네" and that choice, or "아니" and the only other choice."""
+        if self._confirming is None or self._confirming[0] != draft.id:
+            return False
+        _, group_id, asked = self._confirming
+        ids = answer.get(group_id)
+        group = draft.item.group(group_id)
+        if ids is None or group is None:
+            return False
+        if is_yes(words):
+            return ids == asked
+        others = [c.id for c in group.choices if c.id not in asked]
+        return is_no(words) and len(others) == 1 and ids == tuple(others)
 
     def _without_guesses(self, name: str, args: dict[str, Any]) -> Result:
         """Run order / set_options without required options the customer never mentioned

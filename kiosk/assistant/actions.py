@@ -41,8 +41,10 @@ SAY_READ_BACK = "Say the read_back now, word for word; nothing about the card ye
 LINE_SHOWN = "Shown again. If they want to change it, call change with line {line}."
 CONFIRM_SAME = (
     "Their answer may be for {other} too. Ask this. Yes: call set_options with draft {draft} and "
-    "the same {group}. No: ask '{no}'."
+    "the same {group}. No: {no}"
 )
+CONFIRM_NO_OTHER = "call set_options with draft {draft} and {group} {other} (the other choice)."
+CONFIRM_NO_ASK = "ask '{question}'."
 CONFIRM_SKIP = " If they already said which drink it was for, do not ask this; ask '{then}'."
 HELD = "Not set for {other}: the customer did not say it was for both. Ask this first."
 
@@ -255,9 +257,12 @@ class Actions:
         missing `group`): "따뜻한 아메리카노도 레귤러로 해 드릴까요?"."""
         name = self._draft_name(other)
         value = choices[0].label or _with_ro(choices[0].spoken)
-        note = CONFIRM_SAME.format(
-            other=name, draft=other.id, group=group.id, no=self._option_question(other, group)
-        )
+        rest = [c for c in group.choices if c not in choices]
+        if len(rest) == 1:  # "아니" means the other one: no need to ask again
+            no = CONFIRM_NO_OTHER.format(draft=other.id, group=group.id, other=rest[0].id)
+        else:
+            no = CONFIRM_NO_ASK.format(question=self._option_question(other, group))
+        note = CONFIRM_SAME.format(other=name, draft=other.id, group=group.id, no=no)
         if then:
             note += CONFIRM_SKIP.format(then=then)
         return {"ask": f"{name}도 {value} 해 드릴까요?", "confirm_note": note}

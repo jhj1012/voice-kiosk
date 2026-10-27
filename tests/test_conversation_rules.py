@@ -158,11 +158,86 @@ def test_an_answer_that_may_be_for_two_drinks_is_checked(new_kiosk):
         result = await h.call("set_options", draft=1, size="regular")
         assert sizes(h) == {"ice": ["regular"], "hot": []}
         assert result["ask"] == "따뜻한 아메리카노도 레귤러로 해 드릴까요?"
-        assert "따뜻한 아메리카노 사이즈는" in result["confirm_note"]  # the question if "아니요"
+        assert "size large" in result["confirm_note"]  # "아니요": the other size, not asked again
         await h.say("네")
         result = await h.call("set_options", draft=2, size="regular")
         assert sizes(h) == {"ice": ["regular"], "hot": ["regular"]}
         assert "confirm_note" not in result
+
+    run(scenario, new_kiosk)
+
+
+def test_no_to_the_check_means_the_other_of_two_choices(new_kiosk):
+    # Team log 13:26: "차가운 아메리카노도 라지로 해 드릴까요?" - "아니" was asked again; with two
+    # sizes it means regular.
+    async def scenario(h: Harness):
+        await iced_and_hot(h)
+        await h.say("라지요")
+        await h.call("set_options", draft=1, size="large")
+        await h.reply("따뜻한 아메리카노도 라지로 해 드릴까요?")
+        await h.say("아니")
+        result = await h.call("set_options", draft=2, size="regular")
+        assert sizes(h) == {"ice": ["large"], "hot": ["regular"]}
+        assert "not_said" not in result
+
+    run(scenario, new_kiosk)
+
+
+def test_options_for_only_some_cups_split_them_off(new_kiosk):
+    # Team log 13:26: two hot americanos, "하나만 라지로 해줘" made both large.
+    async def scenario(h: Harness):
+        await lifted(h)
+        await h.say("따뜻한 아메리카노 두 잔이요")
+        await h.call("order", item_id="americano", quantity=2, temperature="hot")
+        await h.reply("아메리카노 사이즈는 어떤 걸로 해 드릴까요?")
+        await h.say("하나만 라지로 해줘")
+        result = await h.call("set_options", item_id="americano", quantity=1, size="large")
+        cups = sorted(
+            (d.quantity, [c.id for c in d.chosen.get("size", ())]) for d in h.kiosk.drafts
+        )
+        assert cups == [(1, []), (1, ["large"])]
+        assert "confirm_note" not in result
+        assert view(h) == ("americano", "size")  # the other cup's size is asked
+
+    run(scenario, new_kiosk)
+
+
+def test_the_rest_goes_to_the_cups_still_open(new_kiosk):
+    # Real run of the 13:26 log: "2개는 따듯하게, 나머지는 차갑게" with three americanos; the model
+    # split off two hot ones, then sent "the rest" to the number of the hot drink.
+    async def scenario(h: Harness):
+        await lifted(h)
+        await h.say("아메리카노 3개")
+        await h.call("order", item_id="americano", quantity=3)
+        await h.reply("아메리카노는 따뜻하게 드릴까요, 차갑게 드릴까요?")
+        await h.say("2개는 따듯하게, 나머지는 차갑게")
+        await h.call("set_options", item_id="americano", draft=1, quantity=2, temperature="hot")
+        hot = next(d.id for d in h.kiosk.drafts if d.chosen.get("temperature"))
+        await h.call("set_options", item_id="americano", draft=hot, quantity=1, temperature="ice")
+        cups = sorted((d.chosen["temperature"][0].id, d.quantity) for d in h.kiosk.drafts)
+        assert cups == [("hot", 2), ("ice", 1)]
+
+    run(scenario, new_kiosk)
+
+
+def test_split_cups_are_asked_about_extras_once(new_kiosk):
+    # Real run: after "하나만 라지로" every split-off cup asked "추가하실 거 있으세요?" again.
+    async def scenario(h: Harness):
+        await lifted(h)
+        await h.say("따뜻한 아메리카노 세 잔이요")
+        await h.call("order", item_id="americano", quantity=3, temperature="hot")
+        await h.reply("아메리카노 사이즈는 어떤 걸로 해 드릴까요?")
+        await h.say("하나만 라지로 해줘")
+        await h.call("set_options", item_id="americano", quantity=1, size="large")
+        await h.reply("아메리카노 사이즈는 어떤 걸로 해 드릴까요?")
+        await h.say("나머지는 레귤러요")
+        await h.call("set_options", item_id="americano", size="regular")
+        await h.reply("아메리카노에 추가하실 거 있으세요?")
+        await h.say("없어요")
+        await h.call("no_more_extras", item_id="americano")
+        assert not h.kiosk.drafts
+        cups = sorted((line.chosen()["size"][0].id, line.quantity) for line in h.kiosk.order.lines)
+        assert cups == [("large", 1), ("regular", 2)]
 
     run(scenario, new_kiosk)
 
