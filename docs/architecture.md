@@ -292,7 +292,8 @@ to the next screen": choices appear and disappear in place.
   `listening` / `talking` (loops, by whether the assistant's voice plays), `put_down` (hung up,
   once, then `idle`). One-time clips play to their end; missing ones are skipped; a missing loop
   shows the still image `data/avatar/avatar.png` (`.webp`, `.jpg`). All clips are loaded at
-  once and only the current one is visible, so switching is instant.
+  once and only the current one is visible; a new clip fades in (0.3 s) over the one before,
+  which keeps playing underneath, so clips that do not meet exactly still join smoothly.
 - **Start**: the avatar and "수화기를 들고 말씀해 주세요".
 - **Choices as lists**, only what the assistant is asking now:
   - **Menus**: the items it chose (3–5 recommendations, a category, a filtered set; two columns
