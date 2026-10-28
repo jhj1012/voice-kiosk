@@ -66,13 +66,14 @@
   }
 
   /** The phone: a tap anywhere while idle starts the conversation; from then on the handset's
-   * button starts and ends it. */
+   * button starts and ends it. Any tap brings back full screen (also during a conversation). */
   async function onTap() {
-    if (!ui.phone || ui.keyForm || ui.state.phase !== 'idle' || phoneStarting) return;
+    if (!ui.phone) return;
     // Full screen, the wake lock and the button's silent loop need the tap itself, before
     // anything is awaited.
     if (!document.fullscreenElement)
       void document.documentElement.requestFullscreen?.().catch(() => {});
+    if (ui.keyForm || ui.state.phase !== 'idle' || phoneStarting) return;
     void keepAwake();
     if (!buttonOn) {
       buttonOn = true;
