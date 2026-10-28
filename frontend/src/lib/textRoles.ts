@@ -9,7 +9,6 @@ export const TEXT_ROLES: Record<string, string> = {
   'subtitles-assistant': '자막 · AI',
   'subtitles-customer': '자막 · 손님',
   'notice-notice': '알림',
-  'phoneend-end': '대화 끝내기 버튼',
   'diningchoice-emoji': '매장/포장 · 이모지',
   'diningchoice-label': '매장/포장 · 이름',
   'categorylist-emoji': '카테고리 · 이모지',

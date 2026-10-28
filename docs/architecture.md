@@ -101,12 +101,16 @@ is the screen, and the handset plugged into it is the microphone and the speaker
 - `PhoneHandset` stands in for `Handset`: `write` / `clear` / `levels` for the controller, one
   phone at a time (a newer connection replaces the older one), the speaker's loudness as the
   phone reports it.
-- A tap anywhere while idle is the `hook` lift; the end button puts it down; after payment the
-  session ends by itself as with the handset.
+- A tap anywhere while idle is the `hook` lift. From that first tap on, the **handset's button**
+  lifts and puts it down (`lib/mediaButton.ts`): Android sends a headset button press as play /
+  pause to the app playing sound, and Chrome passes it to the page through the Media Session API
+  only while an `<audio>` element plays, so a silent loop plays from the tap on. One press is
+  `pause` (a double press `nexttrack`, ignored). After payment the session ends by itself as with
+  the handset. `?buttons` is a test page that lists every media action and key that arrives.
 - The phone's case covers its screen's edges: `phoneInsets` in the display settings (% of the
   screen, set in the developer panel) become `--safe-*` on the page. The avatar stays full
   screen; the choices, prompts, notices and subtitles keep out of the covered edges, and the
-  order moves above the avatar's head next to the end button (the bottom is the most covered).
+  order moves above the avatar's head (the bottom is the most covered).
   In every mode the choices shrink when they are taller than their place (`fit` in `Stage`). No echo cancellation: the handset's earpiece does
   not reach its microphone.
 
@@ -322,7 +326,8 @@ to the next screen": choices appear and disappear in place.
   Korean name in `lib/textRoles.ts`, checked by its test) and is multiplied by the size for all
   of it (developer panel) and its place's own (`--fs-<role>`). The **text size editor** (`F4`,
   on the laptop) shows the phone's sizes; a click on any text picks its place, − / + change it.
-  The phone's own font (Pretendard is not bundled) is wider, hence different sizes there.
+  On the team's phone the text came out larger than on the laptop (the cause is not known:
+  Pretendard is bundled, and `text-size-adjust` did not change it), hence its own sizes.
 - **Subtitles**: off by default; the developer panel turns them on (top of the screen).
 - **Colours**: every main colour (background, its light, the choices' background and how see-through it
   is, the menu pictures' background, text, secondary and faint text, highlight, text on the

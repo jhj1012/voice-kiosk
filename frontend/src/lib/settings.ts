@@ -53,7 +53,7 @@ export const INSET_SIDES: { key: keyof PhoneInsets; label: string }[] = [
 
 export const MAX_INSET = 40;
 
-// The phone's text sizes, in % of the designed sizes (its own font may be wider): all of it, and
+// The phone's text sizes, in % of the designed sizes (text came out larger there): all of it, and
 // each place on the screen on top of that (a role of textRoles.ts -> %, only those changed).
 export const MIN_TEXT_SIZE = 30;
 export const MAX_TEXT_SIZE = 300;
@@ -91,7 +91,6 @@ export const DEFAULTS: Settings = {
     'itemdetail-extra': 70,
     'itemdetail-chip': 70,
     'itemdetail-row-chosen-choice': 65,
-    'phoneend-end': 45,
     'itemdetail-group': 80,
     'itemdetail-pill-small': 80,
     'itemdetail-pill': 60,
