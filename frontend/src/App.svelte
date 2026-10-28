@@ -4,10 +4,12 @@
   // developer panel; &backdrop=blur|gradient|boxes picks the choices' background; &phone shows
   // the phone mode's screen). F2 opens the developer panel, F4 the text size editor.
   // On the phone of the phone mode a tap anywhere starts the conversation (and turns on the
-  // phone's microphone and speaker the first time); the end button ends it.
+  // phone's microphone and speaker the first time). From that tap on, the handset's button
+  // starts and ends it (on the laptop, Space).
   import { onMount } from 'svelte';
   import type { ClientEvent, ServerEvent } from './lib/events';
   import { connect, type Connection } from './lib/connection';
+  import { startMediaButton } from './lib/mediaButton';
   import { startPhoneAudio, type PhoneAudio } from './lib/phone';
   import { play, type Timeline } from './lib/player';
   import { dispatch, openTextEdit, previewSettings, ui } from './lib/store.svelte';
@@ -25,6 +27,7 @@
   let connection: Connection | null = null;
   let phoneAudio = $state.raw<PhoneAudio | null>(null);
   let phoneStarting = false;
+  let buttonOn = false; // the handset's button (lib/mediaButton.ts)
   let wakeLock: WakeLockSentinel | null = null;
 
   // The phone sends its microphone only while a conversation is on.
@@ -62,13 +65,19 @@
     }
   }
 
-  /** The phone: a tap anywhere while idle starts the conversation. */
+  /** The phone: a tap anywhere while idle starts the conversation; from then on the handset's
+   * button starts and ends it. */
   async function onTap() {
     if (!ui.phone || ui.keyForm || ui.state.phase !== 'idle' || phoneStarting) return;
-    // Full screen and the wake lock need the tap itself, before anything is awaited.
+    // Full screen, the wake lock and the button's silent loop need the tap itself, before
+    // anything is awaited.
     if (!document.fullscreenElement)
       void document.documentElement.requestFullscreen?.().catch(() => {});
     void keepAwake();
+    if (!buttonOn) {
+      buttonOn = true;
+      startMediaButton(onHandsetButton);
+    }
     if (!phoneAudio) {
       phoneStarting = true;
       try {
@@ -87,6 +96,13 @@
       receive({ type: 'notice', level: 'info', text: '' });
     }
     send({ type: 'hook', off_hook: true });
+  }
+
+  /** The handset's button (one press): starts the conversation, or ends it. */
+  function onHandsetButton() {
+    if (ui.keyForm || phoneStarting || !phoneAudio) return;
+    if (ui.state.phase === 'idle') void keepAwake();
+    send({ type: 'hook', off_hook: ui.state.phase === 'idle' });
   }
 
   /** Keeps the phone's screen on (Chrome lets it go when the page is hidden). */
@@ -129,7 +145,7 @@
 
 <svelte:window onkeydown={onKey} onpointerup={onTap} />
 
-<Stage onend={() => send({ type: 'hook', off_hook: false })} />
+<Stage />
 {#if devOpen}
   <DevPanel {send} {mode} {connected} {log} />
 {/if}

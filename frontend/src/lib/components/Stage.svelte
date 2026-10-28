@@ -4,7 +4,7 @@
   // or boxes: the developer panel's choice). The order stays at the bottom.
   // On the phone of the phone mode its case covers the screen's edges (`--safe-*`, set in the
   // developer panel): the avatar stands a little lower, everything else keeps out of them, and the order
-  // moves above the avatar's head (the bottom is covered), next to the end button.
+  // moves above the avatar's head (the bottom is covered). The handset's button ends the call.
   import { tick } from 'svelte';
   import { fade } from 'svelte/transition';
   import { ui } from '../store.svelte';
@@ -20,7 +20,6 @@
   import MenuList from './MenuList.svelte';
   import Notice from './Notice.svelte';
   import OrderBar from './OrderBar.svelte';
-  import PhoneEnd from './PhoneEnd.svelte';
   import Payment from './Payment.svelte';
   import Review from './Review.svelte';
   import Subtitles from './Subtitles.svelte';
@@ -28,7 +27,6 @@
   const CONTENT = ['dining', 'menu', 'categories', 'item', 'info', 'review', 'payment', 'done'];
 
   const settings = $derived(ui.settings);
-  let { onend }: { onend?: () => void } = $props(); // the phone's end button
 
   const style = $derived(
     Object.entries({
@@ -203,11 +201,6 @@
     </div>
   {/if}
 
-  {#if onend && ((ui.phone && ui.state.phase !== 'idle') || ui.textEdit)}
-    <!-- also while editing the text sizes, so its size can be chosen here (a click only picks) -->
-    <PhoneEnd {onend} />
-  {/if}
-
   {#if ui.notice}
     <Notice level={ui.notice.level} text={ui.notice.text} />
   {/if}
@@ -299,7 +292,7 @@
     left: 50%;
     bottom: 12rem;
     translate: -50% 0;
-    /* One line when it fits; a wider font (the phone's own) wraps inside the box instead. */
+    /* One line when it fits; larger text (as on the team's phone) wraps inside the box. */
     width: max-content;
     max-width: calc(100% - 4rem);
     text-align: center;
@@ -351,6 +344,6 @@
     top: calc(var(--safe-top) + 2.4rem);
     bottom: auto;
     left: calc(3rem + var(--safe-left));
-    right: calc(var(--safe-right) + 23rem); /* the end button's place */
+    right: calc(3rem + var(--safe-right));
   }
 </style>
