@@ -191,7 +191,10 @@
 
   {#if idle}
     <p class="prompt box" in:fade={{ duration: 600, delay: 400 }} out:fade={{ duration: 200 }}>
-      {ui.phone ? '수화기를 들고 화면을 눌러 주세요' : '수화기를 들고 말씀해 주세요'}
+      <!-- the handset's button works from the first tap on (lib/mediaButton.ts) -->
+      {#if !ui.phone}수화기를 들고 말씀해 주세요
+      {:else if ui.handsetButton}수화기를 들고 버튼을 눌러 주세요
+      {:else}수화기를 들고 화면을 눌러 주세요{/if}
     </p>
   {/if}
 

@@ -332,8 +332,8 @@ to the next screen": choices appear and disappear in place.
 - **Colours**: every main colour (background, its light, the choices' background and how see-through it
   is, the menu pictures' background, text, secondary and faint text, highlight, text on the
   highlight, lines) can be changed in the developer panel (`lib/settings.ts`).
-- **Developer mode** (`F2`): typed input, mute, ignoring speech not meant for the kiosk (from
-  the next customer), the display settings, the API key, the event log;
+- **Developer mode** (`F2`): typed input, mute, ignoring speech not meant for the kiosk (on by
+  default; from the next customer), the display settings, the API key, the event log;
   `Space` lifts / puts down the simulated handset. **Display settings are saved by the backend**
   (`configs/display.local.json`, git-ignored) and sent to every display (`settings` event), so
   full-screen mode's separate Edge profile (`--kiosk`) gets them too. `?demo=order|allergy` plays
