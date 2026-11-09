@@ -30,6 +30,7 @@ categories:
 # choice (or nothing, for multi groups) unless the customer asks.
 # say: how the assistant reads a choice aloud (defaults to its name).
 # label: how the screen shows it (defaults to `say`).
+# about: facts the assistant may tell about a choice (a cup's size, what it is made of).
 # words (required groups): parts of words that show the customer talked about this option at
 #   all. A temperature or size the assistant passes without the customer mentioning it (and
 #   without the screen asking for it) is treated as a guess: left out, and the kiosk asks.
@@ -61,6 +62,7 @@ option_groups:
         name: Regular
         say: 레귤러
         price: 0
+        about: 355ml (12온스)
       - id: large
         name: Large
         say: 라지
@@ -95,7 +97,7 @@ option_groups:
     required: false
     multi: true
     choices:
-      - {id: whipped_cream, name: 휘핑 추가, price: 500, allergens: [milk]}
+      - {id: whipped_cream, name: 휘핑 추가, price: 500, allergens: [milk], about: 생크림 휘핑}
 
 items:
   - id: espresso

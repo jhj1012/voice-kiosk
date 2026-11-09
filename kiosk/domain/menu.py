@@ -44,6 +44,7 @@ class OptionChoice:
     say: str = ""  # how it is read aloud; defaults to the name
     label: str = ""  # how the screen shows it; defaults to `say`
     allergens: tuple[str, ...] = ()
+    about: str = ""  # facts the assistant may tell: a cup's size, what it is made of
 
     @property
     def is_none(self) -> bool:
