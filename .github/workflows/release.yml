@@ -2,19 +2,31 @@ name: Release
 
 # Pushing a tag like v0.1.0 publishes voice-kiosk.zip on the Releases page: the source with the
 # display already built, so teammates need neither Node.js nor a terminal (see README.md).
+# A release made on the website (which pushes its tag) gets the zip added, its notes kept.
+# "Run workflow" with a tag builds the zip again for an existing tag (e.g. one that has none).
 
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'An existing tag, e.g. v0.3.1'
+        required: true
 
 permissions:
   contents: write
+
+env:
+  TAG: ${{ inputs.tag || github.ref_name }}
 
 jobs:
   zip:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.TAG }}
       - uses: actions/setup-node@v7
         with:
           node-version: 24
@@ -32,6 +44,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" voice-kiosk.zip \
-            --title "Voice Kiosk $GITHUB_REF_NAME" \
-            --notes "Download voice-kiosk.zip below and follow README.md (Download and run)."
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            gh release upload "$TAG" voice-kiosk.zip --clobber
+          else
+            gh release create "$TAG" voice-kiosk.zip \
+              --title "Voice Kiosk $TAG" \
+              --notes "Download voice-kiosk.zip below and follow README.md (Download and run)."
+          fi
