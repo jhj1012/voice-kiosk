@@ -81,6 +81,15 @@ in code, not in the model's memory.
 `python -m kiosk --phone` (`Start Kiosk (phone).bat`): an Android phone on the laptop's hotspot
 is the screen, and the handset plugged into it is the microphone and the speaker.
 
+Over a USB cable instead (`Start Kiosk (USB).bat`, `scripts/start.ps1 -Usb`): no Wi-Fi on the
+phone. `adb reverse tcp:8766 tcp:8766` makes the phone's `https://127.0.0.1:8766` the laptop's
+phone listener (the certificate covers 127.0.0.1), so there is no address to type, no hotspot
+and no firewall rule. adb comes from the Android SDK if installed, else Google's platform-tools
+are downloaded once into `tools/` (git-ignored). A background job forwards the port again after
+the cable was plugged in again (the page's WebSocket reconnects by itself) and opens Chrome on
+the phone once (`am start`, with an app id so Chrome reuses its tab). The phone needs USB
+debugging on.
+
 ```
  phone (Chrome) ──https://<laptop>:8766──► same FastAPI app, second listener (HTTPS)
    /ws        display events, the tap (`hook`)            laptop: http://127.0.0.1:8765

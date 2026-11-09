@@ -33,3 +33,6 @@ Thumbs.db
 
 # Local tool settings
 .claude/
+
+# adb for "Start Kiosk (USB).bat", downloaded on first use
+/tools/
