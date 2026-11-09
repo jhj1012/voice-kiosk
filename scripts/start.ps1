@@ -56,9 +56,16 @@ function Install-Adb {
     }
 }
 
+function Invoke-Adb([string]$Adb) {
+    # adb prints notes like "* daemon not running; starting now" on stderr: in Windows PowerShell
+    # that is an error, which stops this script ($ErrorActionPreference). Not here.
+    $ErrorActionPreference = 'Continue'
+    & $Adb @args 2>$null
+}
+
 function Get-PhoneState([string]$Adb) {
     # The first device's state: device (ready), unauthorized (allow on the phone), offline, or none.
-    $line = & $Adb devices 2>$null | Select-Object -Skip 1 | Where-Object { $_ -match '\t' } |
+    $line = Invoke-Adb $Adb devices | Select-Object -Skip 1 | Where-Object { $_ -match '\t' } |
         Select-Object -First 1
     if (-not $line) { return 'none' }
     return ($line -split '\t')[1].Trim()
@@ -135,9 +142,9 @@ if ($Usb) {
     $adb = Find-Adb
     if (-not $adb) { Install-Adb; $adb = Find-Adb }
     if (-not $adb) { Stop-WithMessage 'adb를 찾지 못했어요. tools 폴더를 지우고 다시 실행해 주세요.' }
-    & $adb start-server 2>$null | Out-Null
+    Invoke-Adb $adb start-server | Out-Null
     Wait-Phone $adb
-    & $adb reverse "tcp:$PhonePort" "tcp:$PhonePort" | Out-Null
+    Invoke-Adb $adb reverse "tcp:$PhonePort" "tcp:$PhonePort" | Out-Null
     Write-Host "USB 연결 완료. 화면 기기의 Chrome에 https://127.0.0.1:$PhonePort 이 저절로 열려요." -ForegroundColor Green
     Write-Host '처음이면 "연결이 비공개로 설정되어 있지 않습니다" → 고급 → 이동. (아래에 나오는 Wi-Fi 주소는 쓰지 않아요)'
     Write-Host ''
@@ -147,7 +154,7 @@ if ($Usb) {
     } finally {
         Stop-Job $watch -ErrorAction SilentlyContinue
         Remove-Job $watch -Force -ErrorAction SilentlyContinue
-        & $adb reverse --remove "tcp:$PhonePort" 2>$null | Out-Null
+        Invoke-Adb $adb reverse --remove "tcp:$PhonePort" | Out-Null
     }
 } elseif ($Phone) {
     Write-Host '휴대폰 모드: 노트북과 화면 기기를 같은 Wi-Fi(핫스팟)에 연결해 두세요. 화면 기기에서 열 주소가 아래에 나와요.'
