@@ -9,7 +9,7 @@
   import { onMount } from 'svelte';
   import type { ClientEvent, ServerEvent } from './lib/events';
   import { connect, type Connection } from './lib/connection';
-  import { startMediaButton } from './lib/mediaButton';
+  import { resumeMediaButton, startMediaButton } from './lib/mediaButton';
   import { startPhoneAudio, type PhoneAudio } from './lib/phone';
   import { play, type Timeline } from './lib/player';
   import { dispatch, handsetButtonOn, openTextEdit, previewSettings, ui } from './lib/store.svelte';
@@ -72,6 +72,7 @@
     // anything is awaited.
     if (!document.fullscreenElement)
       void document.documentElement.requestFullscreen?.().catch(() => {});
+    resumeMediaButton(); // the handset's button again, if its silent loop stopped
     if (ui.keyForm || ui.state.phase !== 'idle' || phoneStarting) return;
     void keepAwake();
     if (!ui.handsetButton) {

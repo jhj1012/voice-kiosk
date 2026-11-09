@@ -1,5 +1,43 @@
-import { describe, expect, it } from 'vitest';
-import { loopWav, pressGate } from './mediaButton';
+import { describe, expect, it, vi } from 'vitest';
+import { keepPlaying, loopWav, pressGate } from './mediaButton';
+
+/** An audio element that Android can pause (the handset unplugged). */
+class FakeAudio {
+  paused = false;
+  plays = 0;
+  private onPause: (() => void) | null = null;
+  play() {
+    this.plays++;
+    this.paused = false;
+    return Promise.resolve();
+  }
+  addEventListener(_type: 'pause', listener: () => void) {
+    this.onPause = listener;
+  }
+  pauseByAndroid() {
+    this.paused = true;
+    this.onPause?.();
+  }
+}
+
+describe('keeping the silent loop playing', () => {
+  it('plays again soon after it was paused, and when checked', () => {
+    vi.useFakeTimers();
+    const audio = new FakeAudio();
+    let check = () => {};
+    const resume = keepPlaying(audio, 2000, (run) => (check = run));
+    audio.pauseByAndroid();
+    expect(audio.paused).toBe(true);
+    vi.advanceTimersByTime(300);
+    expect(audio.paused).toBe(false);
+    audio.paused = true; // paused without an event
+    check();
+    expect(audio.paused).toBe(false);
+    resume(); // playing: nothing to do
+    expect(audio.plays).toBe(2);
+    vi.useRealTimers();
+  });
+});
 
 describe('silent loop', () => {
   it('is 10 s of 8 kHz 16-bit mono WAV', () => {
