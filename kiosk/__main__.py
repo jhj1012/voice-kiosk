@@ -69,7 +69,13 @@ def main() -> int:
     parser.add_argument(
         "--phone", action="store_true", help="the phone is the screen, microphone and speaker"
     )
+    parser.add_argument(
+        "--usb",
+        action="store_true",
+        help="phone mode over a USB cable (adb reverse): the phone's port only on 127.0.0.1",
+    )
     args = parser.parse_args()
+    args.phone = args.phone or args.usb
 
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
@@ -125,12 +131,15 @@ def main() -> int:
     laptop = uvicorn.Config(app, host=host, port=port, log_level="warning")
     on_phone = None
     if phone is not None:
-        addresses = laptop_addresses()
+        phone_host, addresses = phone_listener(args.usb)
         certificate = ensure_certificate(CONFIG_DIR, addresses)
-        print_phone_addresses(addresses, phone_port, url)
+        if args.usb:
+            print_usb(phone_port, url)
+        else:
+            print_phone_addresses(addresses, phone_port, url)
         on_phone = uvicorn.Config(
             app,
-            host="0.0.0.0",
+            host=phone_host,
             port=phone_port,
             log_level="warning",
             lifespan="off",  # the laptop's server starts and stops the kiosk
@@ -175,6 +184,23 @@ def use_phone(config: Config, controller: KioskController) -> PhoneHandset:
     controller.levels = phone.levels
     controller.mic_rms = phone.mic_rms
     return phone
+
+
+def phone_listener(usb: bool) -> tuple[str, list[str]]:
+    """Where the phone's HTTPS listener listens, and the addresses its certificate needs. Over
+    USB the phone reaches 127.0.0.1 (adb reverse), so nothing on the Wi-Fi can connect; the
+    certificate always has 127.0.0.1."""
+    if usb:
+        return "127.0.0.1", []
+    return "0.0.0.0", laptop_addresses()
+
+
+def print_usb(port: int, laptop_url: str) -> None:
+    """Phone mode over USB: nothing to type (the launcher opens Chrome on the phone)."""
+    print()
+    print(f"USB 연결: 화면 기기는 https://127.0.0.1:{port} (Wi-Fi로는 연결할 수 없어요)")
+    print(f"설정(F2)과 API 키는 이 노트북의 브라우저에서: {laptop_url}")
+    print()
 
 
 def print_phone_addresses(addresses: list[str], port: int, laptop_url: str) -> None:

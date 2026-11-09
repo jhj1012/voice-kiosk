@@ -84,7 +84,8 @@ is the screen, and the handset plugged into it is the microphone and the speaker
 Over a USB cable instead (`Start Kiosk (USB).bat`, `scripts/start.ps1 -Usb`): no Wi-Fi on the
 phone. `adb reverse tcp:8766 tcp:8766` makes the phone's `https://127.0.0.1:8766` the laptop's
 phone listener (the certificate covers 127.0.0.1), so there is no address to type, no hotspot
-and no firewall rule. adb comes from the Android SDK if installed, else Google's platform-tools
+and no firewall rule. The launcher runs `python -m kiosk --usb`: phone mode with the phone's
+listener on 127.0.0.1 only, so nothing on the Wi-Fi can connect. adb comes from the Android SDK if installed, else Google's platform-tools
 are downloaded once into `tools/` (git-ignored). A background job forwards the port again after
 the cable was plugged in again (the page's WebSocket reconnects by itself) and opens Chrome on
 the phone once (`am start`, with an app id so Chrome reuses its tab). The phone needs USB
@@ -146,6 +147,7 @@ built display (`frontend/dist`) at `/`, and the menu images at `/images`.
   (only from this computer); `set_api_key` checks it with Google (`check_api_key`), saves it to
   `.env` and uses it for the next customer. The key is never sent to a display or logged.
 - `python -m kiosk --phone`: the phone mode (above), a second HTTPS listener for the phone.
+  `--usb`: the same over USB, that listener on 127.0.0.1 only.
 - `python -m kiosk --open` opens the display in an Edge app window once the server is ready,
   `--kiosk` full screen (kiosk mode, separate Edge profile). `Start Kiosk.bat` runs
   `scripts/start.ps1`, which installs uv the first time and starts the kiosk with `--open`.
