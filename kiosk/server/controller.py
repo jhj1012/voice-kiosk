@@ -154,8 +154,10 @@ class KioskController(SessionListener):
 
     @property
     def ignore_unrelated(self) -> bool:
-        """The developer panel's "ignore speech that is not for the kiosk" (next customer)."""
-        return self.settings is not None and self.settings.values.get("ignoreUnrelated") is True
+        """The developer panel's "ignore speech that is not for the kiosk" (next customer). On
+        unless it was turned off (the display's default too, `frontend/src/lib/settings.ts`)."""
+        values = self.settings.values if self.settings is not None else {}
+        return values.get("ignoreUnrelated", True) is True
 
     def update_settings(self, values: Any, reset: bool = False) -> None:
         """Display settings changed in a developer panel: saved, and sent to every display."""
