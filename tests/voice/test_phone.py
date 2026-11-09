@@ -39,6 +39,7 @@ def test_the_microphone_rms_is_not_capped_like_the_level():
     phone.disconnect(link)
     assert phone.mic_rms() == 0
 
+
 def test_audio_is_sent_in_order_and_clear_drops_what_was_not_sent():
     phone = PhoneHandset(AudioConfig(), lambda pcm: None)
     phone.write(b"\0\0")  # no phone yet: dropped
