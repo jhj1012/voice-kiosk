@@ -20,7 +20,7 @@ from collections import deque
 from collections.abc import Callable
 
 from kiosk.config import AudioConfig
-from kiosk.voice.pcm import NoiseGate, level
+from kiosk.voice.pcm import NoiseGate, level, rms
 
 log = logging.getLogger(__name__)
 
@@ -76,6 +76,7 @@ class PhoneHandset:
         self._on_frame = on_frame
         self._link: PhoneLink | None = None
         self._mic = 0.0
+        self._mic_rms = 0.0
         self._out = 0.0
         self._noise_gate = NoiseGate(config.noise_gate_rms)
 
@@ -96,7 +97,7 @@ class PhoneHandset:
         link.close()
         if link is self._link:
             self._link = None
-            self._mic = self._out = 0.0
+            self._mic = self._mic_rms = self._out = 0.0
             log.info("phone disconnected")
 
     def receive(self, link: PhoneLink, message: Message) -> None:
@@ -107,6 +108,7 @@ class PhoneHandset:
             if not message or len(message) % 2 or len(message) > MAX_FRAME_BYTES:
                 return
             self._mic = level(message)  # before the gate: the panel shows what the mic hears
+            self._mic_rms = rms(message)
             self._on_frame(self._noise_gate(message, self.config.input_rate))
             return
         try:
@@ -133,3 +135,7 @@ class PhoneHandset:
     def levels(self) -> tuple[float, float]:
         """(microphone, speaker) loudness, 0..1."""
         return self._mic, self._out
+
+    def mic_rms(self) -> float:
+        """The microphone's 16-bit RMS, not capped (the unit of `audio.noise_gate_rms`)."""
+        return self._mic_rms

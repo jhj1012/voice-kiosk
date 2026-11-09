@@ -173,6 +173,7 @@ def use_phone(config: Config, controller: KioskController) -> PhoneHandset:
     controller.audio_out = phone.write
     controller.audio_stop = phone.clear
     controller.levels = phone.levels
+    controller.mic_rms = phone.mic_rms
     return phone
 
 
@@ -233,6 +234,7 @@ def open_handset(config: Config, controller: KioskController) -> Handset | None:
     controller.audio_out = handset.speaker.write
     controller.audio_stop = handset.speaker.clear
     controller.levels = handset.levels
+    controller.mic_rms = handset.mic_rms
     print(f"Microphone: {handset.microphone.name}")
     print(f"Earpiece:   {handset.speaker.name}")
     return handset

@@ -128,6 +128,7 @@ def test_subtitle_ids_follow_utterances():
 
 def test_level_is_clamped():
     assert level_event(1.7, -0.2) == {"type": "level", "mic": 1.0, "out": 0.0}
+    assert level_event(1.0, 0.2, 18432.6) == {"type": "level", "mic": 1.0, "out": 0.2, "rms": 18433}
 
 
 def test_avatar_urls(tmp_path):
