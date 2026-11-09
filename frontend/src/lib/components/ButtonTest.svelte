@@ -4,7 +4,7 @@
   // through the Media Session API, but only while the page plays sound with an <audio> element.
   // So a tap starts a silent loop (lib/mediaButton.ts), and every media action and key that
   // arrives is listed.
-  import { playLoop } from '../mediaButton';
+  import { keepPlaying, playLoop } from '../mediaButton';
 
   const ACTIONS = [
     'play',
@@ -24,6 +24,7 @@
   let log = $state<{ id: number; time: string; text: string }[]>([]);
   let nextId = 0;
   let audio: HTMLAudioElement | null = null;
+  let deviceWatch = false;
   let mic: MediaStream | null = null;
 
   function add(text: string) {
@@ -35,6 +36,16 @@
     audio?.pause();
     audio = playLoop(quietNoise);
     add(`소리 재생 시작 (${quietNoise ? '아주 작은 잡음' : '무음'})`);
+    audio.addEventListener('pause', () => add('소리가 멈춤 (수화기를 뺐거나 다른 앱이 소리를 냄)'));
+    audio.addEventListener('playing', () => add('소리 다시 재생'));
+    const resume = keepPlaying(audio); // as on the kiosk
+    if (!deviceWatch) {
+      deviceWatch = true;
+      navigator.mediaDevices?.addEventListener('devicechange', () => {
+        add('오디오 장치가 바뀜 (수화기를 꽂거나 뺌)');
+        resume();
+      });
+    }
     const session = navigator.mediaSession;
     if (!session) {
       add('이 브라우저는 Media Session을 지원하지 않아요');
