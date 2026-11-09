@@ -5,7 +5,7 @@
 # this window shows the address to open on the phone.
 # -Usb ("Start Kiosk (USB).bat"): the same over a USB cable, no Wi-Fi on the phone: adb (Android's
 # debugging tool, downloaded once into tools\) forwards the phone's 127.0.0.1:8766 to this laptop
-# and opens Chrome there. The phone needs USB debugging on (README).
+# and opens Chrome there; the kiosk then listens for the phone on 127.0.0.1 only (--usb). The phone needs USB debugging on (README).
 param([switch]$FullScreen, [switch]$Phone, [switch]$Usb)
 
 $ErrorActionPreference = 'Stop'
@@ -146,11 +146,11 @@ if ($Usb) {
     Wait-Phone $adb
     Invoke-Adb $adb reverse "tcp:$PhonePort" "tcp:$PhonePort" | Out-Null
     Write-Host "USB 연결 완료. 화면 기기의 Chrome에 https://127.0.0.1:$PhonePort 이 저절로 열려요." -ForegroundColor Green
-    Write-Host '처음이면 "연결이 비공개로 설정되어 있지 않습니다" → 고급 → 이동. (아래에 나오는 Wi-Fi 주소는 쓰지 않아요)'
+    Write-Host '처음이면 "연결이 비공개로 설정되어 있지 않습니다" → 고급 → 이동.'
     Write-Host ''
     $watch = Start-Job -ScriptBlock $UsbWatch -ArgumentList $adb, $PhonePort
     try {
-        & $uv run --no-dev python -m kiosk --phone
+        & $uv run --no-dev python -m kiosk --usb
     } finally {
         Stop-Job $watch -ErrorAction SilentlyContinue
         Remove-Job $watch -Force -ErrorAction SilentlyContinue
