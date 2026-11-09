@@ -157,6 +157,7 @@ export interface LevelEvent {
   type: 'level';
   mic: number;
   out: number;
+  rms?: number; // the microphone's 16-bit RMS, not capped (developer panel)
 }
 
 export interface NoticeEvent {

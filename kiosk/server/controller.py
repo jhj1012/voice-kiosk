@@ -97,6 +97,7 @@ class KioskController(SessionListener):
         self.audio_out: Callable[[bytes], None] | None = None  # play in the earpiece
         self.audio_stop: Callable[[], None] | None = None  # stop playing at once
         self.levels: Callable[[], tuple[float, float]] | None = None  # (mic, earpiece) 0..1
+        self.mic_rms: Callable[[], float] | None = None  # the mic's real RMS, for the panel
         self._clock = clock
         self._seq = 0
         self._subtitles = Subtitles()
@@ -275,15 +276,16 @@ class KioskController(SessionListener):
 
     async def _publish_levels(self) -> None:
         """What the microphone hears and the earpiece plays, for the assistant animation."""
-        last = (0.0, 0.0)
+        last: tuple[float, float, int | None] = (0.0, 0.0, None)
         while True:
             await asyncio.sleep(LEVEL_EVERY_S)
             if self.levels is None or self.session is None:
                 continue
             mic, out = self.levels()
-            if (mic, out) != last:
-                last = (mic, out)
-                self.hub.publish(level_event(mic, out))
+            mic_rms = round(self.mic_rms()) if self.mic_rms is not None else None
+            if (mic, out, mic_rms) != last:
+                last = (mic, out, mic_rms)
+                self.hub.publish(level_event(mic, out, mic_rms))
 
     def _on_hook(self, off_hook: bool) -> None:
         self._spawn(self.lift() if off_hook else self.hang_up())

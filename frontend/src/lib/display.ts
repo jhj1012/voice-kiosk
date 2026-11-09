@@ -26,7 +26,7 @@ export interface DisplayState {
   settings: Record<string, unknown>; // as saved; settings.ts gives them meaning
   state: StateEvent;
   subtitles: Subtitle[]; // the latest few utterances, oldest first
-  level: { mic: number; out: number };
+  level: { mic: number; out: number; rms?: number };
   notice: NoticeEvent | null;
   apiKey: ApiKeyStatus;
   lastAdded: { itemId: string; at: number } | null; // for the "fly into the order" animation
@@ -92,7 +92,7 @@ export function apply(display: DisplayState, event: ServerEvent, now = 0): Displ
     case 'subtitle':
       return { ...display, subtitles: applySubtitle(display.subtitles, event) };
     case 'level':
-      return { ...display, level: { mic: event.mic, out: event.out } };
+      return { ...display, level: { mic: event.mic, out: event.out, rms: event.rms } };
     case 'notice':
       return { ...display, notice: event.text ? event : null };
     case 'setup':

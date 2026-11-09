@@ -71,6 +71,7 @@ class Microphone:
         self.config = config
         self.on_frame = on_frame
         self.level = 0.0
+        self.rms = 0.0  # 16-bit RMS, not capped: the developer panel shows it
         self.name = ""
         self._sd = sd
         self._stream: Any = None
@@ -99,6 +100,7 @@ class Microphone:
     def _on_audio(self, data: Any, frames: int, time_info: Any, status: Any) -> None:
         """PortAudio's thread: one frame of microphone audio."""
         pcm = resample(bytes(data), self._rate, self.config.input_rate)
+        self.rms = rms(pcm)
         self.level = level(pcm)
         self.on_frame(pcm)
 
@@ -193,6 +195,10 @@ class Handset:
     def levels(self) -> tuple[float, float]:
         """(microphone, earpiece) loudness, 0..1."""
         return self.microphone.level, self.speaker.level
+
+    def mic_rms(self) -> float:
+        """The microphone's 16-bit RMS, not capped (the unit of `audio.noise_gate_rms`)."""
+        return self.microphone.rms
 
     def _from_microphone(self, pcm: bytes) -> None:
         gate = self.config.echo_gate_rms

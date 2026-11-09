@@ -21,14 +21,15 @@
   let text = $state('');
   let audio = $state(true);
   const offHook = $derived(ui.state.phase !== 'idle');
-  // The microphone's loudness as 16-bit RMS (level 1 = 6000, as kiosk/voice/pcm.py), the unit of
-  // audio.noise_gate_rms in the settings.
-  const micRms = $derived(Math.round(ui.level.mic * 6000));
+  // The microphone's loudness as 16-bit RMS, the unit of audio.noise_gate_rms in the settings.
+  // The backend sends the real value (`rms`); the animation's level is capped at 6000.
+  const micRms = $derived(ui.level.rms ?? Math.round(ui.level.mic * 6000));
+  const capped = $derived(ui.level.rms === undefined);
   let micPeak = $state(0);
   $effect(() => {
     if (micRms > micPeak) micPeak = micRms;
   });
-  const rmsText = (value: number) => (value >= 6000 ? '6000+' : String(value)); // level is capped
+  const rmsText = (value: number) => (capped && value >= 6000 ? '6000+' : String(value));
 
   function submit(event: SubmitEvent) {
     event.preventDefault();

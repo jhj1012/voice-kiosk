@@ -29,6 +29,17 @@ def test_microphone_frames_go_on_with_their_loudness():
     assert phone.levels()[0] > 0
 
 
+def test_the_microphone_rms_is_not_capped_like_the_level():
+    phone = PhoneHandset(AudioConfig(), lambda pcm: None)
+    link = phone.connect()
+    loud = (20000).to_bytes(2, "little", signed=True) * 320  # louder than level 1 (6000)
+    phone.receive(link, loud)
+    assert phone.levels()[0] == 1.0
+    assert phone.mic_rms() == 20000
+    phone.disconnect(link)
+    assert phone.mic_rms() == 0
+
+
 def test_audio_is_sent_in_order_and_clear_drops_what_was_not_sent():
     phone = PhoneHandset(AudioConfig(), lambda pcm: None)
     phone.write(b"\0\0")  # no phone yet: dropped

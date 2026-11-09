@@ -215,8 +215,11 @@ class Subtitles:
         }
 
 
-def level_event(mic: float, out: float) -> Event:
-    return {"type": "level", "mic": _unit(mic), "out": _unit(out)}
+def level_event(mic: float, out: float, mic_rms: float | None = None) -> Event:
+    event: Event = {"type": "level", "mic": _unit(mic), "out": _unit(out)}
+    if mic_rms is not None:
+        event["rms"] = round(mic_rms)  # the mic's real loudness, not capped (developer panel)
+    return event
 
 
 def _unit(value: float) -> float:
