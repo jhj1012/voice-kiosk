@@ -12,7 +12,7 @@
   import { startMediaButton } from './lib/mediaButton';
   import { startPhoneAudio, type PhoneAudio } from './lib/phone';
   import { play, type Timeline } from './lib/player';
-  import { dispatch, openTextEdit, previewSettings, ui } from './lib/store.svelte';
+  import { dispatch, handsetButtonOn, openTextEdit, previewSettings, ui } from './lib/store.svelte';
   import DevPanel from './lib/components/DevPanel.svelte';
   import Stage from './lib/components/Stage.svelte';
   import TextSizeEditor from './lib/components/TextSizeEditor.svelte';
@@ -27,7 +27,6 @@
   let connection: Connection | null = null;
   let phoneAudio = $state.raw<PhoneAudio | null>(null);
   let phoneStarting = false;
-  let buttonOn = false; // the handset's button (lib/mediaButton.ts)
   let wakeLock: WakeLockSentinel | null = null;
 
   // The phone sends its microphone only while a conversation is on.
@@ -75,8 +74,8 @@
       void document.documentElement.requestFullscreen?.().catch(() => {});
     if (ui.keyForm || ui.state.phase !== 'idle' || phoneStarting) return;
     void keepAwake();
-    if (!buttonOn) {
-      buttonOn = true;
+    if (!ui.handsetButton) {
+      handsetButtonOn();
       startMediaButton(onHandsetButton);
     }
     if (!phoneAudio) {

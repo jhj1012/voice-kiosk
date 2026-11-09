@@ -68,7 +68,7 @@ in code, not in the model's memory.
 - Barge-in itself is the Live API's voice detection (~0.4 s, milestone 3). If the earpiece leaks
   into the microphone, `audio.echo_gate_rms` sends quieter microphone audio as silence while the
   earpiece plays.
-- `audio.noise_gate_rms` (`NoiseGate` in `pcm.py`, off by default) sends background noise as
+- `audio.noise_gate_rms` (`NoiseGate` in `pcm.py`, 8000 in `configs/settings.yaml`) sends background noise as
   silence: frames under the RMS, unless a louder one came within 0.5 s (word endings stay). For
   the laptop's handset and the phone alike; the developer panel shows the microphone's RMS to
   pick the value. On the phone, Chrome's automatic gain is off (it turned up the background).
@@ -332,8 +332,8 @@ to the next screen": choices appear and disappear in place.
 - **Colours**: every main colour (background, its light, the choices' background and how see-through it
   is, the menu pictures' background, text, secondary and faint text, highlight, text on the
   highlight, lines) can be changed in the developer panel (`lib/settings.ts`).
-- **Developer mode** (`F2`): typed input, mute, ignoring speech not meant for the kiosk (from
-  the next customer), the display settings, the API key, the event log;
+- **Developer mode** (`F2`): typed input, mute, ignoring speech not meant for the kiosk (on by
+  default; from the next customer), the display settings, the API key, the event log;
   `Space` lifts / puts down the simulated handset. **Display settings are saved by the backend**
   (`configs/display.local.json`, git-ignored) and sent to every display (`settings` event), so
   full-screen mode's separate Edge profile (`--kiosk`) gets them too. `?demo=order|allergy` plays

@@ -19,6 +19,7 @@ let keyFormOpen = $state(false); // the developer panel's "API 키 바꾸기"
 let lastAdded = $state.raw(start.lastAdded);
 let phone = $state(start.phone);
 let textEdit = $state(false); // the text size editor (F4)
+let handsetButton = $state(false); // the phone's handset button works (after the first tap)
 const settings = $derived(normalize(savedSettings));
 
 export const ui = {
@@ -60,6 +61,10 @@ export const ui = {
   get phone() {
     return phone;
   },
+  /** The phone's handset button starts and ends the conversation (from the first tap on). */
+  get handsetButton() {
+    return handsetButton;
+  },
   /** The text size editor (F4): this screen shows the phone's text sizes while it is open. */
   get textEdit() {
     return textEdit;
@@ -76,6 +81,10 @@ export function openKeyForm(open: boolean): void {
 
 export function openTextEdit(open: boolean): void {
   textEdit = open;
+}
+
+export function handsetButtonOn(): void {
+  handsetButton = true;
 }
 
 /** Shows a settings change at once, before the backend saved it (and in demo mode). */
