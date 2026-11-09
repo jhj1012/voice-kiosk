@@ -12,6 +12,7 @@ categories:
   - {id: beverage, name: 음료, unit: 잔}
   - {id: dessert, name: 디저트·베이커리, unit: 개}
 
+# about (a choice): facts the assistant may tell, e.g. a cup's size or what it is made of.
 option_groups:
   - id: temperature
     name: 온도
@@ -27,39 +28,39 @@ option_groups:
     multi: false
     words: [사이즈, 레귤, 레규, 라지, 라디, 큰, 크게, 작은, 작게, 보통, 기본, 스몰, regular, large]
     choices:
-      - {id: regular, name: Regular, say: 레귤러 (기본), price: 0}
-      - {id: large, name: Large, say: 라지 (큰 사이즈), price: 500}
+      - {id: regular, name: Regular, say: 레귤러 (기본), price: 0, about: '355ml (12온스)'}
+      - {id: large, name: Large, say: 라지 (큰 사이즈), price: 500, about: '473ml (16온스)'}
   - id: tumbler
     name: 텀블러
     required: false
     multi: true
     choices:
-      - {id: tumbler, name: 텀블러 사용, price: 0}
+      - {id: tumbler, name: 텀블러 사용, price: 0, about: 가져오신 텀블러에 담아 드려요}
   - id: shot
     name: 커피 샷
     required: false
     multi: false
     choices:
       - {id: none, name: 기본, price: 0}
-      - {id: extra_shot, name: 샷 추가, price: 600}
-      - {id: two_extra_shots, name: 2샷 추가, price: 1200}
-      - {id: decaf, name: 디카페인, price: 1000}
+      - {id: extra_shot, name: 샷 추가, price: 600, about: '에스프레소 1샷(약 30ml)을 더해요'}
+      - {id: two_extra_shots, name: 2샷 추가, price: 1200, about: 에스프레소 2샷을 더해요}
+      - {id: decaf, name: 디카페인, price: 1000, about: 카페인을 90% 이상 뺀 디카페인 원두로 바꿔요}
   - id: syrup
     name: 시럽
     required: false
     multi: false
     choices:
       - {id: none, name: 없음, price: 0}
-      - {id: vanilla, name: 바닐라 시럽, price: 500}
-      - {id: caramel, name: 카라멜 시럽, price: 500}
-      - {id: hazelnut, name: 헤이즐넛 시럽, price: 500}
-      - {id: light_vanilla, name: 라이트 바닐라 시럽, price: 500}
+      - {id: vanilla, name: 바닐라 시럽, price: 500, about: 바닐라 향 설탕 시럽}
+      - {id: caramel, name: 카라멜 시럽, price: 500, about: 카라멜 맛 설탕 시럽}
+      - {id: hazelnut, name: 헤이즐넛 시럽, price: 500, about: 헤이즐넛 향 설탕 시럽}
+      - {id: light_vanilla, name: 라이트 바닐라 시럽, price: 500, about: 설탕을 줄인 바닐라 시럽}
   - id: topping
     name: 토핑
     required: false
     multi: true
     choices:
-      - {id: whipped_cream, name: 휘핑 추가, price: 500, allergens: [milk]}
+      - {id: whipped_cream, name: 휘핑 추가, price: 500, allergens: [milk], about: 우유로 만든 생크림에 설탕을 넣어 휘핑한 크림}
 
 items:
   # ==================== 커피 ====================

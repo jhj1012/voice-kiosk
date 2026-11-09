@@ -13,7 +13,7 @@ from collections.abc import Sequence
 
 from kiosk.domain.cafe import Cafe
 from kiosk.domain.flow import Draft
-from kiosk.domain.menu import Menu, MenuItem
+from kiosk.domain.menu import Menu, MenuItem, OptionChoice
 from kiosk.domain.order import Order, won_spoken
 
 GREETING_CUE = "[손님이 수화기를 들었습니다]"
@@ -87,6 +87,9 @@ on an answer the customer has not given.
 answered: call stay_quiet and nothing else, and wait. Never speak up on your own after a \
 silence.
 - If you did not understand, ask briefly again. Never act as if you understood.
+- Order only items the customer named. A word that is not an item's name is never an order, \
+even if it sounds a little like one: ask again instead. Words that sound like 직원 (직업, \
+지권, 지원) mean the staff.
 
 ## Start
 When you receive {greeting_cue}, greet briefly and ask whether they eat here or take out: \
@@ -122,13 +125,21 @@ the order ("아메리카노는 포장하고 카페모카는 매장에서 먹어�
 주세요"), NEVER say it is impossible: call note_for_staff with a short Korean summary and say \
 "네, 알겠습니다. 해당 사항은 직원에게 전달하겠습니다." Items or options that are not on the menu \
 cannot be ordered: say so.
+"직원 호출", "직원 불러 주세요", "직원이랑 얘기하고 싶어요": call note_for_staff with "직원 호출" \
+(and what it is about, if they said) and say "네, 직원에게 전달하겠습니다. 잠시만 기다려 주세요." \
+Never order anything for it.
 
 ## Facts
-Answer questions ONLY from the menu and cafe information below. If they do not say \
+- About this cafe's items, options, prices, ingredients, allergens and places, answer ONLY \
+from the menu and cafe information below. An option's facts (a cup's size, what a syrup or \
+a topping is made of) are in brackets after it. Never invent these; if they are not there \
 (e.g. calories, origin of beans, a place not listed), say that you do not know and suggest \
-asking the staff at the counter. Never invent items, prices, ingredients, allergens or places. \
-For allergies, also mention that the allergy information is for reference and the staff can \
+asking the staff at the counter.
+- For allergies, also mention that the allergy information is for reference and the staff can \
 confirm it.
+- General questions that are not about this cafe's facts ("라떼랑 카푸치노가 뭐가 달라요?", \
+"아인슈페너가 뭐예요?", "디카페인은 잠이 안 와요?"): answer briefly with common knowledge, in \
+one sentence, without numbers for this cafe.
 
 ## Paying
 1. When the customer asks to pay ("결제할게요", "계산해 주세요", or "없어요" to "더 필요하신 거 \
@@ -181,11 +192,17 @@ def instructions(
     return "\n\n".join(parts)
 
 
+# Words of the kiosk itself the transcription should expect (team test: "직원 호출" was heard as
+# "직업 호출", and the assistant ordered something).
+KIOSK_WORDS = ("직원", "직원 호출", "직원분", "포장", "매장", "결제")
+
+
 def transcription_vocabulary(menu: Menu) -> list[str]:
-    """Unusual words the transcription should expect: item, category and option names."""
+    """Unusual words the transcription should expect: item, category and option names, and the
+    kiosk's own words."""
     words = [i.name for i in menu.items] + [c.name for c in menu.categories]
     words += [c.spoken for g in menu.option_groups for c in g.choices if not c.is_none]
-    return sorted(set(words))
+    return sorted({*words, *KIOSK_WORDS})
 
 
 def menu_text(menu: Menu) -> str:
@@ -194,10 +211,7 @@ def menu_text(menu: Menu) -> str:
     for group in menu.option_groups:
         kind = "REQUIRED" if group.required else "extra"
         many = ", any number" if group.multi else ""
-        choices = ", ".join(
-            f"{c.id} {c.name}" + (f" +{won_spoken(c.price)}" if c.price else "")
-            for c in group.choices
-        )
+        choices = ", ".join(_choice_text(c, allergen_names) for c in group.choices)
         lines.append(f"- {group.id} ({group.name}, {kind}{many}): {choices}")
     lines.append("")
     lines.append("## Menu")
@@ -206,6 +220,17 @@ def menu_text(menu: Menu) -> str:
         for item in menu.items_in(category.id):
             lines.append(_item_line(item, allergen_names))
     return "\n".join(lines)
+
+
+def _choice_text(choice: OptionChoice, allergen_names: dict[str, str]) -> str:
+    """E.g. "large Large +오백 원 (473ml (16온스))", with the choice's allergens too."""
+    text = f"{choice.id} {choice.name}"
+    if choice.price:
+        text += f" +{won_spoken(choice.price)}"
+    facts = [choice.about] if choice.about else []
+    if choice.allergens:
+        facts.append("allergens: " + ", ".join(allergen_names[a] for a in choice.allergens))
+    return text + (f" ({'; '.join(facts)})" if facts else "")
 
 
 def _item_line(item: MenuItem, allergen_names: dict[str, str]) -> str:
