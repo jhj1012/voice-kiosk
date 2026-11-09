@@ -253,6 +253,14 @@ git tag v0.1.1
 git push origin v0.1.1
 ```
 
+A release made on the website (**Releases → Draft a new release**, with a new tag) works too:
+the workflow adds the zip to it and keeps its notes. To build the zip again for an existing tag
+(for example one that has none), run the workflow by hand with that tag:
+
+```bash
+gh workflow run release.yml -f tag=v0.1.1
+```
+
 ### Repository layout
 
 | Path | What |
