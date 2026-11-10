@@ -3,8 +3,9 @@
   // or larger. Every place has its own size (the menu list's names and the order review's names
   // are two places), on top of the developer panel's size for all of it. This screen shows the
   // phone's sizes while the editor is open; the backend saves them and sends them to the phone.
+  // "원래대로" and "모두 되돌리기" go back to the default sizes (the team's, settings.ts), not 100%.
   import type { ClientEvent } from '../events';
-  import { MAX_TEXT_SIZE, MIN_TEXT_SIZE } from '../settings';
+  import { DEFAULTS, MAX_TEXT_SIZE, MIN_TEXT_SIZE } from '../settings';
   import { previewSettings, ui } from '../store.svelte';
   import { TEXT_ROLES, textRoleAt } from '../textRoles';
 
@@ -17,8 +18,15 @@
   let picked: HTMLElement | null = null; // outlined while chosen
 
   const roles = $derived(ui.settings.phoneTextRoles);
+  const defaults = DEFAULTS.phoneTextRoles;
+  const original = $derived(role ? (defaults[role] ?? 100) : 100);
   const size = $derived(role ? (roles[role] ?? 100) : 100);
-  const changed = $derived(Object.keys(roles).length);
+  // places whose size is not the default one
+  const changed = $derived(
+    [...new Set([...Object.keys(roles), ...Object.keys(defaults)])].filter(
+      (r) => (roles[r] ?? 100) !== (defaults[r] ?? 100),
+    ).length,
+  );
 
   function save(next: Record<string, number>) {
     const values = { phoneTextRoles: next };
@@ -30,7 +38,8 @@
     if (!role) return;
     const next = { ...roles };
     const clamped = Math.min(MAX_TEXT_SIZE, Math.max(MIN_TEXT_SIZE, value));
-    if (clamped === 100) delete next[role];
+    // the saved sizes replace the defaults as a whole, so 100% is kept as a value too
+    if (clamped === 100 && !(role in defaults)) delete next[role];
     else next[role] = clamped;
     save(next);
   }
@@ -78,15 +87,17 @@
       <button type="button" onclick={() => setSize(size - STEP)} aria-label="작게">−</button>
       <b class="value">{size}%</b>
       <button type="button" onclick={() => setSize(size + STEP)} aria-label="크게">+</button>
-      <button type="button" onclick={() => setSize(100)} disabled={size === 100}>원래대로</button>
+      <button type="button" onclick={() => setSize(original)} disabled={size === original}
+        >원래대로</button
+      >
     </div>
   {:else}
     <div class="row hint">글자가 아닌 곳이에요. 글자를 눌러 주세요.</div>
   {/if}
   {#if changed}
     <div class="row hint">
-      바꾼 곳 {changed}개
-      <button type="button" onclick={() => save({})}>모두 되돌리기</button>
+      기본값과 다른 곳 {changed}개
+      <button type="button" onclick={() => save({ ...defaults })}>모두 되돌리기</button>
     </div>
   {/if}
 </div>
