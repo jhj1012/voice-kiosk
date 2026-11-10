@@ -24,7 +24,8 @@ audio:
   output_rate: 24000
   frame_ms: 20
   echo_gate_rms: null     # e.g. 800: while the earpiece plays, quieter mic audio is sent as silence
-  noise_gate_rms: 8000    # quieter mic audio (background noise) is sent as silence; F2 shows the mic's RMS (team test: a loud room)
+  noise_gate_rms: null    # e.g. 2000: quieter mic audio (background noise) is sent as silence; F2 shows the mic's RMS.
+                          # Too high cuts speech into pieces the transcription turns into menu names (team test: 8000).
 
 server:
   host: 127.0.0.1
