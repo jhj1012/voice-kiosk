@@ -209,9 +209,9 @@ def instructions(
     return "\n\n".join(parts)
 
 
-# Words of the kiosk itself the transcription should expect (team test: "직원 호출" was heard as
-# "직업 호출", and the assistant ordered something).
-KIOSK_WORDS = ("직원", "직원 호출", "직원분", "포장", "매장", "결제")
+# Words of the kiosk itself the transcription should expect (team tests: "직원 호출" was heard as
+# "직업 호출", and the assistant ordered something; "계산" was often not understood).
+KIOSK_WORDS = ("직원", "직원 호출", "직원분", "포장", "매장", "결제", "계산")
 
 
 def transcription_vocabulary(menu: Menu) -> list[str]:

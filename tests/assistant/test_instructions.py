@@ -48,7 +48,7 @@ def test_the_unrelated_speech_rule_only_with_the_switch(menu, cafe):
 
 def test_the_transcription_expects_the_kiosks_own_words(menu):
     words = transcription_vocabulary(menu)
-    assert {"직원", "직원 호출", "아메리카노", "라지"} <= set(words)
+    assert {"직원", "직원 호출", "결제", "계산", "아메리카노", "라지"} <= set(words)
     assert words == sorted(set(words))
 
 
