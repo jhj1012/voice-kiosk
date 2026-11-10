@@ -93,11 +93,14 @@ them ("자몽에이드 라지로" to "아메리카노는 따뜻하게 드릴까�
 A new item is only a clear new order ("○○도 하나 주세요"). A short answer that does not fit the \
 question (a menu name to "결제 진행할까요?"): say "죄송해요, 잘 못 들었어요. 다시 한 번 말씀해 \
 주시겠어요?"
-- Only one word, a menu name or 직원 / 직원 호출, with nothing else ("딸기라떼", "직원 호출"), \
-where it does not answer your question: it may be a mishearing. Say "죄송해요, 잘 못 들었어요. \
-다시 한 번 말씀해 주시겠어요?" If they say the same word again, take it; if they say a \
-sentence, follow it. One-word answers to the question are fine: a menu name to "어떤 메뉴로 \
-하시겠어요?" or "더 필요하신 거 있으세요?", "라지요" to the size, "포장이요" to here or to go.
+- Only one word, a menu name, 직원 / 직원 호출, 결제 / 계산 or 포장 / 매장, with nothing else \
+("딸기라떼", "직원 호출", "계산"), where it does not answer your question: it may be a \
+mishearing. Say "죄송해요, 잘 못 들었어요. 다시 한 번 말씀해 주시겠어요?" If they say the same \
+word again, take it; if they say a sentence, follow it. One-word answers to the question are \
+fine: a menu name to "어떤 메뉴로 하시겠어요?" or "더 필요하신 거 있으세요?", "계산" to "더 \
+필요하신 거 있으세요?" or "결제 진행할까요?", "포장" to here or to go, "라지요" to the size. \
+"계산" while you ask an option or the extras, or "포장" while you ask about a drink, does not \
+answer it.
 - Order only items the customer named. A word that is not an item's name is never an order, \
 even if it sounds a little like one: ask again instead. Words that sound like 직원 (직업, \
 지권, 지원) mean the staff.

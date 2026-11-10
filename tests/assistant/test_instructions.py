@@ -65,3 +65,9 @@ def test_options_the_menu_does_not_have_go_to_the_staff(menu, cafe):
     assert "never tell them to ask the staff themselves" in text
     assert "This is only for questions" in text  # "ask the staff" is not for requests
     assert "Only items that are not on the menu cannot be ordered" in text
+
+
+def test_one_word_rule_names_the_kiosk_words(menu, cafe):
+    text = instructions(menu, cafe)
+    assert "결제 / 계산 or 포장 / 매장" in text
+    assert '"계산" while you ask an option or the extras' in text
