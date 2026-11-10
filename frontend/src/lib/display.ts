@@ -84,6 +84,9 @@ export function apply(display: DisplayState, event: ServerEvent, now = 0): Displ
         cafe: event.cafe,
         avatar: event.avatar ?? null,
         phone: event.phone ?? false,
+        // a new connection: its state is the current one, even if the kiosk restarted (its
+        // snapshots count from 1 again)
+        state: { ...display.state, seq: 0 },
       };
     case 'settings':
       return { ...display, settings: event.values };
@@ -97,6 +100,8 @@ export function apply(display: DisplayState, event: ServerEvent, now = 0): Displ
       return { ...display, notice: event.text ? event : null };
     case 'setup':
       return { ...display, apiKey: event.api_key };
+    case 'ping':
+      return display;
   }
 }
 

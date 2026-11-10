@@ -25,6 +25,11 @@ from kiosk.voice.phone import PhoneHandset, PhoneLink
 log = logging.getLogger(__name__)
 
 LOCAL_CLIENTS = {"127.0.0.1", "::1", "localhost"}
+# Sent when nothing else was for this long: a display that hears nothing for a while knows its
+# connection died without closing (team test: the phone kept the idle screen for good) and
+# connects again (frontend/src/lib/connection.ts, phone.ts).
+PING_EVERY_S = 5.0
+PING: Event = {"type": "ping"}
 
 # Windows' own list may lack these (the avatar's clips and images).
 for _type, _suffix in [("image/webp", ".webp"), ("video/webm", ".webm"), ("video/mp4", ".mp4")]:
@@ -133,7 +138,14 @@ def _ignore_connection_resets(loop: asyncio.AbstractEventLoop, context: dict) ->
 
 async def _send_audio(socket: WebSocket, link: PhoneLink) -> None:
     with contextlib.suppress(Exception):  # the phone went away
-        while (message := await link.next()) is not None:
+        while True:
+            try:
+                message = await asyncio.wait_for(link.next(), PING_EVERY_S)
+            except TimeoutError:
+                await socket.send_text("ping")
+                continue
+            if message is None:
+                break
             if isinstance(message, bytes):
                 await socket.send_bytes(message)
             else:
@@ -144,4 +156,8 @@ async def _send_audio(socket: WebSocket, link: PhoneLink) -> None:
 async def _send_all(socket: WebSocket, queue: asyncio.Queue[Event]) -> None:
     with contextlib.suppress(Exception):  # the display went away
         while True:
-            await socket.send_json(await queue.get())
+            try:
+                event = await asyncio.wait_for(queue.get(), PING_EVERY_S)
+            except TimeoutError:
+                event = PING
+            await socket.send_json(event)

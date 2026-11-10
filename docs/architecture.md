@@ -138,7 +138,13 @@ built display (`frontend/dist`) at `/`, and the menu images at `/images`.
 - `Hub` (`hub.py`) fans events out to every connected display; a display that stops reading
   loses its oldest events and never blocks the kiosk.
 - A newly connected display gets `init` (the menu, with the image files that exist now),
-  `setup` and the current `state`, so it can reconnect at any time.
+  `setup` and the current `state`, so it can reconnect at any time (the display then takes
+  the state even if the kiosk restarted and its snapshots count from 1 again).
+- Heartbeat: `/ws` sends `ping` and `/ws/audio` the text `ping` whenever nothing else was sent
+  for 5 s (`PING_EVERY_S`). A display or phone that hears nothing for 15 s (`STALE_MS`), or
+  finds that when its page is shown again, drops that connection and opens a new one: a
+  connection can die without closing (a phone's screen off, Wi-Fi or USB gone for a moment),
+  and then the phone kept the idle screen until it was reloaded.
 - From the display (developer mode): `hook` (Space: lift / put down; lifting again after a
   finished order starts the next customer), `dev_text` (typed customer words; lifts the handset
   if nobody did) and `dev_mute`.

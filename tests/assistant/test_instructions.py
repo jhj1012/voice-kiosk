@@ -57,3 +57,9 @@ def test_rules_for_the_staff_and_general_questions(menu, cafe):
     assert '"직원 호출"' in text and "Never order anything for it." in text
     assert "Words that sound like 직원 (직업" in text
     assert "answer briefly with common knowledge" in text
+
+
+def test_options_the_menu_does_not_have_go_to_the_staff(menu, cafe):
+    text = instructions(menu, cafe)
+    assert '"두유로 바꿔 주세요"' in text and "never say they are not possible" in text
+    assert "Only items that are not on the menu cannot be ordered" in text
