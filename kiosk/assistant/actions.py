@@ -54,6 +54,14 @@ CONFIRM_LINE = (
 )
 
 
+# An option the menu does not have ("두유로"): never "not possible", a note for the staff.
+UNKNOWN_OPTION_NOTE = (
+    "If the customer wants an option the menu does not have, do not say it is not possible: call "
+    "note_for_staff with it (e.g. '카페라떼 두유로 변경') and say '네, 알겠습니다. 해당 사항은 "
+    "직원에게 전달하겠습니다.'"
+)
+
+
 class Actions:
     def __init__(self, kiosk: Kiosk) -> None:
         self.kiosk = kiosk
@@ -81,7 +89,10 @@ class Actions:
         try:
             return handler(dict(args or {}))
         except KioskError as e:
-            return {"error": str(e), **self._next()}
+            result: Result = {"error": str(e), **self._next()}
+            if "has no choice" in str(e):
+                result["note"] = UNKNOWN_OPTION_NOTE
+            return result
         except (TypeError, ValueError) as e:
             log.warning("bad arguments for %s: %s (%s)", name, args, e)
             return {"error": f"invalid arguments: {e}"}

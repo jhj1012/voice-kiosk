@@ -167,3 +167,9 @@ def test_every_declared_function_has_a_handler(actions: Actions, menu, cafe):
 
     declared = {d["name"] for d in function_declarations(menu, cafe)}
     assert declared == actions.names | {STAY_QUIET}  # stay_quiet: the session mutes the turn
+
+
+def test_an_option_the_menu_does_not_have_points_to_the_staff(actions: Actions):
+    result = actions.call("order", {"item_id": "cafe_latte", "size": "soy"})  # "두유로"
+    assert "has no choice" in result["error"]
+    assert "note_for_staff" in result["note"]
