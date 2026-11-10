@@ -18,6 +18,8 @@ let apiKey = $state.raw(start.apiKey);
 let keyFormOpen = $state(false); // the developer panel's "API 키 바꾸기"
 let lastAdded = $state.raw(start.lastAdded);
 let phone = $state(start.phone);
+let phoneAudio = $state(start.phoneAudio);
+let noiseGateDefault = $state(start.noiseGateDefault);
 let textEdit = $state(false); // the text size editor (F4)
 let handsetButton = $state(false); // the phone's handset button works (after the first tap)
 const settings = $derived(normalize(savedSettings));
@@ -60,6 +62,14 @@ export const ui = {
   /** The phone of the phone mode: its microphone and speaker are the handset. */
   get phone() {
     return phone;
+  },
+  /** The phone's microphone and speaker are the handset (Wi-Fi mode, not USB). */
+  get phoneAudio() {
+    return phoneAudio;
+  },
+  /** configs/settings.yaml's noise gate, used until the developer panel sets one. */
+  get noiseGateDefault() {
+    return noiseGateDefault;
   },
   /** The phone's handset button starts and ends the conversation (from the first tap on). */
   get handsetButton() {
@@ -105,6 +115,8 @@ export function dispatch(event: ServerEvent): void {
     apiKey,
     lastAdded,
     phone,
+    phoneAudio,
+    noiseGateDefault,
   };
   const after = apply(before, event, performance.now());
   if (after.menu !== menu) menu = after.menu;
@@ -118,4 +130,6 @@ export function dispatch(event: ServerEvent): void {
   if (after.apiKey !== apiKey) apiKey = after.apiKey;
   if (after.lastAdded !== lastAdded) lastAdded = after.lastAdded;
   if (after.phone !== phone) phone = after.phone;
+  if (after.phoneAudio !== phoneAudio) phoneAudio = after.phoneAudio;
+  if (after.noiseGateDefault !== noiseGateDefault) noiseGateDefault = after.noiseGateDefault;
 }

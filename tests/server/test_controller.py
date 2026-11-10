@@ -352,3 +352,32 @@ def test_the_ignore_switch_applies_to_the_next_customer(menu, cafe, tmp_path):
         assert s.controller.session is not None and not s.controller.session.ignore_unrelated
 
     run(menu, cafe, tmp_path, test)
+
+
+def test_the_noise_gate_follows_the_developer_panel(menu, cafe, tmp_path):
+    async def test(s: Setup) -> None:
+        set_to: list[float | None] = []
+        s.controller.settings = DisplaySettings(tmp_path / "display.local.json")
+        s.controller.noise_gate, s.controller.noise_gate_default = set_to.append, 1000.0
+        s.controller.apply_noise_gate()  # nothing saved: configs/settings.yaml's
+        await s.controller.handle_client({"type": "settings", "values": {"noiseGate": 2500}})
+        await s.controller.handle_client({"type": "settings", "values": {"noiseGate": 0}})
+        await s.controller.handle_client({"type": "settings", "values": {"noiseGate": None}})
+        assert set_to == [1000.0, 2500.0, None, 1000.0]  # 0: off; None: the default again
+        init = s.controller.init_events()[0]
+        assert init["noise_gate_default"] == 1000.0
+
+    run(menu, cafe, tmp_path, test)
+
+
+def test_the_handset_button_starts_and_ends_the_call(menu, cafe, tmp_path):
+    async def test(s: Setup) -> None:
+        await s.controller.start()
+        s.controller.button_pressed()  # from the media key thread
+        await s.settle()
+        assert s.controller.session is not None
+        s.controller.button_pressed()
+        await s.settle()
+        assert s.controller.session is None
+
+    run(menu, cafe, tmp_path, test)

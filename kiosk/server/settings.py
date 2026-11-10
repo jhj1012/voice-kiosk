@@ -76,4 +76,4 @@ def _valid(values: Any) -> bool:
 def _simple(value: Any) -> bool:
     if isinstance(value, str):
         return len(value) <= MAX_TEXT
-    return isinstance(value, bool | int | float)
+    return value is None or isinstance(value, bool | int | float)  # None: back to the default

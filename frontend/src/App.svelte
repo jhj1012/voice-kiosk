@@ -72,6 +72,13 @@
     // anything is awaited.
     if (!document.fullscreenElement)
       void document.documentElement.requestFullscreen?.().catch(() => {});
+    if (!ui.phoneAudio) {
+      // USB: the handset is the laptop's, this is only the screen. A tap connects it again
+      // (everything is sent again; a reload would also leave full screen).
+      void keepAwake();
+      connection?.reconnect();
+      return;
+    }
     resumeMediaButton(); // the handset's button again, if its silent loop stopped
     if (ui.keyForm || ui.state.phase !== 'idle' || phoneStarting) return;
     void keepAwake();
@@ -120,7 +127,12 @@
     // Loaded only in demo mode, so the kiosk's own bundle stays small.
     const demo = (await import('./dev/demo.json')).default;
     const scenarios = demo.scenarios as unknown as Record<string, Timeline>;
-    dispatch({ ...(demo.init as ServerEvent & { type: 'init' }), phone: params.has('phone') });
+    const phone = params.has('phone'); // &usb: the phone as the USB mode's screen only
+    dispatch({
+      ...(demo.init as ServerEvent & { type: 'init' }),
+      phone,
+      phone_audio: phone && !params.has('usb'),
+    });
     if (params.get('backdrop')) previewSettings({ backdrop: params.get('backdrop') });
     connected = true;
     return play(scenarios[demoName!] ?? Object.values(scenarios)[0], receive, {
@@ -130,7 +142,6 @@
   }
 
   onMount(() => {
-    if (!params.has('cursor')) document.body.classList.add('kiosk-mode');
     if (mode === 'demo') {
       const stop = startDemo();
       return () => void stop.then((s) => s());

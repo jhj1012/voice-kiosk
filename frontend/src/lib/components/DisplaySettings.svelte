@@ -9,6 +9,7 @@
     COLORS,
     INSET_SIDES,
     MAX_INSET,
+    MAX_NOISE_GATE,
     MAX_TEXT_SIZE,
     MIN_TEXT_SIZE,
     type PhoneInsets,
@@ -42,6 +43,14 @@
     }
   }
 
+  /** Empty: back to configs/settings.yaml's; 0: off. */
+  function noiseGate(text: string) {
+    const value = text.trim() === '' ? null : Number(text);
+    if (value === null || (Number.isFinite(value) && value >= 0 && value <= MAX_NOISE_GATE)) {
+      save({ noiseGate: value });
+    }
+  }
+
   function reset() {
     previewSettings(null);
     send({ type: 'settings', reset: true });
@@ -59,6 +68,24 @@
     키오스크에 하는 말이 아니면 대답하지 않기
   </label>
   <p class="note">옆 사람과의 대화나 통화에는 대답하지 않아요. 다음 손님부터 적용돼요.</p>
+  <label class="line">
+    소음 차단 (마이크 크기)
+    <input
+      class="number"
+      type="number"
+      min="0"
+      max={MAX_NOISE_GATE}
+      step="100"
+      placeholder={ui.noiseGateDefault === null ? '꺼짐' : String(ui.noiseGateDefault)}
+      value={settings.noiseGate ?? ''}
+      onchange={(e) => noiseGate(e.currentTarget.value)}
+    />
+  </label>
+  <p class="note">
+    이보다 작은 마이크 소리는 무음으로 보내요. 0이면 꺼요, 비우면 기본값({ui.noiseGateDefault ??
+      '꺼짐'})이에요. 위의 <b>마이크 크기</b>를 보고 말할 때보다 훨씬 작게 잡으세요: 너무 크면 말이
+    끊겨서 잘못 알아들어요. 바로 적용돼요.
+  </p>
 </section>
 
 <section>
@@ -192,6 +219,9 @@
     display: flex;
     align-items: center;
     gap: 0.6rem;
+  }
+  input.number {
+    width: 6em;
   }
   select {
     margin-left: auto;

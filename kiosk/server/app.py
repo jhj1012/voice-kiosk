@@ -47,6 +47,7 @@ def create_app(
     images_dir: Path,
     avatar_dir: Path | None = None,
     phone: PhoneHandset | None = None,
+    phone_screen: bool = False,
 ) -> FastAPI:
     @contextlib.asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -63,9 +64,10 @@ def create_app(
         queue = controller.hub.connect()
         log.info("display connected (%d)", controller.hub.displays)
         sender = asyncio.create_task(_send_all(socket, queue))
-        is_phone = phone is not None and socket.url.scheme == "wss"
+        # the phone's HTTPS listener: the phone (Wi-Fi: also the handset; USB: only the screen)
+        is_phone = (phone is not None or phone_screen) and socket.url.scheme == "wss"
         try:
-            for event in controller.init_events(phone=is_phone):
+            for event in controller.init_events(phone=is_phone, phone_audio=phone is not None):
                 await queue.put(event)
             while True:
                 await controller.handle_client(await socket.receive_json())

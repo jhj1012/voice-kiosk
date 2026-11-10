@@ -173,3 +173,19 @@ def test_a_quiet_connection_gets_pings(menu, cafe, tmp_path, monkeypatch):
             assert until(display, "ping") == {"type": "ping"}
         with client.websocket_connect(f"{PHONE}/ws/audio") as audio:
             assert audio.receive_text() == "ping"
+
+
+def test_over_usb_the_phone_is_only_the_screen(menu, cafe, tmp_path):
+    connector = FakeConnector()
+    controller = KioskController(
+        Kiosk(menu, cafe), connector, FlowConfig(), Hub(), SimulatedHook(), tmp_path
+    )
+    app = create_app(controller, tmp_path, tmp_path, phone_screen=True)  # no PhoneHandset
+    with TestClient(app) as client:
+        with client.websocket_connect(f"{PHONE}/ws") as screen:
+            init = screen.receive_json()
+            assert init["phone"] is True and init["phone_audio"] is False
+        with client.websocket_connect("/ws") as laptop:
+            assert laptop.receive_json()["phone"] is False
+        with pytest.raises(WebSocketDisconnect), client.websocket_connect(f"{PHONE}/ws/audio") as a:
+            a.receive_bytes()  # no phone audio over USB
