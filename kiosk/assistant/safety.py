@@ -153,6 +153,42 @@ def wants_to_stop(text: str) -> bool:
     return bool(_STOP.search(normalize(text)))
 
 
+# Words that may stand around an item's name in a short order ("딸기라떼 주세요", "녹차 하나요").
+_ORDER_FILLER = re.compile(
+    r"(?:요|이요|도|좀|로|으로|하나|한잔|한개|주세요|줘요|줘|할게요|할게|부탁해요)*"
+)
+
+
+def item_name_only(text: str, item_name: str) -> bool:
+    """The utterance is just the item's name, perhaps with "주세요" or "하나" ("딸기라떼",
+    "녹차 하나요"); anything more ("따뜻하게 하고 딸기라떼도") is not."""
+    t, name = normalize(text), normalize(item_name)
+    if not name or name not in t:
+        return False
+    return bool(_ORDER_FILLER.fullmatch(t.replace(name, "", 1)))
+
+
+def misheard_item(
+    customer: str, item_name: str, assistant_before: str, other_question: bool
+) -> bool:
+    """Only an item's name, said where it does not answer what was asked: probably a mishearing
+    (team tests: "딸기라떼", "녹차" the customer never said, as short answers). `other_question`:
+    the kiosk asks something else than what they would like (an option, the extras, the staff,
+    the read-back). The assistant asking to pay ("결제 진행할까요?") counts too; "더 필요하신 거
+    있으세요?" does not: a name answers it."""
+    if not item_name_only(customer, item_name):
+        return False
+    if other_question:
+        return True
+    return asks_for_payment(normalize(last_question(assistant_before)))
+
+
+def asks_for_payment(question: str) -> bool:
+    """The assistant asks whether to pay ("결제 진행할까요?"), not whether they want more."""
+    q = normalize(question)
+    return bool(_PAY_QUESTION.search(q) and not _ANYTHING_ELSE.search(q))
+
+
 def is_yes(text: str) -> bool:
     t = normalize(text)
     return bool(_YES.match(t)) and not _HESITATE.search(t)
@@ -237,6 +273,35 @@ def confirmed_cancel(transcript: Transcript) -> bool:
 
 
 # --- guessed options ---------------------------------------------------------------------------
+
+
+# Words that, said alone, are asked again once (team tests: misheard as a whole utterance). Not the
+# expected one-word answers ("라지요", "포장"): the screen asks for exactly those.
+STAFF_WORDS = ("직원", "직원 호출", "직원분")
+
+
+def single_word(text: str, words: Sequence[str]) -> str | None:
+    """The one word of `words` the customer said, with nothing else ("딸기라떼", "직원 호출요"), or
+    None ("딸기라떼 주세요" is a sentence)."""
+    t = normalize(text)
+    for word in words:
+        w = normalize(word)
+        if w and t in (w, w + "요"):
+            return w
+    return None
+
+
+def adds_item(text: str, item_name: str) -> bool:
+    """The customer clearly adds the item to what they were answering: "따뜻하게 하고 카페라떼도
+    하나 주세요", "그리고 카페라떼", "카페라떼 추가로"."""
+    t, name = normalize(text), normalize(item_name)
+    return bool(re.search(rf"{re.escape(name)}(도|이랑|랑|하고)|그리고|추가로|하나더", t))
+
+
+def said_option(words: str, groups: Sequence[OptionGroup]) -> bool:
+    """The customer's words name one of these option groups ("차갑게", "라지로"): see `words`."""
+    text = normalize(words)
+    return any(normalize(w) in text for g in groups for w in g.words)
 
 
 def guessed_groups(

@@ -2,6 +2,7 @@ import pytest
 
 from kiosk.assistant.safety import (
     Transcript,
+    adds_item,
     amounts,
     asks_to_pay,
     confirmed_cancel,
@@ -9,9 +10,12 @@ from kiosk.assistant.safety import (
     guessed_groups,
     is_no,
     is_yes,
+    item_name_only,
+    misheard_item,
     mostly_foreign,
     parse_korean_number,
     said_amount,
+    single_word,
     wants_to_stop,
 )
 from kiosk.domain.menu import Menu
@@ -244,3 +248,46 @@ def test_thinking_aloud(said, cut_at):
     from kiosk.assistant.safety import thinking_aloud
 
     assert thinking_aloud(said) == cut_at
+
+
+@pytest.mark.parametrize(
+    ("text", "only"),
+    [
+        ("딸기라떼", True),  # team tests: menu names the customer never said
+        ("딸기라떼 주세요.", True),
+        ("녹차 하나요", False),  # another item
+        ("따뜻하게 하고 딸기라떼도 하나 주세요", False),
+        ("딸기라떼 안 시켰어요", False),
+    ],
+)
+def test_an_utterance_that_is_only_an_items_name(text, only):
+    assert item_name_only(text, "딸기라떼") is only
+
+
+@pytest.mark.parametrize(
+    ("asked", "other_question", "misheard"),
+    [
+        ("아메리카노에 추가하실 거 있으세요?", True, True),  # the kiosk asks the extras
+        ("주문 확인했습니다. 결제 진행할까요?", False, True),  # the assistant asks to pay
+        ("더 필요하신 거 있으세요?", False, False),  # a name answers it
+        ("메뉴판에서 메뉴를 고르신 뒤 말씀해 주세요.", False, False),
+    ],
+)
+def test_a_name_that_does_not_answer_the_question(asked, other_question, misheard):
+    assert misheard_item("딸기라떼", "딸기라떼", asked, other_question) is misheard
+    assert not misheard_item("딸기라떼 하나 차갑게 주세요", "딸기라떼", asked, other_question)
+
+
+def test_a_clear_addition():
+    assert adds_item("따뜻하게 하고 카페라떼도 하나 주세요", "카페라떼")
+    assert adds_item("그리고 카페라떼 주세요", "카페라떼")
+    assert not adds_item("카페라떼 라지로", "카페라떼")
+
+
+def test_one_word_alone():
+    words = ["딸기라떼", "직원 호출", "직원"]
+    assert single_word("딸기라떼.", words) == "딸기라떼"
+    assert single_word("직원 호출이요", words) is None  # "이요": more than the word
+    assert single_word("직원호출요", words) == "직원호출"
+    assert single_word("딸기라떼 주세요", words) is None
+    assert single_word("라지요", words) is None
