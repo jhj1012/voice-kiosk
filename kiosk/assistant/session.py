@@ -14,6 +14,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+import re
 import time
 from collections.abc import Callable, Coroutine
 from dataclasses import dataclass
@@ -39,6 +40,8 @@ from kiosk.assistant.live import (
     TurnComplete,
 )
 from kiosk.assistant.safety import (
+    DINING_WORDS,
+    PAY_WORDS,
     STAFF_WORDS,
     Speaker,
     Transcript,
@@ -117,6 +120,8 @@ NOT_SAID = (
     "The customer did not mention {groups}, so it was not set: never fill in an option. Ask the "
     "result's question."
 )
+# Calls a word said alone may set off: ordering, a staff note, paying, here or to go.
+ONE_WORD_CALLS = ("order", "note_for_staff", "pay", "set_dining")
 NOT_CAUGHT = (
     "Not done: the customer said only '{heard}', one word, which may be a mishearing. Say exactly "
     "'죄송해요, 잘 못 들었어요. 다시 한 번 말씀해 주시겠어요?' If they say the same word again, it "
@@ -474,7 +479,9 @@ class AssistantSession:
         before = self.kiosk.order.lines_signature
         question = self.kiosk.question
         args = dict(call.args)
-        if call.name == "pay":
+        if call.name in ONE_WORD_CALLS and (again := self._one_word()) is not None:
+            result = again  # one word that does not answer the question: asked again
+        elif call.name == "pay":
             result = self._pay()
         elif (
             call.name == "cancel_order"
@@ -484,8 +491,6 @@ class AssistantSession:
             result = {"blocked": CANCEL_NOT_CONFIRMED}
         elif call.name == "set_options":
             result = self._answer_for_one_drink(args)
-        elif call.name in ("order", "note_for_staff") and (again := self._one_word()) is not None:
-            result = again
         elif call.name == "order" and (unfit := self._not_an_order(args)) is not None:
             result = unfit
         elif call.name == "order":
@@ -509,20 +514,18 @@ class AssistantSession:
         return result
 
     def _one_word(self) -> Result | None:
-        """A menu name or a staff word said alone ("딸기라떼", "직원 호출") is asked again once: it
-        was what the transcription made of noise in team tests. The same word again is meant."""
+        """One word said alone where it does not answer the question is asked again once: a
+        menu name, a staff word, 결제 / 계산, 포장 / 매장 (team tests: what the transcription made
+        of noise). Where it answers the question it is taken; the same word again is meant."""
         latest = self.transcript.last_customer()
         if latest is None or latest.typed:
             return None
-        words = [i.name for i in self.kiosk.menu.items] + list(STAFF_WORDS)
+        menu = [i.name for i in self.kiosk.menu.items]
+        words = [*menu, *STAFF_WORDS, *PAY_WORDS, *DINING_WORDS]
         word = single_word(latest.text, words)
         mark = self.transcript.mark
-        if word is None or self._one_word_meant == mark:
+        if word is None or self._one_word_meant == mark or self._word_fits(word, latest):
             return None
-        if word not in {normalize(w) for w in STAFF_WORDS} and self._asks_for_a_menu(latest):
-            return (
-                None  # a menu name answers "어떤 메뉴로 하시겠어요?" / "더 필요하신 거 있으세요?"
-            )
         asked = self._one_word_asked
         if asked is not None and asked[0] == word and asked[1] != mark:
             self._one_word_asked, self._one_word_meant = None, mark  # said again: meant
@@ -531,6 +534,24 @@ class AssistantSession:
         self._one_word_asked = (word, mark)
         log.info("only %r: asked again", latest.text.strip())
         return {"not_done": NOT_CAUGHT.format(heard=latest.text.strip())}
+
+    def _word_fits(self, word: str, latest: Utterance) -> bool:
+        """Does this one word answer the question asked? A menu name what they would like;
+        결제 / 계산 "더 필요하신 거 있으세요?", paying or the read-back; 포장 / 매장 here or to go;
+        a staff word never (alone it is asked again)."""
+        kind = self.kiosk.question.kind
+        if word in {normalize(w) for w in PAY_WORDS}:
+            return kind in (Ask.MENU, Ask.REVIEW)
+        if word in {normalize(w) for w in DINING_WORDS}:
+            return kind is Ask.DINING or self._asks_here_or_to_go(latest)
+        if word in {normalize(w) for w in STAFF_WORDS}:
+            return False
+        return self._asks_for_a_menu(latest)
+
+    def _asks_here_or_to_go(self, latest: Utterance) -> bool:
+        before = self.transcript.assistant_before(latest)
+        asked = normalize(last_question(before.text)) if before else ""
+        return bool(re.search(r"포장|매장|드시고", asked))
 
     def _asks_for_a_menu(self, latest: Utterance) -> bool:
         """The question the customer answers asks what they would like (not an option, the

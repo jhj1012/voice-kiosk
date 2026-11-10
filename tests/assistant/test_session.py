@@ -853,3 +853,37 @@ def test_a_name_with_more_words_when_asked_to_pay_is_not_an_order(new_kiosk):
         assert "not_ordered" in await h.call("order", item_id="cafe_latte")
 
     run(scenario, new_kiosk)
+
+
+def test_pay_words_alone_are_taken_only_where_they_answer(new_kiosk):
+    async def scenario(h: Harness):
+        await extras_asked(h)  # "아메리카노에 추가하실 거 있으세요?"
+        await h.say("계산")  # does not answer it
+        assert "다시 한 번 말씀해 주시겠어요?" in (await h.call("pay"))["not_done"]
+        await h.reply("죄송해요, 잘 못 들었어요. 다시 한 번 말씀해 주시겠어요?")
+        await h.say("계산")  # the same word again: meant
+        assert "not_done" not in await h.call("pay")
+
+    run(scenario, new_kiosk)
+
+
+def test_a_pay_word_answers_more_items(new_kiosk):
+    async def scenario(h: Harness):
+        await order_ready(h)  # "더 필요하신 메뉴 있으신가요?"
+        await h.say("결제")
+        assert "not_done" not in await h.call("pay")
+
+    run(scenario, new_kiosk)
+
+
+def test_dining_words_alone_are_taken_only_where_they_answer(new_kiosk):
+    async def scenario(h: Harness):
+        await h.say("포장")  # to "매장에서 드시고 가세요, 포장하세요?": an answer
+        assert "not_done" not in await h.call("set_dining", dining="to_go")
+        await h.say("아메리카노 하나 주세요")
+        await h.call("order", item_id="americano")
+        await h.reply("아메리카노는 따뜻하게 드릴까요, 차갑게 드릴까요?")
+        await h.say("매장")  # while a drink is asked: no answer
+        assert "not_done" in await h.call("set_dining", dining="here")
+
+    run(scenario, new_kiosk)

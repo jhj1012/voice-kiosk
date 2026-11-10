@@ -278,6 +278,8 @@ def confirmed_cancel(transcript: Transcript) -> bool:
 # Words that, said alone, are asked again once (team tests: misheard as a whole utterance). Not the
 # expected one-word answers ("라지요", "포장"): the screen asks for exactly those.
 STAFF_WORDS = ("직원", "직원 호출", "직원분")
+PAY_WORDS = ("결제", "계산")
+DINING_WORDS = ("포장", "매장")
 
 
 def single_word(text: str, words: Sequence[str]) -> str | None:
