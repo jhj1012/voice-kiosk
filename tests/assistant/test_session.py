@@ -729,3 +729,127 @@ def test_thoughts_said_out_loud_are_cut_and_said_again(new_kiosk):
         assert h.conn.texts[-1].startswith("[방금 대답에 손님에게 하지 않을 말")
 
     run(scenario, new_kiosk)
+
+
+# --- an order that does not fit the question (team tests) --------------------------------------
+
+
+async def americano_asked(h: Harness) -> None:
+    """The americano is ordered; the kiosk asks its temperature."""
+    await h.call("set_dining", dining="here")
+    await h.say("아메리카노 하나 주세요")
+    await h.call("order", item_id="americano")
+    await h.reply("아메리카노는 따뜻하게 드릴까요, 차갑게 드릴까요?")
+
+
+def test_an_option_answer_heard_with_another_items_name_is_not_an_order(new_kiosk):
+    async def scenario(h: Harness):
+        await americano_asked(h)
+        await h.say("카페라떼 라지로")  # "차갑게 라지로", heard as "자몽에이드 라지로" in the test
+        result = await h.call("order", item_id="cafe_latte", size="large")
+        assert "not_ordered" in result and "아메리카노" in result["not_ordered"]
+        assert [d.item.id for d in h.kiosk.drafts] == ["americano"]
+
+    run(scenario, new_kiosk)
+
+
+def test_a_clear_addition_while_an_option_is_asked_is_ordered(new_kiosk):
+    async def scenario(h: Harness):
+        await americano_asked(h)
+        await h.say("따뜻하게 하고 카페라떼도 하나 주세요")
+        assert "not_ordered" not in await h.call("order", item_id="cafe_latte")
+        assert {d.item.id for d in h.kiosk.drafts} == {"americano", "cafe_latte"}
+
+    run(scenario, new_kiosk)
+
+
+async def extras_asked(h: Harness) -> None:
+    """The americano's options are chosen; the kiosk asks its extras."""
+    await americano_asked(h)
+    await h.say("차갑게 레귤러요")
+    await h.call("set_options", item_id="americano", temperature="ice", size="regular")
+    await h.reply("아메리카노에 추가하실 거 있으세요?")
+
+
+def test_one_word_that_does_not_answer_is_asked_again_and_taken_when_said_again(new_kiosk):
+    async def scenario(h: Harness):
+        await extras_asked(h)
+        await h.say("카페라떼")  # one word: "딸기라떼" out of noise in the team test
+        result = await h.call("order", item_id="cafe_latte")
+        assert "다시 한 번 말씀해 주시겠어요?" in result["not_done"]
+        assert [d.item.id for d in h.kiosk.drafts] == ["americano"]
+        await h.reply("죄송해요, 잘 못 들었어요. 다시 한 번 말씀해 주시겠어요?")
+        await h.say("카페라떼요")  # the same word again: meant, even to the extras question
+        assert "being_chosen" in await h.call("order", item_id="cafe_latte")
+
+    run(scenario, new_kiosk)
+
+
+def test_one_menu_name_when_a_menu_is_asked_is_taken(new_kiosk):
+    async def scenario(h: Harness):
+        await order_ready(h)  # "더 필요하신 메뉴 있으신가요?"
+        await h.say("카페라떼")
+        assert "being_chosen" in await h.call("order", item_id="cafe_latte")
+
+    run(scenario, new_kiosk)
+
+
+def test_one_menu_name_when_asked_to_pay_is_asked_again(new_kiosk):
+    async def scenario(h: Harness):
+        await order_ready(h)
+        await h.say("아니요")
+        await h.reply("결제 진행할까요?")
+        await h.say("카페라떼")
+        assert "not_done" in await h.call("order", item_id="cafe_latte")
+
+    run(scenario, new_kiosk)
+
+
+def test_a_sentence_after_one_word_is_followed(new_kiosk):
+    async def scenario(h: Harness):
+        await order_ready(h)
+        await h.say("카페라떼")
+        await h.call("order", item_id="cafe_latte")
+        await h.reply("죄송해요, 잘 못 들었어요. 다시 한 번 말씀해 주시겠어요?")
+        await h.say("아메리카노 하나 더 주세요")
+        result = await h.call("order", item_id="americano")
+        assert "not_done" not in result and "not_ordered" not in result
+
+    run(scenario, new_kiosk)
+
+
+def test_a_staff_word_alone_is_asked_again(new_kiosk):
+    async def scenario(h: Harness):
+        await order_ready(h)
+        await h.say("직원 호출")
+        assert "not_done" in await h.call("note_for_staff", text="직원 호출")
+        assert h.kiosk.order.notes == []
+        await h.reply("죄송해요, 잘 못 들었어요. 다시 한 번 말씀해 주시겠어요?")
+        await h.say("직원 호출")  # the same words again: meant
+        await h.call("note_for_staff", text="직원 호출")
+        assert h.kiosk.order.notes == ["직원 호출"]
+
+    run(scenario, new_kiosk)
+
+
+def test_one_word_answers_to_the_question_are_taken(new_kiosk):
+    async def scenario(h: Harness):
+        await americano_asked(h)
+        await h.say("차갑게요")
+        result = await h.call("set_options", item_id="americano", temperature="ice")
+        assert "not_done" not in result
+        await h.say("라지요")
+        assert "not_done" not in await h.call("set_options", item_id="americano", size="large")
+
+    run(scenario, new_kiosk)
+
+
+def test_a_name_with_more_words_when_asked_to_pay_is_not_an_order(new_kiosk):
+    async def scenario(h: Harness):
+        await order_ready(h)
+        await h.say("아니요")
+        await h.reply("결제 진행할까요?")
+        await h.say("카페라떼 주세요")  # not one word, but no answer to "결제 진행할까요?"
+        assert "not_ordered" in await h.call("order", item_id="cafe_latte")
+
+    run(scenario, new_kiosk)

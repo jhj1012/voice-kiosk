@@ -39,18 +39,27 @@ from kiosk.assistant.live import (
     TurnComplete,
 )
 from kiosk.assistant.safety import (
+    STAFF_WORDS,
     Speaker,
     Transcript,
+    Utterance,
+    adds_item,
+    asks_for_payment,
     asks_to_pay,
     confirmed_cancel,
     customer_asked_to_pay,
     guessed_groups,
     is_no,
     is_yes,
+    last_question,
     meant_for_all,
+    misheard_item,
     mostly_foreign,
+    normalize,
     only_some,
     said_amount,
+    said_option,
+    single_word,
     thinking_aloud,
     wants_nothing_more,
     wants_to_stop,
@@ -107,6 +116,20 @@ EXTRAS_NOT_ANSWERED = (
 NOT_SAID = (
     "The customer did not mention {groups}, so it was not set: never fill in an option. Ask the "
     "result's question."
+)
+NOT_CAUGHT = (
+    "Not done: the customer said only '{heard}', one word, which may be a mishearing. Say exactly "
+    "'죄송해요, 잘 못 들었어요. 다시 한 번 말씀해 주시겠어요?' If they say the same word again, it "
+    "is meant: call this again. If they say a sentence, follow it."
+)
+ANSWER_NOT_ITEM = (
+    "Not ordered: '{heard}' answers the question about the {drink}; '{item}' was probably "
+    "misheard. Record the answer for the {drink} with set_options instead."
+)
+NOT_AN_ANSWER = (
+    "Not ordered: '{heard}' is only a menu name, which does not answer what was asked "
+    "('{question}'); it was probably misheard. If their words fit the question, act on that; "
+    "otherwise say '죄송해요, 잘 못 들었어요. 다시 한 번 말씀해 주시겠어요?'"
 )
 CANCEL_NOT_CONFIRMED = (
     "BLOCKED: cancel the whole order only right after the customer said yes to your question "
@@ -205,6 +228,9 @@ class AssistantSession:
         self._answers_mark = -1
         # The kiosk asked "따뜻한 아메리카노도 레귤러로 해 드릴까요?": (draft, group, choices).
         self._confirming: tuple[int, str, tuple[str, ...]] | None = None
+        # One word said alone and asked again: (the word, transcript mark); said again: the mark
+        self._one_word_asked: tuple[str, int] | None = None
+        self._one_word_meant = -1
         self._read_back: _ReadBack | None = None
         self._terminal_id = 0
         self._quiet_turn = False  # stay_quiet was called: this turn is not heard
@@ -458,6 +484,10 @@ class AssistantSession:
             result = {"blocked": CANCEL_NOT_CONFIRMED}
         elif call.name == "set_options":
             result = self._answer_for_one_drink(args)
+        elif call.name in ("order", "note_for_staff") and (again := self._one_word()) is not None:
+            result = again
+        elif call.name == "order" and (unfit := self._not_an_order(args)) is not None:
+            result = unfit
         elif call.name == "order":
             result = self._without_guesses(call.name, args)
         elif call.name == "change" and (held := self._held_for_line(args)) is not None:
@@ -477,6 +507,75 @@ class AssistantSession:
                 result = {**result, "payment": ORDER_CHANGED_NOTE}
         log.info("call %s(%s) -> %s", call.name, args, result)
         return result
+
+    def _one_word(self) -> Result | None:
+        """A menu name or a staff word said alone ("딸기라떼", "직원 호출") is asked again once: it
+        was what the transcription made of noise in team tests. The same word again is meant."""
+        latest = self.transcript.last_customer()
+        if latest is None or latest.typed:
+            return None
+        words = [i.name for i in self.kiosk.menu.items] + list(STAFF_WORDS)
+        word = single_word(latest.text, words)
+        mark = self.transcript.mark
+        if word is None or self._one_word_meant == mark:
+            return None
+        if word not in {normalize(w) for w in STAFF_WORDS} and self._asks_for_a_menu(latest):
+            return (
+                None  # a menu name answers "어떤 메뉴로 하시겠어요?" / "더 필요하신 거 있으세요?"
+            )
+        asked = self._one_word_asked
+        if asked is not None and asked[0] == word and asked[1] != mark:
+            self._one_word_asked, self._one_word_meant = None, mark  # said again: meant
+            log.info("%r said again: taken", latest.text.strip())
+            return None
+        self._one_word_asked = (word, mark)
+        log.info("only %r: asked again", latest.text.strip())
+        return {"not_done": NOT_CAUGHT.format(heard=latest.text.strip())}
+
+    def _asks_for_a_menu(self, latest: Utterance) -> bool:
+        """The question the customer answers asks what they would like (not an option, the
+        extras, here or to go, the staff, the read-back, or the assistant asking to pay)."""
+        if self.kiosk.question.kind is not Ask.MENU:
+            return False
+        before = self.transcript.assistant_before(latest)
+        asked = normalize(last_question(before.text)) if before else ""
+        return not asks_for_payment(asked)
+
+    def _not_an_order(self, args: dict[str, Any]) -> Result | None:
+        """An order that does not fit what was asked is not taken (team tests: "차갑게 라지로" to
+        "아메리카노는 따뜻하게 드릴까요?" heard as "자몽에이드 라지로", and short answers heard as
+        "딸기라떼" or "녹차"). The assistant is told to take it as the answer to the question, or
+        to say it did not catch it."""
+        try:
+            item = self.kiosk.menu.item(str(args.get("item_id", "")))
+        except KioskError:
+            return None
+        latest = self.transcript.last_customer()
+        if latest is None or latest.typed or self._one_word_meant == self.transcript.mark:
+            return None  # typed, or one word said twice: meant
+        before = self.transcript.assistant_before(latest)
+        question = last_question(before.text).strip() if before else ""
+        asked = self.kiosk.question
+        heard = latest.text.strip()
+        draft = self.kiosk.draft(asked.draft) if asked.kind is Ask.OPTION else None
+        if (
+            draft is not None
+            and draft.item.id != item.id
+            and said_option(heard, draft.missing)
+            and not adds_item(heard, item.name)
+        ):
+            # e.g. "라지로" while the americano needs its temperature and size
+            log.info("%r answers about the %s: %s not ordered", heard, draft.item.id, item.id)
+            return {
+                "not_ordered": ANSWER_NOT_ITEM.format(
+                    heard=heard, item=item.name, drink=draft.item.name
+                )
+            }
+        other = asked.kind not in (Ask.MENU, Ask.DINING)
+        if misheard_item(heard, item.name, question, other):
+            log.info("only %r, which does not answer %r: %s not ordered", heard, question, item.id)
+            return {"not_ordered": NOT_AN_ANSWER.format(heard=heard, question=question or "?")}
+        return None
 
     def _answer_for_one_drink(self, args: dict[str, Any]) -> Result:
         """set_options, with an answer that may be for several drinks ("레귤러요" while an iced and
