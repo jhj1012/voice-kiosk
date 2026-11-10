@@ -61,5 +61,7 @@ def test_rules_for_the_staff_and_general_questions(menu, cafe):
 
 def test_options_the_menu_does_not_have_go_to_the_staff(menu, cafe):
     text = instructions(menu, cafe)
-    assert '"두유로 바꿔 주세요"' in text and "never say they are not possible" in text
+    assert "사과유자차에 꿀 추가해 주세요" in text and "never say it is not possible" in text
+    assert "never tell them to ask the staff themselves" in text
+    assert "This is only for questions" in text  # "ask the staff" is not for requests
     assert "Only items that are not on the menu cannot be ordered" in text
