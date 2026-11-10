@@ -147,6 +147,7 @@ if ($Usb) {
     Invoke-Adb $adb reverse "tcp:$PhonePort" "tcp:$PhonePort" | Out-Null
     Write-Host "USB 연결 완료. 화면 기기의 Chrome에 https://127.0.0.1:$PhonePort 이 저절로 열려요." -ForegroundColor Green
     Write-Host '처음이면 "연결이 비공개로 설정되어 있지 않습니다" → 고급 → 이동.'
+    Write-Host '수화기는 노트북에 꽂아 주세요 (노트북의 기본 마이크·스피커로). 수화기 버튼: 대화 시작 / 끝.'
     Write-Host ''
     $watch = Start-Job -ScriptBlock $UsbWatch -ArgumentList $adb, $PhonePort
     try {

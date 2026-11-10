@@ -136,6 +136,10 @@ class PhoneHandset:
         """(microphone, speaker) loudness, 0..1."""
         return self._mic, self._out
 
+    def set_noise_gate(self, threshold: float | None) -> None:
+        """The noise gate's RMS from now on (the developer panel); None: off."""
+        self._noise_gate.threshold = threshold
+
     def mic_rms(self) -> float:
         """The microphone's 16-bit RMS, not capped (the unit of `audio.noise_gate_rms`)."""
         return self._mic_rms

@@ -76,3 +76,13 @@ describe('phone text sizes', () => {
     });
   });
 });
+
+describe('noise gate', () => {
+  it('is settings.yaml’s until set; 0 turns it off', () => {
+    expect(normalize({}).noiseGate).toBeNull();
+    expect(normalize({ noiseGate: 1500 }).noiseGate).toBe(1500);
+    expect(normalize({ noiseGate: 0 }).noiseGate).toBe(0);
+    expect(normalize({ noiseGate: -5 }).noiseGate).toBeNull();
+    expect(normalize({ noiseGate: 'loud' }).noiseGate).toBeNull();
+  });
+});

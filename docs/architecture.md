@@ -85,7 +85,14 @@ Over a USB cable instead (`Start Kiosk (USB).bat`, `scripts/start.ps1 -Usb`): no
 phone. `adb reverse tcp:8766 tcp:8766` makes the phone's `https://127.0.0.1:8766` the laptop's
 phone listener (the certificate covers 127.0.0.1), so there is no address to type, no hotspot
 and no firewall rule. The launcher runs `python -m kiosk --usb`: phone mode with the phone's
-listener on 127.0.0.1 only, so nothing on the Wi-Fi can connect. adb comes from the Android SDK if installed, else Google's platform-tools
+listener on 127.0.0.1 only, so nothing on the Wi-Fi can connect. Over USB the **handset is the
+laptop's** (the phone has one USB-C port, for the cable): the laptop's `Handset`, no `/ws/audio`,
+and the phone is only the screen (`init`'s `phone_audio: false`: no first tap, no microphone, no
+silent loop; a tap reconnects the screen). The handset's button is the media play / pause key on
+the laptop: `kiosk/voice/mediakey.py` (a Windows low-level keyboard hook through ctypes) takes
+and swallows it, so no music app reacts, and starts or ends the conversation; a double press
+(next track) is swallowed too. `python -m kiosk.voice.mediakey` shows whether a handset's
+button arrives. adb comes from the Android SDK if installed, else Google's platform-tools
 are downloaded once into `tools/` (git-ignored). A background job forwards the port again after
 the cable was plugged in again (the page's WebSocket reconnects by itself) and opens Chrome on
 the phone once (`am start`, with an app id so Chrome reuses its tab). The phone needs USB

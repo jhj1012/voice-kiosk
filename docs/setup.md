@@ -166,7 +166,7 @@ npm --prefix frontend run dev
 Then open <http://localhost:5173/?demo=order> (an order from greeting to payment) or
 `?demo=allergy` (allergy question, item details, Wi-Fi card, an interruption, a connection
 notice). Add `&at=21500&pause` to freeze at a moment (ms), `&dev` to open the developer panel
-(also `F2`), `&cursor` to show the mouse pointer. After changing the menu data or the event
+(also `F2`; `&usb` with `&phone`: the USB mode's screen). After changing the menu data or the event
 format, regenerate the timelines:
 
 ```bash

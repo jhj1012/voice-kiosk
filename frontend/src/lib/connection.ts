@@ -11,6 +11,8 @@ const CHECK_MS = 2000;
 
 export interface Connection {
   send(event: ClientEvent): void;
+  /** Drop the connection and open a new one (the backend sends everything again). */
+  reconnect(): void;
   close(): void;
 }
 
@@ -69,16 +71,20 @@ export function connect(
     };
   };
 
-  /** A connection that went quiet: let it go (its close may never come) and open a new one. */
-  const reopenIfStale = () => {
-    if (closed || !socket || now() - heard < STALE_MS) return;
-    console.warn('no word from the kiosk: connecting again');
+  /** Let the connection go (its close may never come) and open a new one. */
+  const reopen = () => {
+    if (closed || !socket) return;
     const old = socket;
     old.onopen = old.onmessage = old.onclose = null;
     old.close();
     clearTimeout(timer);
     report(false);
     open();
+  };
+  const reopenIfStale = () => {
+    if (closed || !socket || now() - heard < STALE_MS) return;
+    console.warn('no word from the kiosk: connecting again');
+    reopen();
   };
   const watch = setInterval(reopenIfStale, CHECK_MS);
   const onShown = () => {
@@ -91,6 +97,7 @@ export function connect(
     send(event) {
       if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify(event));
     },
+    reconnect: reopen,
     close() {
       closed = true;
       clearTimeout(timer);

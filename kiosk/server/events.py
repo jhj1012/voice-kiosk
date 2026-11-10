@@ -71,13 +71,18 @@ def init_event(
     avatar: dict[str, str | None] | None = None,
     *,
     phone: bool = False,
+    phone_audio: bool = True,
+    noise_gate_default: float | None = None,
 ) -> Event:
-    """`phone`: this display is the phone of the phone mode (its microphone and speaker are the
-    handset; a tap starts and ends the conversation)."""
+    """`phone`: this display is the phone of the phone mode. `phone_audio`: its microphone and
+    speaker are the handset too (Wi-Fi mode); over USB the handset is the laptop's and the phone
+    is only the screen."""
     images = images or {}
     return {
         "type": "init",
         "phone": phone,
+        "phone_audio": phone and phone_audio,
+        "noise_gate_default": noise_gate_default,  # configs/settings.yaml (the panel shows it)
         "avatar": avatar or {name: None for name in (*AVATAR_CLIPS, "still")},
         "cafe": {
             "name": cafe.name,

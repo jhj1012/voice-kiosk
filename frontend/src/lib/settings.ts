@@ -57,6 +57,7 @@ export const MAX_INSET = 40;
 // each place on the screen on top of that (a role of textRoles.ts -> %, only those changed).
 export const MIN_TEXT_SIZE = 30;
 export const MAX_TEXT_SIZE = 300;
+export const MAX_NOISE_GATE = 32767; // 16-bit RMS
 
 export interface Settings {
   backdrop: Backdrop;
@@ -67,6 +68,7 @@ export interface Settings {
   phoneInsets: PhoneInsets;
   phoneTextScale: number;
   phoneTextRoles: Record<string, number>;
+  noiseGate: number | null; // the microphone's noise gate (16-bit RMS, 0: off); null: settings.yaml's
 }
 
 export const DEFAULTS: Settings = {
@@ -78,6 +80,7 @@ export const DEFAULTS: Settings = {
   // Set on the team's 19.5 x 31.5 cm screen: 1.5 cm top, about 7 cm bottom, nothing at the sides.
   phoneInsets: { top: 4.8, bottom: 21.3, left: 0, right: 0 },
   phoneTextScale: 100,
+  noiseGate: null,
   // Set with the text size editor (F4) on the team's phone.
   phoneTextRoles: {
     'diningchoice-emoji': 95,
@@ -172,6 +175,12 @@ export function normalize(values: Record<string, unknown>): Settings {
       ? values.phoneTextScale
       : DEFAULTS.phoneTextScale,
     phoneTextRoles,
+    noiseGate:
+      typeof values.noiseGate === 'number' &&
+      values.noiseGate >= 0 &&
+      values.noiseGate <= MAX_NOISE_GATE
+        ? values.noiseGate
+        : null,
   };
 }
 

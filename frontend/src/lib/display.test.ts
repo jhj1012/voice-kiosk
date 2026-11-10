@@ -27,6 +27,9 @@ describe('apply', () => {
     expect(display.cafe?.name).toBe(init.cafe.name);
     expect(display.phone).toBe(false);
     expect(apply(display, { ...init, phone: true }).phone).toBe(true); // the phone mode's phone
+    // over USB the phone is only the screen; over Wi-Fi it is the handset too
+    expect(apply(display, { ...init, phone: true, phone_audio: false }).phoneAudio).toBe(false);
+    expect(apply(display, { ...init, phone: true, phone_audio: true }).phoneAudio).toBe(true);
   });
 
   it('replaces the snapshot and ignores older ones', () => {

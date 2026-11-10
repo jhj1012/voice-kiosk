@@ -70,11 +70,8 @@ body.phone-mode #app {
   width: 100vw;
 }
 
-body.kiosk-mode {
-  cursor: none;
-}
-/* The text size editor (F4) is used with the mouse: its text is clicked. */
-body.kiosk-mode.text-edit {
+/* The text size editor (F4): its text is clicked with the mouse. */
+body.text-edit {
   cursor: crosshair;
 }
 

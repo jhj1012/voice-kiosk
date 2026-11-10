@@ -37,6 +37,7 @@ from kiosk.server.hub import Hub
 from kiosk.server.settings import DisplaySettings
 from kiosk.voice.handset import Handset
 from kiosk.voice.hook import SimulatedHook
+from kiosk.voice.mediakey import MediaKeys
 from kiosk.voice.phone import PhoneHandset
 
 LOG_DIR = REPO_ROOT / "logs"
@@ -119,18 +120,27 @@ def main() -> int:
         avatar_dir=config.data_dir / "avatar",
         settings=DisplaySettings(CONFIG_DIR / "display.local.json"),
     )
-    phone = use_phone(config, controller) if args.phone else None
+    # Wi-Fi phone mode: the phone is the handset. USB: the handset is the laptop's (the phone has
+    # one USB-C port, for the cable), its button a media key; the phone is only the screen.
+    phone = use_phone(config, controller) if args.phone and not args.usb else None
     handset = open_handset(config, controller) if config.audio.enabled and not phone else None
+    button = start_button(controller) if args.usb else None
+    microphone = phone or handset
+    controller.noise_gate_default = config.audio.noise_gate_rms
+    if microphone is not None:
+        controller.noise_gate = microphone.set_noise_gate
+        controller.apply_noise_gate()  # the developer panel's, if one was saved
     app = create_app(
         controller,
         REPO_ROOT / "frontend" / "dist",
         config.data_dir / "images",
         config.data_dir / "avatar",
         phone,
+        phone_screen=args.phone,
     )
     laptop = uvicorn.Config(app, host=host, port=port, log_level="warning")
     on_phone = None
-    if phone is not None:
+    if args.phone:
         phone_host, addresses = phone_listener(args.usb)
         certificate = ensure_certificate(CONFIG_DIR, addresses)
         if args.usb:
@@ -159,6 +169,8 @@ def main() -> int:
         else:
             asyncio.run(serve_both(uvicorn.Server(laptop), uvicorn.Server(on_phone)))
     finally:
+        if button is not None:
+            button.close()
         if handset is not None:
             handset.close()
     return 0
@@ -247,6 +259,16 @@ def open_display(url: str, full_screen: bool) -> None:
     else:
         args = [f"--app={url}", "--window-size=640,1080"]
     subprocess.Popen([edge, *args, "--no-first-run"])
+
+
+def start_button(controller: KioskController) -> MediaKeys | None:
+    """USB mode: the handset's button (a media key on the laptop) starts and ends the call."""
+    keys = MediaKeys(controller.button_pressed)
+    if not keys.start():
+        print("Warning: the handset's button works only on Windows; use Space on the laptop.")
+        return None
+    print("수화기 버튼: 누르면 대화 시작, 대화 중에 다시 누르면 끝 (노트북에서 Space도 돼요)")
+    return keys
 
 
 def open_handset(config: Config, controller: KioskController) -> Handset | None:

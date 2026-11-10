@@ -19,7 +19,7 @@ from kiosk.assistant.live import KeyRejected, LiveConnection, LiveConnector, Ses
 from kiosk.assistant.safety import Speaker
 from kiosk.assistant.session import AssistantSession, SessionListener
 from kiosk.config import FlowConfig
-from kiosk.domain.flow import Kiosk
+from kiosk.domain.flow import Kiosk, Phase
 from kiosk.server.events import (
     Event,
     Subtitles,
@@ -98,6 +98,10 @@ class KioskController(SessionListener):
         self.audio_stop: Callable[[], None] | None = None  # stop playing at once
         self.levels: Callable[[], tuple[float, float]] | None = None  # (mic, earpiece) 0..1
         self.mic_rms: Callable[[], float] | None = None  # the mic's real RMS, for the panel
+        # The microphone's noise gate: configs/settings.yaml's, or the developer panel's
+        # `noiseGate` (0: off) once saved.
+        self.noise_gate: Callable[[float | None], None] | None = None
+        self.noise_gate_default: float | None = None
         self._clock = clock
         self._seq = 0
         self._subtitles = Subtitles()
@@ -111,9 +115,9 @@ class KioskController(SessionListener):
 
     # --- for the displays --------------------------------------------------------------------
 
-    def init_events(self, *, phone: bool = False) -> list[Event]:
+    def init_events(self, *, phone: bool = False, phone_audio: bool = True) -> list[Event]:
         """What a newly connected display needs: the menu (with current images) and the state.
-        `phone`: the display is the phone of the phone mode."""
+        `phone`: the display is the phone of the phone mode; `phone_audio`: it is the handset."""
         menu, cafe = self.kiosk.menu, self.kiosk.cafe
         return [
             init_event(
@@ -122,6 +126,8 @@ class KioskController(SessionListener):
                 image_urls(menu, self.images_dir),
                 avatar_urls(self.avatar_dir) if self.avatar_dir else None,
                 phone=phone,
+                phone_audio=phone_audio,
+                noise_gate_default=self.noise_gate_default,
             ),
             settings_event(self.settings.values if self.settings else {}),
             setup_event(self.key_status),
@@ -168,6 +174,19 @@ class KioskController(SessionListener):
         elif not self.settings.update(values):
             return
         self.hub.publish(settings_event(self.settings.values))
+        self.apply_noise_gate()
+
+    def apply_noise_gate(self) -> None:
+        """The developer panel's noise gate (`noiseGate`, 0: off), else configs/settings.yaml's."""
+        if self.noise_gate is None:
+            return
+        saved = self.settings.values.get("noiseGate") if self.settings is not None else None
+        if isinstance(saved, int | float) and not isinstance(saved, bool) and saved >= 0:
+            threshold = float(saved) or None
+        else:
+            threshold = self.noise_gate_default
+        self.noise_gate(threshold)
+        log.info("noise gate: %s", threshold if threshold else "off")
 
     async def set_api_key(self, key: str) -> str:
         """A key typed on the display: checked with Google, then saved and used at once.
@@ -202,6 +221,14 @@ class KioskController(SessionListener):
         else:
             self.hook.set(off_hook)
             await self._settle()
+
+    def button_pressed(self) -> None:
+        """The handset's button (USB mode, from the media key thread): starts the conversation,
+        or ends it, like Space on the laptop."""
+        if self._loop is not None:
+            asyncio.run_coroutine_threadsafe(
+                self.handset(self.kiosk.phase is Phase.IDLE), self._loop
+            )
 
     async def lift(self) -> None:
         async with self._lock:
