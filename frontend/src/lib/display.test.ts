@@ -36,6 +36,15 @@ describe('apply', () => {
     expect(display.state.assistant).toBe('idle');
   });
 
+  it('after a new connection takes the state even if the kiosk restarted (lower seq)', () => {
+    const init = demo.init as ServerEvent & { type: 'init' };
+    let display = apply(initialDisplay(), state({ seq: 40 }));
+    display = apply(display, init); // connected again to a kiosk that started over
+    display = apply(display, state({ seq: 2, assistant: 'speaking' }));
+    expect(display.state.assistant).toBe('speaking');
+    expect(apply(display, { type: 'ping' })).toBe(display); // a ping changes nothing
+  });
+
   it('accepts the idle snapshot of a new session even with a lower seq', () => {
     let display = apply(initialDisplay(), state({ seq: 9 }));
     display = apply(display, { ...idleState(), seq: 1 });

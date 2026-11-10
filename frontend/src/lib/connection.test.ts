@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { connect } from './connection';
+import { connect, STALE_MS } from './connection';
 
 class FakeSocket {
   static OPEN = 1;
@@ -66,5 +66,26 @@ describe('connect', () => {
     expect(socket.sent).toEqual(['{"type":"dev_text","text":"안녕"}']);
     socket.onmessage!({ data: '{"type":"notice","level":"info","text":""}' });
     expect(events).toEqual([{ type: 'notice', level: 'info', text: '' }]);
+  });
+
+  it('opens a new connection when the old one went quiet (it may never close)', () => {
+    let clock = 0;
+    const statuses: boolean[] = [];
+    connect(
+      () => {},
+      (ok) => statuses.push(ok),
+      { url: 'ws://x/ws', socket: make, now: () => clock },
+    );
+    sockets[0].onopen!();
+    sockets[0].onmessage!({ data: '{"type":"ping"}' }); // pings keep it alive
+    clock = STALE_MS - 1000;
+    vi.advanceTimersByTime(2000);
+    expect(sockets.length).toBe(1);
+    clock = STALE_MS + 1000; // nothing heard since the ping
+    vi.advanceTimersByTime(2000);
+    expect(sockets.length).toBe(2);
+    expect(sockets[0].onclose).toBeNull(); // the old one does not reconnect a second time
+    sockets[1].onopen!();
+    expect(statuses).toEqual([true, false, true]);
   });
 });

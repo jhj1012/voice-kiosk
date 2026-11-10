@@ -8,6 +8,8 @@
 // one. Chrome allows the microphone only over HTTPS, and sound only after a tap: `startPhoneAudio`
 // must be called from the first tap.
 
+import { STALE_MS } from './connection';
+
 export const MIC_RATE = 16000;
 export const SPEAKER_RATE = 24000;
 export const FRAME_SAMPLES = 320; // 20 ms at 16 kHz
@@ -158,6 +160,7 @@ export async function startPhoneAudio(
   let closed = false;
   let retry = 500;
   let reported = -1;
+  let heard = Date.now();
   const framer = new Framer();
   const send = (data: ArrayBuffer | string) => {
     if (socket?.readyState === WebSocket.OPEN) socket.send(data);
@@ -176,6 +179,7 @@ export async function startPhoneAudio(
   };
 
   const open = () => {
+    heard = Date.now();
     socket = new WebSocket(url);
     socket.binaryType = 'arraybuffer';
     socket.onopen = () => {
@@ -183,6 +187,7 @@ export async function startPhoneAudio(
       reported = -1;
     };
     socket.onmessage = (event: MessageEvent<ArrayBuffer | string>) => {
+      heard = Date.now();
       if (typeof event.data === 'string') {
         if (event.data === 'clear') speaker.port.postMessage('clear');
         return;
@@ -198,6 +203,16 @@ export async function startPhoneAudio(
       }
     };
   };
+  // The backend sends "ping" when it has sent nothing for 5 s: silence means the connection
+  // died without closing (as in connection.ts). Drop it and open a new one.
+  const watch = setInterval(() => {
+    if (closed || !socket || Date.now() - heard < STALE_MS) return;
+    const old = socket;
+    old.onopen = old.onmessage = old.onclose = null;
+    old.close();
+    speaker.port.postMessage('clear');
+    open();
+  }, 2000);
   open();
 
   return {
@@ -209,6 +224,7 @@ export async function startPhoneAudio(
     },
     close() {
       closed = true;
+      clearInterval(watch);
       socket?.close();
       stream.getTracks().forEach((t) => t.stop());
       void micContext.close();

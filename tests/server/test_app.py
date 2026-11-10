@@ -10,6 +10,7 @@ from kiosk.assistant.instructions import GREETING_CUE
 from kiosk.assistant.live import AudioOut, Interrupted, OutputText, TurnComplete
 from kiosk.config import AudioConfig, FlowConfig
 from kiosk.domain.flow import Kiosk
+from kiosk.server import app as app_module
 from kiosk.server.app import create_app
 from kiosk.server.controller import KioskController
 from kiosk.server.hub import Hub
@@ -161,3 +162,14 @@ def test_the_api_key_cannot_be_set_over_the_phones_https(menu, cafe, tmp_path):
     app, _ = make(menu, cafe, tmp_path, phone=True)
     with TestClient(app, base_url="https://testserver", client=("127.0.0.1", 5000)) as client:
         assert client.post("/api/key", json={"key": "k" * 40}).status_code == 403
+
+
+def test_a_quiet_connection_gets_pings(menu, cafe, tmp_path, monkeypatch):
+    """So a display that hears nothing knows its connection died and connects again."""
+    monkeypatch.setattr(app_module, "PING_EVERY_S", 0.05)
+    app, _ = make(menu, cafe, tmp_path, phone=True)
+    with TestClient(app) as client:
+        with client.websocket_connect("/ws") as display:
+            assert until(display, "ping") == {"type": "ping"}
+        with client.websocket_connect(f"{PHONE}/ws/audio") as audio:
+            assert audio.receive_text() == "ping"

@@ -174,8 +174,20 @@ export interface SetupEvent {
   api_key: ApiKeyStatus;
 }
 
+/** Sent when nothing else was for 5 s: the connection is alive (connection.ts). */
+export interface PingEvent {
+  type: 'ping';
+}
+
 export type ServerEvent =
-  InitEvent | StateEvent | SubtitleEvent | LevelEvent | NoticeEvent | SetupEvent | SettingsEvent;
+  | InitEvent
+  | StateEvent
+  | SubtitleEvent
+  | LevelEvent
+  | NoticeEvent
+  | SetupEvent
+  | SettingsEvent
+  | PingEvent;
 
 // Display -> backend (developer mode only).
 export type ClientEvent =
