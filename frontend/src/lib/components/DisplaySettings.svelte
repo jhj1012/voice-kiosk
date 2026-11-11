@@ -96,7 +96,16 @@
       checked={settings.subtitles}
       onchange={(e) => save({ subtitles: e.currentTarget.checked })}
     />
-    자막 보기 (손님과 AI가 하는 말)
+    자막 보기 (손님과 AI가 하는 말, 말하는 대로 바로)
+  </label>
+  <label class="line indent">
+    <input
+      type="checkbox"
+      checked={settings.subtitlesOnPhone}
+      disabled={!settings.subtitles}
+      onchange={(e) => save({ subtitlesOnPhone: e.currentTarget.checked })}
+    />
+    휴대폰 화면에도 (꺼 두면 노트북 화면에만)
   </label>
   <label class="line">
     선택지 배경
@@ -181,6 +190,9 @@
 </section>
 
 <style>
+  .line.indent {
+    margin-left: 2.2rem;
+  }
   section {
     display: flex;
     flex-direction: column;

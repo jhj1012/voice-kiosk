@@ -144,7 +144,7 @@
     <div class="fade" transition:fade={{ duration: 400 }}></div>
   {/if}
 
-  {#if settings.subtitles && !idle}
+  {#if settings.subtitles && !idle && (!ui.phone || settings.subtitlesOnPhone)}
     <section class="subtitles" transition:fade={{ duration: 300 }}>
       <Subtitles />
     </section>

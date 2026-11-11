@@ -62,7 +62,8 @@ export const MAX_NOISE_GATE = 32767; // 16-bit RMS
 export interface Settings {
   backdrop: Backdrop;
   panelOpacity: number; // 0..1, the choices' background
-  subtitles: boolean; // what the customer and the assistant say, as text
+  subtitles: boolean; // what the customer and the assistant say, as text, live (the laptop)
+  subtitlesOnPhone: boolean; // and on the phone's screen too (customers see it there)
   ignoreUnrelated: boolean; // no answer to words not meant for the kiosk (next customer)
   colors: Record<string, string>;
   phoneInsets: PhoneInsets;
@@ -74,7 +75,8 @@ export interface Settings {
 export const DEFAULTS: Settings = {
   backdrop: 'boxes',
   panelOpacity: 0.88,
-  subtitles: false,
+  subtitles: true, // on the laptop's screen (the staff's)
+  subtitlesOnPhone: false,
   ignoreUnrelated: true, // the backend's default too (`KioskController.ignore_unrelated`)
   colors: Object.fromEntries(COLORS.map((c) => [c.key, c.value])),
   // Set on the team's 19.5 x 31.5 cm screen: 1.5 cm top, about 7 cm bottom, nothing at the sides.
@@ -165,6 +167,7 @@ export function normalize(values: Record<string, unknown>): Settings {
     panelOpacity:
       typeof opacity === 'number' && opacity >= 0 && opacity <= 1 ? opacity : DEFAULTS.panelOpacity,
     subtitles: typeof values.subtitles === 'boolean' ? values.subtitles : DEFAULTS.subtitles,
+    subtitlesOnPhone: values.subtitlesOnPhone === true,
     ignoreUnrelated:
       typeof values.ignoreUnrelated === 'boolean'
         ? values.ignoreUnrelated

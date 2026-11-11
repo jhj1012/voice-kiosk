@@ -352,7 +352,9 @@ to the next screen": choices appear and disappear in place.
   on the laptop) shows the phone's sizes; a click on any text picks its place, − / + change it.
   On the team's phone the text came out larger than on the laptop (the cause is not known:
   Pretendard is bundled, and `text-size-adjust` did not change it), hence its own sizes.
-- **Subtitles**: off by default; the developer panel turns them on (top of the screen).
+- **Subtitles**: what the customer and the assistant say, live as it is transcribed (top of the
+  screen). On by default on the laptop's screen (the staff's), off on the phone's (customers see
+  it) unless "휴대폰 화면에도" is ticked in the developer panel.
 - **Colours**: every main colour (background, its light, the choices' background and how see-through it
   is, the menu pictures' background, text, secondary and faint text, highlight, text on the
   highlight, lines) can be changed in the developer panel (`lib/settings.ts`).
