@@ -324,6 +324,17 @@
     bottom: 4rem;
   }
 
+  /* The laptop's screen: the typing box (TypeBar, in App) takes the bottom. */
+  .page:not(.phone) .content {
+    bottom: 22rem;
+  }
+  .page:not(.phone) .prompt {
+    bottom: 19rem;
+  }
+  .page:not(.phone) .order {
+    bottom: 11rem;
+  }
+
   /* The phone mode: out of the covered edges; the order above the avatar's head. */
   .phone .subtitles {
     top: calc(var(--safe-top) + 13rem);
