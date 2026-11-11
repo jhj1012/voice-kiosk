@@ -92,6 +92,10 @@ ORDER_CHANGED_NOTE = (
     "The payment did not start because the order changed. Ask whether they want anything else "
     "or would like to pay; call pay again when they ask to pay."
 )
+# The customer did not answer (team test: a short "아니요" to "추가하실 거 있으세요?" was not
+# heard, and both waited). After `FlowConfig.reask_after_s` of silence the assistant asks again.
+REASK_CUE = "[손님이 대답하지 않았어요. 방금 한 질문을 아주 짧게 다시 물어봐 주세요.]"
+MAX_REASKS = 2  # in a row, until the customer speaks
 RECONNECTED_CUE = (
     "[대화가 잠시 끊겼다가 이어졌어요. 연결 이야기는 하지 말고, 마지막 대화에 이어서 짧게 "
     "다시 물어봐 주세요.]"
@@ -236,6 +240,11 @@ class AssistantSession:
         # One word said alone and asked again: (the word, transcript mark); said again: the mark
         self._one_word_asked: tuple[str, int] | None = None
         self._one_word_meant = -1
+        self._reask: asyncio.Task[None] | None = None  # waiting for an answer after a question
+        self._reasks = 0
+        self._asked_at: float | None = None  # when the last question had been said
+        # The count before the customer's words: back if those words are ignored (stay_quiet)
+        self._reasks_before: int | None = None
         self._read_back: _ReadBack | None = None
         self._terminal_id = 0
         self._quiet_turn = False  # stay_quiet was called: this turn is not heard
@@ -276,7 +285,8 @@ class AssistantSession:
     async def stop(self) -> None:
         """The handset was put down (or the done screen timed out): forget everything."""
         self._closing = True
-        tasks = [t for t in (self._receiver, self._speaking_watch, *self._tasks) if t is not None]
+        running = (self._receiver, self._speaking_watch, self._reask, *self._tasks)
+        tasks = [t for t in running if t is not None]
         for task in tasks:
             task.cancel()
         for task in tasks:
@@ -314,6 +324,7 @@ class AssistantSession:
         self.transcript.add("customer", text, typed=True)
         self.listener.on_subtitle("customer", text, True)
         log.info("customer (typed): %s", text)
+        self._reasks = 0
         await self._conn.send_text(text)
         self._decide_read_back()
         self._set_state(AssistantState.THINKING)
@@ -344,6 +355,9 @@ class AssistantSession:
             case InputText(text) if not mostly_foreign(text):
                 self._quiet_turn = False  # the customer talks again
                 self._thought_retries = 0
+                if self._reasks_before is None:
+                    self._reasks_before = self._reasks
+                self._reasks = 0
                 utterance = self.transcript.add("customer", text)
                 self.listener.on_subtitle("customer", utterance.text, False)
                 if self.state is not AssistantState.SPEAKING:
@@ -473,6 +487,17 @@ class AssistantSession:
                 [(c, {"ok": True}) for c in calls], silent={c.id for c in calls}
             )
         self._set_state(AssistantState.LISTENING)
+        self._keep_waiting()
+
+    def _keep_waiting(self) -> None:
+        """Ignored words are no answer: the wait after the question goes on (what is left of
+        it), and the count of asking again is as before."""
+        if self._reasks_before is not None:
+            self._reasks, self._reasks_before = self._reasks_before, None
+        if self._asked_at is None or self.flow.reask_after_s <= 0:
+            return
+        left = max(0.0, self._asked_at + self.flow.reask_after_s - self._clock())
+        self._reask = asyncio.create_task(self._ask_again_after_silence(left))
 
     def _run(self, call: FunctionCall) -> Result:
         """Check one call against the safety rules, run it, and note what changed."""
@@ -984,8 +1009,41 @@ class AssistantSession:
 
     def _set_state(self, state: AssistantState) -> None:
         if state is not self.state:
+            spoke = self.state is AssistantState.SPEAKING
             self.state = state
+            if state is AssistantState.SPEAKING:
+                self._reasks_before = None  # the assistant answers: the customer's words counted
+            if self._reask is not None:
+                self._reask.cancel()
+                self._reask = None
+            if spoke and state is AssistantState.LISTENING and self.flow.reask_after_s > 0:
+                self._asked_at = self._clock()
+                self._reask = asyncio.create_task(
+                    self._ask_again_after_silence(self.flow.reask_after_s)
+                )
             self.listener.on_state()
+
+    async def _ask_again_after_silence(self, wait_s: float) -> None:
+        """The assistant asked and nothing came: ask again, briefly (not after \"메뉴판에서 메뉴를
+        고르신 뒤 말씀해 주세요\" with nothing ordered yet: they are reading the menu board)."""
+        await asyncio.sleep(wait_s)
+        if self.state is not AssistantState.LISTENING or self._closing or self._conn is None:
+            return
+        asked = self.kiosk.question.kind
+        nothing_yet = self.kiosk.order.is_empty and not self.kiosk.drafts
+        if self.kiosk.phase is not Phase.ORDERING or asked is Ask.NONE:
+            return
+        if (asked is Ask.MENU and nothing_yet) or self._reasks >= MAX_REASKS:
+            return
+        said = [u for u in self.transcript.entries if not u.ignored]  # ignored words: no answer
+        last = said[-1] if said else None
+        if last is None or last.speaker != "assistant" or "?" not in last.text:
+            return
+        self._reasks += 1
+        log.info("no answer for %.0f s: asking again (%d)", self.flow.reask_after_s, self._reasks)
+        self._reask = None
+        await self._conn.send_text(REASK_CUE)
+        self._set_state(AssistantState.THINKING)
 
     def _spawn(self, coroutine: Coroutine[Any, Any, None]) -> None:
         task = asyncio.create_task(coroutine)

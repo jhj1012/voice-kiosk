@@ -5,6 +5,10 @@ A headset's button reaches Windows as the media play / pause key. A low-level ke
 it as "start / end the conversation" and swallows it, so nothing starts playing. A double press
 is "next track": swallowed too, nothing else. Other systems: the hook does nothing.
 
+The same hook gives the staff answer keys on the laptop, in every mode: F8 is "아니요", F9 "네"
+(team test: a short "아니요" to "추가하실 거 있으세요?" was not heard, and both waited). They work
+without the kiosk's page in front (in USB mode the laptop may show no page at all).
+
     uv run python -m kiosk.voice.mediakey    # press the handset's button: is it seen?
 """
 
@@ -26,6 +30,9 @@ VK_MEDIA_PREV_TRACK = 0xB1
 VK_MEDIA_STOP = 0xB2
 VK_MEDIA_PLAY_PAUSE = 0xB3
 SWALLOWED = {VK_MEDIA_NEXT_TRACK, VK_MEDIA_PREV_TRACK, VK_MEDIA_STOP, VK_MEDIA_PLAY_PAUSE}
+VK_F8 = 0x77
+VK_F9 = 0x78
+ANSWER_KEYS = {VK_F8: "아니요", VK_F9: "네"}
 WH_KEYBOARD_LL = 13
 WM_KEYDOWN = 0x0100
 WM_SYSKEYDOWN = 0x0104
@@ -60,17 +67,29 @@ class PressGate:
 
 
 class MediaKeys:
-    """Calls `on_press` (from its own thread) when the handset's button is pressed."""
+    """Calls `on_press` (from its own thread) when the handset's button is pressed (None: the
+    media keys are left alone), and `on_answer` with "아니요" / "네" for F8 / F9."""
 
-    def __init__(self, on_press: Callable[[], None]) -> None:
+    def __init__(
+        self,
+        on_press: Callable[[], None] | None,
+        on_answer: Callable[[str], None] | None = None,
+    ) -> None:
         self.on_press = on_press
+        self.on_answer = on_answer
         self._gate = PressGate()
+        self._answer_gate = PressGate(0.5)
         self._thread: threading.Thread | None = None
         self._thread_id = 0
 
     def key(self, vk: int, down: bool) -> bool:
         """One key event: True if the kiosk takes (and swallows) it."""
-        if vk not in SWALLOWED:
+        if vk in ANSWER_KEYS and self.on_answer is not None:
+            if down and self._answer_gate():
+                log.info("answer key: %s", ANSWER_KEYS[vk])
+                self.on_answer(ANSWER_KEYS[vk])
+            return True
+        if vk not in SWALLOWED or self.on_press is None:
             return False
         if down and vk == VK_MEDIA_PLAY_PAUSE and self._gate():
             log.info("handset button")

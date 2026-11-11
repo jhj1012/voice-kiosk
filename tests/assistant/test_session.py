@@ -7,6 +7,7 @@ what the session answered, what it did to the kiosk and what it told the listene
 from __future__ import annotations
 
 import asyncio
+import sys
 from collections.abc import Awaitable, Callable
 from typing import Any
 
@@ -30,6 +31,7 @@ from kiosk.assistant.session import (
     ORDER_CHANGED_NOTE,
     PAYMENT_DONE_CUE,
     PAYMENT_STOPPED_CUE,
+    REASK_CUE,
     RECONNECTED_CUE,
     AssistantSession,
     AssistantState,
@@ -885,5 +887,74 @@ def test_dining_words_alone_are_taken_only_where_they_answer(new_kiosk):
         await h.reply("아메리카노는 따뜻하게 드릴까요, 차갑게 드릴까요?")
         await h.say("매장")  # while a drink is asked: no answer
         assert "not_done" in await h.call("set_dining", dining="here")
+
+    run(scenario, new_kiosk)
+
+
+# --- asking again after silence (team test: a short "아니요" was not heard, and both waited) ----
+
+
+REASK_FAST = FlowConfig(insert_card_s=0, processing_s=0, done_return_s=0, reask_after_s=0.05)
+
+
+def test_no_answer_after_a_question_is_asked_again_twice_at_most(new_kiosk, monkeypatch):
+    monkeypatch.setattr(sys.modules[__name__], "FAST", REASK_FAST)
+
+    async def scenario(h: Harness):
+        await extras_asked(h)  # "아메리카노에 추가하실 거 있으세요?", then silence
+        await asyncio.sleep(0.3)
+        assert h.conn.texts.count(REASK_CUE) == 1
+        await h.reply("추가하실 거 있으세요?")  # asked again; still silence
+        await asyncio.sleep(0.3)
+        await h.reply("추가하실 거 있으세요?")
+        await asyncio.sleep(0.3)
+        assert h.conn.texts.count(REASK_CUE) == 2  # not a third time
+        await h.say("없어요")  # the customer speaks: the count starts over
+        await h.reply("더 필요하신 거 있으세요?")
+        await asyncio.sleep(0.3)
+        assert h.conn.texts.count(REASK_CUE) == 3
+
+    run(scenario, new_kiosk)
+
+
+def test_no_asking_again_while_they_read_the_menu_board(new_kiosk, monkeypatch):
+    monkeypatch.setattr(sys.modules[__name__], "FAST", REASK_FAST)
+
+    async def scenario(h: Harness):
+        await h.call("set_dining", dining="here")
+        await h.reply("메뉴판에서 메뉴를 고르신 뒤 말씀해 주세요. 무엇을 드릴까요?")
+        await asyncio.sleep(0.3)
+        assert REASK_CUE not in h.conn.texts  # nothing ordered yet
+
+    run(scenario, new_kiosk)
+
+
+def test_ignored_words_do_not_restart_the_wait(new_kiosk, monkeypatch):
+    flow = FlowConfig(insert_card_s=0, processing_s=0, done_return_s=0, reask_after_s=0.4)
+    monkeypatch.setattr(sys.modules[__name__], "FAST", flow)
+
+    async def scenario(h: Harness):
+        await extras_asked(h)  # asked at t = 0
+        await asyncio.sleep(0.2)
+        await h.say("어, 너 뭐 마실래?")  # to a friend: ignored
+        await h.call("stay_quiet")
+        await asyncio.sleep(0.3)  # t = 0.5: the wait from the question is over
+        assert h.conn.texts.count(REASK_CUE) == 1  # (restarted, it would come at t = 0.6)
+
+    run(scenario, new_kiosk)
+
+
+def test_ignored_words_do_not_reset_the_count(new_kiosk, monkeypatch):
+    monkeypatch.setattr(sys.modules[__name__], "FAST", REASK_FAST)
+
+    async def scenario(h: Harness):
+        await extras_asked(h)
+        for _ in range(2):  # asked again twice
+            await asyncio.sleep(0.3)
+            await h.reply("추가하실 거 있으세요?")
+        await h.say("음…")  # hesitation: ignored
+        await h.call("stay_quiet")
+        await asyncio.sleep(0.3)
+        assert h.conn.texts.count(REASK_CUE) == 2  # still not a third time
 
     run(scenario, new_kiosk)
