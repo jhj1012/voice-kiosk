@@ -230,6 +230,12 @@ class KioskController(SessionListener):
                 self.handset(self.kiosk.phase is Phase.IDLE), self._loop
             )
 
+    def answer_key(self, text: str) -> None:
+        """F8 / F9 on the laptop (from the key thread): the customer's "아니요" / "네", typed for
+        them when a short answer was not heard. Only during a conversation."""
+        if self._loop is not None and self.session is not None:
+            asyncio.run_coroutine_threadsafe(self.type_text(text), self._loop)
+
     async def lift(self) -> None:
         async with self._lock:
             if self.session is not None:

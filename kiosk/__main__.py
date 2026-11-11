@@ -124,7 +124,7 @@ def main() -> int:
     # one USB-C port, for the cable), its button a media key; the phone is only the screen.
     phone = use_phone(config, controller) if args.phone and not args.usb else None
     handset = open_handset(config, controller) if config.audio.enabled and not phone else None
-    button = start_button(controller) if args.usb else None
+    button = start_keys(controller, usb=args.usb)
     microphone = phone or handset
     controller.noise_gate_default = config.audio.noise_gate_rms
     if microphone is not None:
@@ -261,13 +261,17 @@ def open_display(url: str, full_screen: bool) -> None:
     subprocess.Popen([edge, *args, "--no-first-run"])
 
 
-def start_button(controller: KioskController) -> MediaKeys | None:
-    """USB mode: the handset's button (a media key on the laptop) starts and ends the call."""
-    keys = MediaKeys(controller.button_pressed)
+def start_keys(controller: KioskController, usb: bool) -> MediaKeys | None:
+    """The laptop's keys for the kiosk: F8 / F9 answer "아니요" / "네" (every mode); in USB mode
+    also the handset's button (a media key), which starts and ends the call."""
+    keys = MediaKeys(controller.button_pressed if usb else None, controller.answer_key)
     if not keys.start():
-        print("Warning: the handset's button works only on Windows; use Space on the laptop.")
+        if usb:
+            print("Warning: the handset's button works only on Windows; use Space on the laptop.")
         return None
-    print("수화기 버튼: 누르면 대화 시작, 대화 중에 다시 누르면 끝 (노트북에서 Space도 돼요)")
+    if usb:
+        print("수화기 버튼: 누르면 대화 시작, 대화 중에 다시 누르면 끝 (노트북에서 Space도 돼요)")
+    print('노트북 F8: 손님 대신 "아니요", F9: "네" (짧은 대답을 AI가 못 들었을 때)')
     return keys
 
 

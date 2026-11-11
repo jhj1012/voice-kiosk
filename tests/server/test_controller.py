@@ -381,3 +381,17 @@ def test_the_handset_button_starts_and_ends_the_call(menu, cafe, tmp_path):
         assert s.controller.session is None
 
     run(menu, cafe, tmp_path, test)
+
+
+def test_the_answer_keys_type_for_the_customer_during_a_call(menu, cafe, tmp_path):
+    async def test(s: Setup) -> None:
+        await s.controller.start()
+        s.controller.answer_key("아니요")  # no call: nothing
+        await s.settle()
+        assert s.controller.session is None
+        await s.controller.handset(True)
+        s.controller.answer_key("아니요")
+        await s.settle()
+        assert s.connector.conn.texts[-1] == "아니요"
+
+    run(menu, cafe, tmp_path, test)
