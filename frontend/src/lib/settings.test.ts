@@ -86,3 +86,12 @@ describe('noise gate', () => {
     expect(normalize({ noiseGate: 'loud' }).noiseGate).toBeNull();
   });
 });
+
+describe('subtitles', () => {
+  it('are on for the laptop and off for the phone unless chosen', () => {
+    expect(normalize({}).subtitles).toBe(true);
+    expect(normalize({}).subtitlesOnPhone).toBe(false);
+    expect(normalize({ subtitles: false }).subtitles).toBe(false);
+    expect(normalize({ subtitlesOnPhone: true }).subtitlesOnPhone).toBe(true);
+  });
+});
