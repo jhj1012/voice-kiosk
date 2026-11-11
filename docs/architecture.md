@@ -15,7 +15,9 @@
 - **Backend** (`kiosk/`, Python 3.12): owns all state. The model can only change it through
   function calls, which code validates and executes.
 - **Display** (`frontend/`): renders the state pushed over one WebSocket. It has no business
-  logic. In developer mode it also sends typed text, the simulated hook and a mute switch.
+  logic. It also sends typed text (the laptop's screen has a typing box at the bottom, with the
+  F8 / F9 answer keys above it; not on the phone), and in developer mode the simulated hook and
+  a mute switch.
 - **Audio** is captured and played in the backend (`sounddevice`), so the API key and the audio
   never pass through the browser and the handset is picked by name in config.
 

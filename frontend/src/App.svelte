@@ -14,6 +14,7 @@
   import { play, type Timeline } from './lib/player';
   import { dispatch, handsetButtonOn, openTextEdit, previewSettings, ui } from './lib/store.svelte';
   import DevPanel from './lib/components/DevPanel.svelte';
+  import TypeBar from './lib/components/TypeBar.svelte';
   import Stage from './lib/components/Stage.svelte';
   import TextSizeEditor from './lib/components/TextSizeEditor.svelte';
 
@@ -158,6 +159,10 @@
 <svelte:window onkeydown={onKey} onpointerup={onTap} />
 
 <Stage />
+{#if !ui.phone && !ui.keyForm}
+  <!-- the laptop's screen only: typed customer words, and the F8/F9 answer keys -->
+  <TypeBar {send} />
+{/if}
 {#if devOpen}
   <DevPanel {send} {mode} {connected} {log} />
 {/if}
