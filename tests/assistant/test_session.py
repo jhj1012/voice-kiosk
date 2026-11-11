@@ -927,3 +927,34 @@ def test_no_asking_again_while_they_read_the_menu_board(new_kiosk, monkeypatch):
         assert REASK_CUE not in h.conn.texts  # nothing ordered yet
 
     run(scenario, new_kiosk)
+
+
+def test_ignored_words_do_not_restart_the_wait(new_kiosk, monkeypatch):
+    flow = FlowConfig(insert_card_s=0, processing_s=0, done_return_s=0, reask_after_s=0.4)
+    monkeypatch.setattr(sys.modules[__name__], "FAST", flow)
+
+    async def scenario(h: Harness):
+        await extras_asked(h)  # asked at t = 0
+        await asyncio.sleep(0.2)
+        await h.say("어, 너 뭐 마실래?")  # to a friend: ignored
+        await h.call("stay_quiet")
+        await asyncio.sleep(0.3)  # t = 0.5: the wait from the question is over
+        assert h.conn.texts.count(REASK_CUE) == 1  # (restarted, it would come at t = 0.6)
+
+    run(scenario, new_kiosk)
+
+
+def test_ignored_words_do_not_reset_the_count(new_kiosk, monkeypatch):
+    monkeypatch.setattr(sys.modules[__name__], "FAST", REASK_FAST)
+
+    async def scenario(h: Harness):
+        await extras_asked(h)
+        for _ in range(2):  # asked again twice
+            await asyncio.sleep(0.3)
+            await h.reply("추가하실 거 있으세요?")
+        await h.say("음…")  # hesitation: ignored
+        await h.call("stay_quiet")
+        await asyncio.sleep(0.3)
+        assert h.conn.texts.count(REASK_CUE) == 2  # still not a third time
+
+    run(scenario, new_kiosk)

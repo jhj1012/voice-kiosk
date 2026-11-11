@@ -37,4 +37,4 @@ flow:
   processing_s: 2.0       # simulated "결제 중..."
   done_return_s: 8.0      # the done screen returns to idle after this (or when hung up)
   first_order_number: 1
-  reask_after_s: 8.0      # no answer for this long after a question: asked again (twice at most; 0 = never)
+  reask_after_s: 5.0      # no answer for this long after a question: asked again (twice at most; 0 = never)

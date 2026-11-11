@@ -76,7 +76,7 @@ class FlowConfig:
     first_order_number: int = 1
     # The assistant asked and the customer said nothing for this long: it asks again (at most
     # twice in a row). 0: never.
-    reask_after_s: float = 8.0
+    reask_after_s: float = 5.0
 
 
 @dataclass(frozen=True)
