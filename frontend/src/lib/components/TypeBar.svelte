@@ -1,7 +1,8 @@
 <script lang="ts">
-  // The laptop's screen only (not the phone's): type what the customer says without opening
-  // the developer panel. Enter sends it (and starts a conversation if none is going on); F8 and
-  // F9 answer "아니요" / "네" (the backend's key hook, Windows).
+  // The laptop's screen only (not the phone's), shown with F3 (customers do not see it): type
+  // what the customer says without opening the developer panel. Enter sends it (and starts a
+  // conversation if none is going on); F8 and F9 answer "아니요" / "네" (the backend's key hook,
+  // Windows), shown or not.
   import type { ClientEvent } from '../events';
 
   let { send }: { send: (event: ClientEvent) => void } = $props();
@@ -18,7 +19,13 @@
 <div class="typebar">
   <p class="keys"><kbd>F8</kbd> 아니요 · <kbd>F9</kbd> 네</p>
   <form onsubmit={submit}>
-    <input bind:value={text} placeholder="손님 말을 입력하고 Enter" aria-label="손님 말 입력" />
+    <!-- svelte-ignore a11y_autofocus -->
+    <input
+      autofocus
+      bind:value={text}
+      placeholder="손님 말을 입력하고 Enter"
+      aria-label="손님 말 입력"
+    />
   </form>
 </div>
 
@@ -33,6 +40,10 @@
     flex-direction: column;
     gap: 0.8rem;
     cursor: auto;
+  }
+  :global(body.landscape) .typebar {
+    left: 46rem;
+    right: 4rem;
   }
   .keys {
     align-self: center;

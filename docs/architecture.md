@@ -15,9 +15,9 @@
 - **Backend** (`kiosk/`, Python 3.12): owns all state. The model can only change it through
   function calls, which code validates and executes.
 - **Display** (`frontend/`): renders the state pushed over one WebSocket. It has no business
-  logic. It also sends typed text (the laptop's screen has a typing box at the bottom, with the
-  F8 / F9 answer keys above it; not on the phone), and in developer mode the simulated hook and
-  a mute switch.
+  logic. It also sends typed text (the laptop's screen shows a typing box at the bottom with
+  F3, with the F8 / F9 answer keys above it; hidden by default, never on the phone), and in
+  developer mode the simulated hook and a mute switch.
 - **Audio** is captured and played in the backend (`sounddevice`), so the API key and the audio
   never pass through the browser and the handset is picked by name in config.
 
@@ -275,7 +275,7 @@ One WebSocket at `/ws`. Backend → display:
 ```jsonc
 {"type": "init", "menu": {...}, "cafe": {...},       // on connect; items carry image_url when a file exists
  "avatar": {"idle": "/avatar/idle.webm?v=1", "pick_up": null, ..., "still": "/avatar/avatar.png?v=1"}}
-{"type": "settings", "values": {"backdrop": "boxes", "subtitles": true, "colors": {...}}}
+{"type": "settings", "values": {"backdrop": "boxes", "subtitlesAssistant": true, "colors": {...}}}
 {"type": "state", "seq": 42,
  "phase": "idle|ordering|paying|done",   // "review" is a screen, not a phase
  "assistant": "idle|connecting|listening|thinking|speaking",
@@ -312,8 +312,11 @@ The API key form uses HTTP instead: `POST /api/key` with `{"key": "..."}` answer
 
 ## Display: the avatar and one continuous page
 
-A portrait screen (designed for 1080×1920; on a landscape monitor it is a centered portrait
-frame). An **avatar** (a café employee) stands behind everything and fills the screen; what the
+A portrait screen (designed for 1080×1920). The laptop's screen is **landscape** by default
+(designed for 1920×1080, 1rem = 1/67.5 of the height; `body.landscape`): the avatar stands at the
+left, the subtitles, the choices and the order are at the right, and around the clips the page
+has their own near-white background. "화면 방향" in the developer panel makes it the portrait
+frame (centered) again; the phone is always portrait. An **avatar** (a café employee) stands behind everything and fills the screen; what the
 assistant is asking about appears **over his chest**, so his face stays visible. Nothing "moves
 to the next screen": choices appear and disappear in place.
 
@@ -354,9 +357,11 @@ to the next screen": choices appear and disappear in place.
   on the laptop) shows the phone's sizes; a click on any text picks its place, − / + change it.
   On the team's phone the text came out larger than on the laptop (the cause is not known:
   Pretendard is bundled, and `text-size-adjust` did not change it), hence its own sizes.
-- **Subtitles**: what the customer and the assistant say, live as it is transcribed (top of the
-  screen). On by default on the laptop's screen (the staff's), off on the phone's (customers see
-  it) unless "휴대폰 화면에도" is ticked in the developer panel.
+- **Subtitles**: what the assistant says and what the customer says, live as it is transcribed
+  (top of the screen; the right side in landscape), each switched on its own in the developer
+  panel (`subtitlesAssistant`, on by default; `subtitlesCustomer`, off). On the laptop's screen;
+  on the phone's (customers see it) only if "휴대폰 화면에도" is ticked. A `subtitles: false`
+  saved before they were apart keeps both off.
 - **Colours**: every main colour (background, its light, the choices' background and how see-through it
   is, the menu pictures' background, text, secondary and faint text, highlight, text on the
   highlight, lines) can be changed in the developer panel (`lib/settings.ts`).

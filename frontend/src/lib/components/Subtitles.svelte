@@ -1,16 +1,19 @@
 <script lang="ts">
-  // What the customer said and what the assistant says, centered under the assistant.
+  // What the customer said and what the assistant says (each can be turned off in the
+  // developer panel), centered under the assistant.
   import { fade } from 'svelte/transition';
   import { ui } from '../store.svelte';
+
+  const lines = $derived(
+    ui.subtitles.filter((line) =>
+      line.speaker === 'customer' ? ui.settings.subtitlesCustomer : ui.settings.subtitlesAssistant,
+    ),
+  );
 </script>
 
 <div class="subtitles" aria-live="polite">
-  {#each ui.subtitles as line, i (line.id)}
-    <p
-      class={line.speaker}
-      class:latest={i === ui.subtitles.length - 1}
-      in:fade={{ duration: 300 }}
-    >
+  {#each lines as line, i (line.id)}
+    <p class={line.speaker} class:latest={i === lines.length - 1} in:fade={{ duration: 300 }}>
       {line.speaker === 'customer' ? `“${line.text}”` : line.text}
     </p>
   {/each}

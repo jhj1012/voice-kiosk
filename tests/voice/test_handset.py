@@ -195,3 +195,18 @@ def test_echo_gate_is_off_by_default():
     leak = tone(16000, 20, amplitude=300)
     sd.streams[1].kwargs["callback"](leak, 320, None, None)
     assert frames[-1] == leak
+
+
+def test_echo_gate_is_switched_on_from_the_developer_panel():
+    sd = FakeSounddevice()
+    frames: list[bytes] = []
+    handset = Handset(AudioConfig(), frames.append, sd)
+    handset.open()
+    handset.set_echo_gate(1000)
+    handset.speaker.write(tone(24000, 500))
+    leak = tone(16000, 20, amplitude=300)
+    sd.streams[1].kwargs["callback"](leak, 320, None, None)
+    assert frames[-1] == b"\x00" * 640
+    handset.set_echo_gate(None)
+    sd.streams[1].kwargs["callback"](leak, 320, None, None)
+    assert frames[-1] == leak

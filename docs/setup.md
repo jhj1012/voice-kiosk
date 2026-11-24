@@ -61,9 +61,10 @@ rates itself; other devices are resampled by the kiosk.
   Bluetooth headset's own microphone switches it to its "hands-free" mode: lower quality, but it
   works.
 - **The assistant interrupts itself** (it stops mid-sentence although nobody spoke): the
-  earpiece leaks into the microphone, e.g. laptop speakers. Set `audio.echo_gate_rms` (start with
-  `800`): while the earpiece plays, quieter microphone audio is sent as silence, while a customer
-  speaking into the mic still interrupts.
+  earpiece leaks into the microphone, e.g. laptop speakers or a loudspeaker for a demo. Tick
+  **에코 차단** in the developer panel (F2; 800 unless `audio.echo_gate_rms` sets another level),
+  or set `audio.echo_gate_rms`: while the earpiece plays, quieter microphone audio is sent as
+  silence, while a customer speaking into the mic still interrupts. The laptop's handset only.
 - **No audio devices** (or `audio.enabled: false`): the kiosk starts anyway, with typed input only.
 - The developer panel's **오디오** switch mutes both the earpiece and the microphone.
 

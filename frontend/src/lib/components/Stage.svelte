@@ -136,15 +136,21 @@
   }
 </script>
 
-<div class="page backdrop-{settings.backdrop}" class:phone={ui.phone} {style}>
+<div
+  class="page backdrop-{settings.backdrop}"
+  class:phone={ui.phone}
+  class:landscape={ui.landscape}
+  class:typing={ui.typing}
+  {style}
+>
   <div class="glow"></div>
-  <Avatar />
+  <div class="figure"><Avatar /></div>
 
   {#if settings.backdrop === 'gradient' && (hasContent || showOrder || idle)}
     <div class="fade" transition:fade={{ duration: 400 }}></div>
   {/if}
 
-  {#if settings.subtitles && !idle && (!ui.phone || settings.subtitlesOnPhone)}
+  {#if (settings.subtitlesAssistant || settings.subtitlesCustomer) && !idle && (!ui.phone || settings.subtitlesOnPhone)}
     <section class="subtitles" transition:fade={{ duration: 300 }}>
       <Subtitles />
     </section>
@@ -324,14 +330,71 @@
     bottom: 4rem;
   }
 
-  /* The laptop's screen: the typing box (TypeBar, in App) takes the bottom. */
-  .page:not(.phone) .content {
+  .figure {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+
+  /* The laptop's typing box (F3; TypeBar, in App) takes the bottom while it is shown. */
+  .typing:not(.landscape) .content {
     bottom: 22rem;
   }
-  .page:not(.phone) .prompt {
+  .typing:not(.landscape) .prompt {
     bottom: 19rem;
   }
-  .page:not(.phone) .order {
+  .typing:not(.landscape) .order {
+    bottom: 11rem;
+  }
+
+  /* Landscape (the laptop or a projector; 120 x 67.5 rem, app.css): the avatar stands at the
+     left, the subtitles, the choices and the order are at the right. */
+  /* The clips' own background (near white), which covers the whole portrait page: around
+     them the page has it too, so they show no edges. */
+  .landscape {
+    background: #fdfdfd;
+  }
+  .landscape .glow {
+    display: none;
+  }
+  .landscape .figure {
+    left: 4rem;
+    right: auto;
+    width: 38rem; /* the clips' 9:16 at the full height */
+  }
+  .landscape .fade {
+    top: 0;
+    left: 44rem;
+    background: linear-gradient(to right, transparent, var(--panel-soft) 6rem);
+  }
+  .landscape .subtitles {
+    top: 3rem;
+    left: 46rem;
+    right: 4rem;
+  }
+  .landscape .content {
+    top: 15rem;
+    bottom: 12rem;
+    left: 46rem;
+    right: 4rem;
+  }
+  .landscape .order {
+    left: 46rem;
+    right: 4rem;
+    bottom: 3rem;
+  }
+  .landscape .prompt {
+    left: 81rem; /* the middle of the right side */
+    bottom: 30rem;
+    max-width: 66rem;
+  }
+  .landscape .prompt.small {
+    bottom: 30rem;
+  }
+  .landscape.typing .content {
+    bottom: 20rem;
+  }
+  .landscape.typing .order {
     bottom: 11rem;
   }
 

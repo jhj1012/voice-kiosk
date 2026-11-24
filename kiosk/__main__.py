@@ -129,6 +129,10 @@ def main() -> int:
     controller.noise_gate_default = config.audio.noise_gate_rms
     if microphone is not None:
         controller.noise_gate = microphone.set_noise_gate
+    if handset is not None:  # the laptop's handset (the phone's microphone has no echo gate)
+        controller.echo_gate_default = config.audio.echo_gate_rms
+        controller.echo_gate = handset.set_echo_gate
+    if microphone is not None:
         controller.apply_noise_gate()  # the developer panel's, if one was saved
     app = create_app(
         controller,

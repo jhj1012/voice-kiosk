@@ -102,6 +102,9 @@ class KioskController(SessionListener):
         # `noiseGate` (0: off) once saved.
         self.noise_gate: Callable[[float | None], None] | None = None
         self.noise_gate_default: float | None = None
+        # The echo gate (the laptop's handset only): the same, `audio.echo_gate_rms` / `echoGate`.
+        self.echo_gate: Callable[[float | None], None] | None = None
+        self.echo_gate_default: float | None = None
         self._clock = clock
         self._seq = 0
         self._subtitles = Subtitles()
@@ -128,6 +131,8 @@ class KioskController(SessionListener):
                 phone=phone,
                 phone_audio=phone_audio,
                 noise_gate_default=self.noise_gate_default,
+                echo_gate=self.echo_gate is not None,
+                echo_gate_default=self.echo_gate_default,
             ),
             settings_event(self.settings.values if self.settings else {}),
             setup_event(self.key_status),
@@ -177,16 +182,27 @@ class KioskController(SessionListener):
         self.apply_noise_gate()
 
     def apply_noise_gate(self) -> None:
-        """The developer panel's noise gate (`noiseGate`, 0: off), else configs/settings.yaml's."""
-        if self.noise_gate is None:
+        """The developer panel's noise and echo gates (`noiseGate`, `echoGate`, 0: off), else
+        configs/settings.yaml's."""
+        self._apply_gate("noise gate", "noiseGate", self.noise_gate, self.noise_gate_default)
+        self._apply_gate("echo gate", "echoGate", self.echo_gate, self.echo_gate_default)
+
+    def _apply_gate(
+        self,
+        name: str,
+        key: str,
+        set_gate: Callable[[float | None], None] | None,
+        default: float | None,
+    ) -> None:
+        if set_gate is None:
             return
-        saved = self.settings.values.get("noiseGate") if self.settings is not None else None
+        saved = self.settings.values.get(key) if self.settings is not None else None
         if isinstance(saved, int | float) and not isinstance(saved, bool) and saved >= 0:
             threshold = float(saved) or None
         else:
-            threshold = self.noise_gate_default
-        self.noise_gate(threshold)
-        log.info("noise gate: %s", threshold if threshold else "off")
+            threshold = default
+        set_gate(threshold)
+        log.info("%s: %s", name, threshold if threshold else "off")
 
     async def set_api_key(self, key: str) -> str:
         """A key typed on the display: checked with Google, then saved and used at once.

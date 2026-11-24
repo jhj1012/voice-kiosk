@@ -8,6 +8,7 @@
     BACKDROPS,
     COLORS,
     INSET_SIDES,
+    LAYOUTS,
     MAX_INSET,
     MAX_NOISE_GATE,
     MAX_TEXT_SIZE,
@@ -51,6 +52,21 @@
     }
   }
 
+  /** The echo gate on (settings.yaml's level, or 800) or off. */
+  const echoOn = $derived((settings.echoGate ?? ui.echoGateDefault ?? 0) > 0);
+  const ECHO_LEVEL = 800;
+
+  function echoGate(on: boolean) {
+    save({ echoGate: on ? ui.echoGateDefault || ECHO_LEVEL : 0 });
+  }
+
+  function echoLevel(text: string) {
+    const value = Number(text);
+    if (text.trim() !== '' && Number.isFinite(value) && value > 0 && value <= MAX_NOISE_GATE) {
+      save({ echoGate: value });
+    }
+  }
+
   function reset() {
     previewSettings(null);
     send({ type: 'settings', reset: true });
@@ -86,23 +102,60 @@
       '꺼짐'})이에요. 위의 <b>마이크 크기</b>를 보고 말할 때보다 훨씬 작게 잡으세요: 너무 크면 말이
     끊겨서 잘못 알아들어요. 바로 적용돼요.
   </p>
+  {#if ui.echoGate}
+    <label class="line">
+      <input type="checkbox" checked={echoOn} onchange={(e) => echoGate(e.currentTarget.checked)} />
+      에코 차단
+      {#if echoOn}
+        <input
+          class="number"
+          type="number"
+          min="1"
+          max={MAX_NOISE_GATE}
+          step="100"
+          value={settings.echoGate || ui.echoGateDefault || ECHO_LEVEL}
+          onchange={(e) => echoLevel(e.currentTarget.value)}
+        />
+      {/if}
+    </label>
+    <p class="note">
+      AI가 말하는 동안 이보다 작은 마이크 소리는 무음으로 보내요. AI 목소리가 스피커로 크게 나와
+      마이크에 들어갈 때 켜세요. 손님이 끼어드는 말은 더 커야 들려요. 바로 적용돼요.
+    </p>
+  {/if}
 </section>
 
 <section>
   <h3>화면 설정</h3>
   <label class="line">
+    화면 방향 (노트북)
+    <select value={settings.layout} onchange={(e) => save({ layout: e.currentTarget.value })}>
+      {#each LAYOUTS as layout (layout.id)}
+        <option value={layout.id}>{layout.label}</option>
+      {/each}
+    </select>
+  </label>
+  <label class="line">
     <input
       type="checkbox"
-      checked={settings.subtitles}
-      onchange={(e) => save({ subtitles: e.currentTarget.checked })}
+      checked={settings.subtitlesAssistant}
+      onchange={(e) => save({ subtitlesAssistant: e.currentTarget.checked })}
     />
-    자막 보기 (손님과 AI가 하는 말, 말하는 대로 바로)
+    AI 말 자막 (말하는 대로 바로)
+  </label>
+  <label class="line">
+    <input
+      type="checkbox"
+      checked={settings.subtitlesCustomer}
+      onchange={(e) => save({ subtitlesCustomer: e.currentTarget.checked })}
+    />
+    손님 말 자막
   </label>
   <label class="line indent">
     <input
       type="checkbox"
       checked={settings.subtitlesOnPhone}
-      disabled={!settings.subtitles}
+      disabled={!settings.subtitlesAssistant && !settings.subtitlesCustomer}
       onchange={(e) => save({ subtitlesOnPhone: e.currentTarget.checked })}
     />
     휴대폰 화면에도 (꺼 두면 노트북 화면에만)
