@@ -6,6 +6,8 @@
 # -Usb ("Start Kiosk (USB).bat"): the same over a USB cable, no Wi-Fi on the phone: adb (Android's
 # debugging tool, downloaded once into tools\) forwards the phone's 127.0.0.1:8766 to this laptop
 # and opens Chrome there; the kiosk then listens for the phone on 127.0.0.1 only (--usb). The phone needs USB debugging on (README).
+# In every mode the laptop opens its own screen too (--open; -FullScreen: --kiosk): the staff's
+# settings (F2), and the screen shown at a presentation.
 param([switch]$FullScreen, [switch]$Phone, [switch]$Usb)
 
 $ErrorActionPreference = 'Stop'
@@ -138,6 +140,7 @@ if (-not (Test-Path 'frontend\dist\index.html')) {
 Write-Host '키오스크를 시작해요. 처음에는 필요한 파일을 받느라 1~2분 걸릴 수 있어요.'
 Write-Host '끄려면 이 창을 닫으세요.'
 Write-Host ''
+$open = if ($FullScreen) { '--kiosk' } else { '--open' }
 if ($Usb) {
     $adb = Find-Adb
     if (-not $adb) { Install-Adb; $adb = Find-Adb }
@@ -151,7 +154,7 @@ if ($Usb) {
     Write-Host ''
     $watch = Start-Job -ScriptBlock $UsbWatch -ArgumentList $adb, $PhonePort
     try {
-        & $uv run --no-dev python -m kiosk --usb
+        & $uv run --no-dev python -m kiosk --usb $open
     } finally {
         Stop-Job $watch -ErrorAction SilentlyContinue
         Remove-Job $watch -Force -ErrorAction SilentlyContinue
@@ -160,9 +163,8 @@ if ($Usb) {
 } elseif ($Phone) {
     Write-Host '휴대폰 모드: 노트북과 화면 기기를 같은 Wi-Fi(핫스팟)에 연결해 두세요. 화면 기기에서 열 주소가 아래에 나와요.'
     Write-Host ''
-    & $uv run --no-dev python -m kiosk --phone
+    & $uv run --no-dev python -m kiosk --phone $open
 } else {
-    $open = if ($FullScreen) { '--kiosk' } else { '--open' }
     & $uv run --no-dev python -m kiosk $open
 }
 if ($LASTEXITCODE -ne 0) { Stop-WithMessage '키오스크가 오류로 멈췄어요. 위의 메시지를 확인해 주세요.' }
