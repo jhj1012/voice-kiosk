@@ -16,20 +16,26 @@ describe('display settings', () => {
   it('takes saved values and ignores malformed ones', () => {
     const settings = normalize({
       backdrop: 'boxes',
-      subtitles: true,
+      subtitlesCustomer: true,
       ignoreUnrelated: true,
       panelOpacity: 0.5,
       colors: { text: '#ABCDEF', accent: 'red', nope: '#000000' },
     });
     expect(settings.backdrop).toBe('boxes');
-    expect(settings.subtitles).toBe(true);
+    expect(settings.subtitlesCustomer).toBe(true);
     expect(settings.ignoreUnrelated).toBe(true);
     expect(settings.panelOpacity).toBe(0.5);
     expect(settings.colors.text).toBe('#abcdef');
     expect(settings.colors.accent).toBe(DEFAULTS.colors.accent);
     expect(settings.colors).not.toHaveProperty('nope');
 
-    const odd = normalize({ backdrop: 'sparkles', subtitles: 'yes', panelOpacity: 3, colors: 1 });
+    const odd = normalize({
+      backdrop: 'sparkles',
+      subtitlesCustomer: 'yes',
+      layout: 'round',
+      panelOpacity: 3,
+      colors: 1,
+    });
     expect(odd).toEqual(DEFAULTS);
   });
 
@@ -84,14 +90,29 @@ describe('noise gate', () => {
     expect(normalize({ noiseGate: 0 }).noiseGate).toBe(0);
     expect(normalize({ noiseGate: -5 }).noiseGate).toBeNull();
     expect(normalize({ noiseGate: 'loud' }).noiseGate).toBeNull();
+    expect(normalize({ echoGate: 800 }).echoGate).toBe(800);
+    expect(normalize({ echoGate: -1 }).echoGate).toBeNull();
   });
 });
 
 describe('subtitles', () => {
-  it('are on for the laptop and off for the phone unless chosen', () => {
-    expect(normalize({}).subtitles).toBe(true);
+  it("show only the assistant's words on the laptop, nothing on the phone, unless chosen", () => {
+    expect(normalize({}).subtitlesAssistant).toBe(true);
+    expect(normalize({}).subtitlesCustomer).toBe(false);
     expect(normalize({}).subtitlesOnPhone).toBe(false);
-    expect(normalize({ subtitles: false }).subtitles).toBe(false);
+    expect(normalize({ subtitlesCustomer: true }).subtitlesCustomer).toBe(true);
     expect(normalize({ subtitlesOnPhone: true }).subtitlesOnPhone).toBe(true);
+  });
+
+  it('stay off if they were turned off before the two were apart', () => {
+    const old = normalize({ subtitles: false });
+    expect([old.subtitlesAssistant, old.subtitlesCustomer]).toEqual([false, false]);
+  });
+});
+
+describe('layout', () => {
+  it('is landscape on the laptop unless portrait was chosen', () => {
+    expect(normalize({}).layout).toBe('landscape');
+    expect(normalize({ layout: 'portrait' }).layout).toBe('portrait');
   });
 });

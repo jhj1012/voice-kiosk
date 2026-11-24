@@ -32,6 +32,8 @@ export interface DisplayState {
   lastAdded: { itemId: string; at: number } | null; // for the "fly into the order" animation
   phone: boolean; // the phone of the phone mode: a tap starts and ends the conversation
   noiseGateDefault: number | null; // configs/settings.yaml's (the developer panel shows it)
+  echoGate: boolean; // the microphone has the echo gate (the laptop's handset)
+  echoGateDefault: number | null; // configs/settings.yaml's
   phoneAudio: boolean; // its microphone and speaker are the handset (Wi-Fi mode; over USB the
   // handset is the laptop's and the phone only the screen)
 }
@@ -77,6 +79,8 @@ export function initialDisplay(): DisplayState {
     phone: false,
     phoneAudio: false,
     noiseGateDefault: null,
+    echoGate: false,
+    echoGateDefault: null,
   };
 }
 
@@ -91,6 +95,8 @@ export function apply(display: DisplayState, event: ServerEvent, now = 0): Displ
         phone: event.phone ?? false,
         phoneAudio: event.phone_audio ?? event.phone ?? false,
         noiseGateDefault: event.noise_gate_default ?? null,
+        echoGate: event.echo_gate ?? false,
+        echoGateDefault: event.echo_gate_default ?? null,
         // a new connection: its state is the current one, even if the kiosk restarted (its
         // snapshots count from 1 again)
         state: { ...display.state, seq: 0 },

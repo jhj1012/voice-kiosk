@@ -73,6 +73,8 @@ def init_event(
     phone: bool = False,
     phone_audio: bool = True,
     noise_gate_default: float | None = None,
+    echo_gate: bool = False,
+    echo_gate_default: float | None = None,
 ) -> Event:
     """`phone`: this display is the phone of the phone mode. `phone_audio`: its microphone and
     speaker are the handset too (Wi-Fi mode); over USB the handset is the laptop's and the phone
@@ -83,6 +85,8 @@ def init_event(
         "phone": phone,
         "phone_audio": phone and phone_audio,
         "noise_gate_default": noise_gate_default,  # configs/settings.yaml (the panel shows it)
+        "echo_gate": echo_gate,  # the laptop's handset is the microphone (it has the echo gate)
+        "echo_gate_default": echo_gate_default,
         "avatar": avatar or {name: None for name in (*AVATAR_CLIPS, "still")},
         "cafe": {
             "name": cafe.name,

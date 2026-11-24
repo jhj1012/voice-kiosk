@@ -12,7 +12,14 @@
   import { resumeMediaButton, startMediaButton } from './lib/mediaButton';
   import { startPhoneAudio, type PhoneAudio } from './lib/phone';
   import { play, type Timeline } from './lib/player';
-  import { dispatch, handsetButtonOn, openTextEdit, previewSettings, ui } from './lib/store.svelte';
+  import {
+    dispatch,
+    handsetButtonOn,
+    openTextEdit,
+    previewSettings,
+    showTyping,
+    ui,
+  } from './lib/store.svelte';
   import DevPanel from './lib/components/DevPanel.svelte';
   import TypeBar from './lib/components/TypeBar.svelte';
   import Stage from './lib/components/Stage.svelte';
@@ -34,6 +41,7 @@
   $effect(() => phoneAudio?.setActive(ui.state.phase !== 'idle'));
   $effect(() => {
     document.body.classList.toggle('phone-mode', ui.phone);
+    document.body.classList.toggle('landscape', ui.landscape);
   });
   $effect(() => {
     document.body.classList.toggle('text-edit', ui.textEdit);
@@ -56,6 +64,9 @@
     if (event.key === 'F2') {
       event.preventDefault();
       devOpen = !devOpen;
+    } else if (event.key === 'F3') {
+      event.preventDefault();
+      showTyping(!ui.typing);
     } else if (event.key === 'F4') {
       event.preventDefault();
       openTextEdit(!ui.textEdit);
@@ -159,7 +170,7 @@
 <svelte:window onkeydown={onKey} onpointerup={onTap} />
 
 <Stage />
-{#if !ui.phone && !ui.keyForm}
+{#if ui.typing && !ui.keyForm}
   <!-- the laptop's screen only: typed customer words, and the F8/F9 answer keys -->
   <TypeBar {send} />
 {/if}

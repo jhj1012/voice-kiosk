@@ -20,7 +20,10 @@ let lastAdded = $state.raw(start.lastAdded);
 let phone = $state(start.phone);
 let phoneAudio = $state(start.phoneAudio);
 let noiseGateDefault = $state(start.noiseGateDefault);
+let echoGate = $state(start.echoGate);
+let echoGateDefault = $state(start.echoGateDefault);
 let textEdit = $state(false); // the text size editor (F4)
+let typing = $state(false); // the laptop's typing box (F3)
 let handsetButton = $state(false); // the phone's handset button works (after the first tap)
 const settings = $derived(normalize(savedSettings));
 
@@ -71,6 +74,21 @@ export const ui = {
   get noiseGateDefault() {
     return noiseGateDefault;
   },
+  /** The microphone has the echo gate (the laptop's handset), and settings.yaml's for it. */
+  get echoGate() {
+    return echoGate;
+  },
+  get echoGateDefault() {
+    return echoGateDefault;
+  },
+  /** The laptop's typing box and the F8/F9 hint (F3; hidden from customers by default). */
+  get typing() {
+    return typing && !phone;
+  },
+  /** The laptop's screen is laid out landscape (the developer panel's choice; never the phone). */
+  get landscape() {
+    return !phone && settings.layout === 'landscape';
+  },
   /** The phone's handset button starts and ends the conversation (from the first tap on). */
   get handsetButton() {
     return handsetButton;
@@ -87,6 +105,10 @@ export const ui = {
 
 export function openKeyForm(open: boolean): void {
   keyFormOpen = open;
+}
+
+export function showTyping(show: boolean): void {
+  typing = show;
 }
 
 export function openTextEdit(open: boolean): void {
@@ -117,6 +139,8 @@ export function dispatch(event: ServerEvent): void {
     phone,
     phoneAudio,
     noiseGateDefault,
+    echoGate,
+    echoGateDefault,
   };
   const after = apply(before, event, performance.now());
   if (after.menu !== menu) menu = after.menu;
@@ -132,4 +156,6 @@ export function dispatch(event: ServerEvent): void {
   if (after.phone !== phone) phone = after.phone;
   if (after.phoneAudio !== phoneAudio) phoneAudio = after.phoneAudio;
   if (after.noiseGateDefault !== noiseGateDefault) noiseGateDefault = after.noiseGateDefault;
+  if (after.echoGate !== echoGate) echoGate = after.echoGate;
+  if (after.echoGateDefault !== echoGateDefault) echoGateDefault = after.echoGateDefault;
 }

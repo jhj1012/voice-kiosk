@@ -69,6 +69,14 @@ body {
 body.phone-mode #app {
   width: 100vw;
 }
+/* The laptop's screen laid out landscape (the developer panel's "화면 방향"): designed for
+   1920x1080, 1rem = 1/67.5 of the height, or less if the window is narrower than 16:9. */
+html:has(body.landscape) {
+  font-size: min(calc(100dvh / 67.5), calc(100vw / 120));
+}
+body.landscape #app {
+  width: 100vw;
+}
 
 /* The text size editor (F4): its text is clicked with the mouse. */
 body.text-edit {

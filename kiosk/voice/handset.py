@@ -179,6 +179,7 @@ class Handset:
         self.microphone = Microphone(config, self._from_microphone, sd)
         self._silence = b"\0" * (config.input_rate * config.frame_ms // 1000 * 2)
         self._noise_gate = NoiseGate(config.noise_gate_rms)
+        self._echo_gate = config.echo_gate_rms
 
     def open(self) -> None:
         self.speaker.open()
@@ -200,12 +201,16 @@ class Handset:
         """The noise gate's RMS from now on (the developer panel); None: off."""
         self._noise_gate.threshold = threshold
 
+    def set_echo_gate(self, threshold: float | None) -> None:
+        """The echo gate's RMS from now on (the developer panel); None: off."""
+        self._echo_gate = threshold
+
     def mic_rms(self) -> float:
         """The microphone's 16-bit RMS, not capped (the unit of `audio.noise_gate_rms`)."""
         return self.microphone.rms
 
     def _from_microphone(self, pcm: bytes) -> None:
-        gate = self.config.echo_gate_rms
+        gate = self._echo_gate
         if gate and self.speaker.playing and rms(pcm) < gate:
             pcm = self._silence[: len(pcm)]  # earpiece leaking into the mic: send silence
         self._on_frame(self._noise_gate(pcm, self.config.input_rate))

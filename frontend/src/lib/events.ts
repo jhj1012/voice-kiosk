@@ -127,6 +127,8 @@ export interface InitEvent {
   phone?: boolean; // this display is the phone of the phone mode
   phone_audio?: boolean; // and its microphone and speaker are the handset (Wi-Fi; not USB)
   noise_gate_default?: number | null; // configs/settings.yaml's noise gate (null: off)
+  echo_gate?: boolean; // the laptop's handset is the microphone: it has the echo gate
+  echo_gate_default?: number | null; // configs/settings.yaml's echo gate (null: off)
 }
 
 // The developer panel's display settings, as saved by the backend (see settings.ts).

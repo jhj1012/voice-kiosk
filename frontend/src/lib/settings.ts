@@ -15,6 +15,15 @@ export const BACKDROPS: { id: Backdrop; label: string }[] = [
   { id: 'boxes', label: '상자' },
 ];
 
+/** The laptop's screen: the portrait kiosk (a centered 9:16 frame), or landscape for a laptop or
+ * a projector (the avatar at the left, the rest at the right). The phone is always portrait. */
+export type Layout = 'portrait' | 'landscape';
+
+export const LAYOUTS: { id: Layout; label: string }[] = [
+  { id: 'landscape', label: '가로 (노트북·프로젝터)' },
+  { id: 'portrait', label: '세로 (키오스크)' },
+];
+
 export interface ColorSetting {
   key: string;
   label: string;
@@ -62,7 +71,9 @@ export const MAX_NOISE_GATE = 32767; // 16-bit RMS
 export interface Settings {
   backdrop: Backdrop;
   panelOpacity: number; // 0..1, the choices' background
-  subtitles: boolean; // what the customer and the assistant say, as text, live (the laptop)
+  layout: Layout; // the laptop's screen
+  subtitlesAssistant: boolean; // what the assistant says, as text, live (the laptop)
+  subtitlesCustomer: boolean; // what the customer says
   subtitlesOnPhone: boolean; // and on the phone's screen too (customers see it there)
   ignoreUnrelated: boolean; // no answer to words not meant for the kiosk (next customer)
   colors: Record<string, string>;
@@ -70,12 +81,15 @@ export interface Settings {
   phoneTextScale: number;
   phoneTextRoles: Record<string, number>;
   noiseGate: number | null; // the microphone's noise gate (16-bit RMS, 0: off); null: settings.yaml's
+  echoGate: number | null; // the laptop handset's echo gate (the same); null: settings.yaml's
 }
 
 export const DEFAULTS: Settings = {
   backdrop: 'boxes',
   panelOpacity: 0.88,
-  subtitles: true, // on the laptop's screen (the staff's)
+  layout: 'landscape',
+  subtitlesAssistant: true, // on the laptop's screen
+  subtitlesCustomer: false,
   subtitlesOnPhone: false,
   ignoreUnrelated: true, // the backend's default too (`KioskController.ignore_unrelated`)
   colors: Object.fromEntries(COLORS.map((c) => [c.key, c.value])),
@@ -83,6 +97,7 @@ export const DEFAULTS: Settings = {
   phoneInsets: { top: 4.8, bottom: 21.3, left: 0, right: 0 },
   phoneTextScale: 100,
   noiseGate: null,
+  echoGate: null,
   // Set with the text size editor (F4) on the team's phone.
   phoneTextRoles: {
     'diningchoice-emoji': 95,
@@ -132,6 +147,12 @@ const isTextSize = (value: unknown): value is number =>
 
 const HEX = /^#[0-9a-f]{6}$/i;
 
+const gate = (value: unknown): number | null =>
+  typeof value === 'number' && value >= 0 && value <= MAX_NOISE_GATE ? value : null;
+
+const flag = (value: unknown, fallback: boolean): boolean =>
+  typeof value === 'boolean' ? value : fallback;
+
 /** The saved values on top of the defaults; unknown or malformed values are ignored. */
 export function normalize(values: Record<string, unknown>): Settings {
   const colors = { ...DEFAULTS.colors };
@@ -166,7 +187,12 @@ export function normalize(values: Record<string, unknown>): Settings {
     backdrop,
     panelOpacity:
       typeof opacity === 'number' && opacity >= 0 && opacity <= 1 ? opacity : DEFAULTS.panelOpacity,
-    subtitles: typeof values.subtitles === 'boolean' ? values.subtitles : DEFAULTS.subtitles,
+    layout: LAYOUTS.some((l) => l.id === values.layout)
+      ? (values.layout as Layout)
+      : DEFAULTS.layout,
+    // `subtitles: false`, saved before the two were apart, turned both off
+    subtitlesAssistant: flag(values.subtitlesAssistant, values.subtitles !== false),
+    subtitlesCustomer: flag(values.subtitlesCustomer, false),
     subtitlesOnPhone: values.subtitlesOnPhone === true,
     ignoreUnrelated:
       typeof values.ignoreUnrelated === 'boolean'
@@ -178,12 +204,8 @@ export function normalize(values: Record<string, unknown>): Settings {
       ? values.phoneTextScale
       : DEFAULTS.phoneTextScale,
     phoneTextRoles,
-    noiseGate:
-      typeof values.noiseGate === 'number' &&
-      values.noiseGate >= 0 &&
-      values.noiseGate <= MAX_NOISE_GATE
-        ? values.noiseGate
-        : null,
+    noiseGate: gate(values.noiseGate),
+    echoGate: gate(values.echoGate),
   };
 }
 

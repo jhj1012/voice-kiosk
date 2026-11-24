@@ -370,6 +370,20 @@ def test_the_noise_gate_follows_the_developer_panel(menu, cafe, tmp_path):
     run(menu, cafe, tmp_path, test)
 
 
+def test_the_echo_gate_is_switched_in_the_developer_panel(menu, cafe, tmp_path):
+    async def test(s: Setup) -> None:
+        set_to: list[float | None] = []
+        s.controller.settings = DisplaySettings(tmp_path / "display.local.json")
+        s.controller.echo_gate, s.controller.echo_gate_default = set_to.append, None
+        s.controller.apply_noise_gate()  # nothing saved: configs/settings.yaml's (off)
+        await s.controller.handle_client({"type": "settings", "values": {"echoGate": 800}})
+        await s.controller.handle_client({"type": "settings", "values": {"echoGate": 0}})
+        assert set_to == [None, 800.0, None]
+        assert s.controller.init_events()[0]["echo_gate"] is True
+
+    run(menu, cafe, tmp_path, test)
+
+
 def test_the_handset_button_starts_and_ends_the_call(menu, cafe, tmp_path):
     async def test(s: Setup) -> None:
         await s.controller.start()
