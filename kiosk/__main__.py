@@ -1,11 +1,12 @@
 """Run the kiosk: `uv run python -m kiosk`, then open the display (http://127.0.0.1:8765).
 
-`--open` opens the display in its own Edge window once the server is ready, `--kiosk` full
-screen (the launchers `Start Kiosk.bat` and `Start Kiosk (full screen).bat` use them).
+`--open` opens the display in its own Edge window (maximized) once the server is ready,
+`--kiosk` full screen; every launcher uses `--open`, the phone's too.
 
 `--phone` (`Start Kiosk (phone).bat`): an Android phone is the screen, and the handset plugged
 into it is the microphone and the speaker. The phone opens https://<this laptop>:8766 (printed
-at the start); the laptop's own display stays at http://127.0.0.1:8765 for the settings (F2).
+at the start); the laptop's own display (http://127.0.0.1:8765) shows the same, landscape, with
+the settings (F2).
 """
 
 from __future__ import annotations
@@ -215,7 +216,7 @@ def print_usb(port: int, laptop_url: str) -> None:
     """Phone mode over USB: nothing to type (the launcher opens Chrome on the phone)."""
     print()
     print(f"USB 연결: 화면 기기는 https://127.0.0.1:{port} (Wi-Fi로는 연결할 수 없어요)")
-    print(f"설정(F2)과 API 키는 이 노트북의 브라우저에서: {laptop_url}")
+    print(f"노트북 화면 (설정 F2, API 키): {laptop_url}")
     print()
 
 
@@ -230,7 +231,7 @@ def print_phone_addresses(addresses: list[str], port: int, laptop_url: str) -> N
             print(f"  (안 열리면: {others})")
     else:
         print("네트워크에 연결되어 있지 않아요. 노트북을 화면 기기와 같은 Wi-Fi에 연결하세요.")
-    print(f"설정(F2)과 API 키는 이 노트북의 브라우저에서: {laptop_url}")
+    print(f"노트북 화면 (설정 F2, API 키): {laptop_url}")
     print("화면 기기에서 계속 로딩만 되면: README의 '방화벽' 부분을 보세요.")
     print()
 
@@ -261,7 +262,7 @@ def open_display(url: str, full_screen: bool) -> None:
         profile = Path(os.environ.get("LOCALAPPDATA", LOG_DIR)) / "voice-kiosk" / "edge"
         args = [f"--kiosk={url}", "--edge-kiosk-type=fullscreen", f"--user-data-dir={profile}"]
     else:
-        args = [f"--app={url}", "--window-size=640,1080"]
+        args = [f"--app={url}", "--start-maximized"]  # landscape by default (F2: 화면 방향)
     subprocess.Popen([edge, *args, "--no-first-run"])
 
 
